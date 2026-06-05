@@ -1,0 +1,9 @@
+﻿<UserControl x:Class="Antigravity_CLI_GUI.Core.MarkdownViewer"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <FlowDocumentScrollViewer x:Name="Viewer"
+                              VerticalScrollBarVisibility="Hidden"
+                              IsHitTestVisible="False"
+                              Margin="0"
+                              Padding="0"/>
+</UserControl>

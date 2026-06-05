@@ -1,0 +1,66 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable">
+
+  <Symbols>
+
+    <!-- Built‑in Visual Studio command set -->
+    <GuidSymbol name="guidSHLMainMenu" value="{D309F791-903F-11D0-9EFC-00A0C911004F}">
+      <IDSymbol name="IDG_VS_TOOLBAR_STANDARD" value="0x0000"/>
+      <IDSymbol name="IDM_VS_MENU_VIEW" value="0x0001"/>
+      <IDSymbol name="IDM_VS_MENU_TOOLS" value="0x0002"/>
+      <IDSymbol name="IDM_VS_CTXT_ITEMNODE" value="0x0402"/>
+    </GuidSymbol>
+
+    <!-- Your command set -->
+    <GuidSymbol name="guidAntigravityCmdSet" value="{A1B2C3D4-E5F6-47A8-9B0C-123456789ABC}">
+      <IDSymbol name="cmdidAntigravityToolbar" value="0x0100"/>
+      <IDSymbol name="cmdidAntigravityToolsMenu" value="0x0101"/>
+      <IDSymbol name="cmdidAntigravitySolutionExplorer" value="0x0102"/>
+      <IDSymbol name="cmdidAntigravityWindow" value="0x0200"/>
+    </GuidSymbol>
+
+  </Symbols>
+
+  <Commands>
+    <Buttons>
+
+      <!-- Toolbar button -->
+      <Button guid="guidAntigravityCmdSet" id="cmdidAntigravityToolbar"
+              priority="0x0100" type="Button">
+        <Parent guid="guidSHLMainMenu" id="IDG_VS_TOOLBAR_STANDARD"/>
+        <Strings>
+          <ButtonText>Antigravity</ButtonText>
+        </Strings>
+      </Button>
+
+      <!-- Tools menu -->
+      <Button guid="guidAntigravityCmdSet" id="cmdidAntigravityToolsMenu"
+              priority="0x0200" type="Button">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS"/>
+        <Strings>
+          <ButtonText>Antigravity</ButtonText>
+        </Strings>
+      </Button>
+
+      <!-- Solution Explorer context menu -->
+      <Button guid="guidAntigravityCmdSet" id="cmdidAntigravitySolutionExplorer"
+              priority="0x0300" type="Button">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_ITEMNODE"/>
+        <Strings>
+          <ButtonText>Antigravity</ButtonText>
+        </Strings>
+      </Button>
+
+      <!-- View → Antigravity (tool window command) -->
+      <Button guid="guidAntigravityCmdSet" id="cmdidAntigravityWindow"
+              priority="0x0001" type="Button">
+        <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_VIEW"/>
+        <Strings>
+          <ButtonText>Antigravity</ButtonText>
+        </Strings>
+      </Button>
+
+    </Buttons>
+  </Commands>
+
+</CommandTable>
