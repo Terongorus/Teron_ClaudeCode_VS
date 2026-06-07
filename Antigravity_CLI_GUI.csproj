@@ -1,18 +1,19 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net481</TargetFramework>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <VSSDKBuildToolsAutoSetup>true</VSSDKBuildToolsAutoSetup>
+    <VSIXProject>true</VSIXProject>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
     <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
+    <CopyOutputSymbolsToOutputDirectory>false</CopyOutputSymbolsToOutputDirectory>
+    <VSSDKTargetPlatformRegRootSuffix>Exp</VSSDKTargetPlatformRegRootSuffix>
+    <UseCodeBase>true</UseCodeBase>
+    <UseWPF>true</UseWPF>
   </PropertyGroup>
-
-  <ItemGroup>
-    <None Remove="Menus.vsct" />
-    <None Remove="Utilities\MarkdownViewer.xaml" />
-  </ItemGroup>
-
+  
   <ItemGroup>
     <PackageReference Include="Community.VisualStudio.Toolkit.17" Version="17.0.551" />
     <PackageReference Include="Community.VisualStudio.Toolkit.Analyzers" Version="1.0.551" PrivateAssets="all" />
@@ -21,14 +22,7 @@
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="18.5.40034" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Page Include="Core\AntigravityToolWindowControl.xaml">
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-    <Page Include="Utilities\MarkdownViewer.xaml">
-      <Generator>MSBuild:Compile</Generator>
-    </Page>
-  </ItemGroup>
+
 
   <ItemGroup>
     <Reference Include="PresentationCore" />
@@ -39,7 +33,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <VSCTCompile Include="Menus.vsct" />
+    <VSCTCompile Include="Menus.vsct">
+      <ResourceName>Menus.ctmenu</ResourceName>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </VSCTCompile>
   </ItemGroup>
 
 </Project>
