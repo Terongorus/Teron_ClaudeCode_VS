@@ -1,0 +1,46 @@
+using ClaudeCodeVS.ViewModels;
+using System.Windows;
+using System.Windows.Controls;
+
+namespace ClaudeCodeVS.Controls
+{
+    /// <summary>Picks the right DataTemplate for each kind of <see cref="ContentBlockViewModel"/>.</summary>
+    public sealed class ContentBlockTemplateSelector : DataTemplateSelector
+    {
+        public DataTemplate? TextTemplate { get; set; }
+        public DataTemplate? ThinkingTemplate { get; set; }
+        public DataTemplate? ToolCallTemplate { get; set; }
+        public DataTemplate? PermissionTemplate { get; set; }
+        public DataTemplate? ResultTemplate { get; set; }
+
+        public override DataTemplate? SelectTemplate(object item, DependencyObject container)
+        {
+            return item switch
+            {
+                TextBlockViewModel => TextTemplate,
+                ThinkingBlockViewModel => ThinkingTemplate,
+                ToolCallViewModel => ToolCallTemplate,
+                PermissionRequestViewModel => PermissionTemplate,
+                ResultFooterViewModel => ResultTemplate,
+                _ => base.SelectTemplate(item, container)
+            };
+        }
+    }
+
+    /// <summary>Picks the user vs. assistant bubble layout for a <see cref="ChatMessageViewModel"/>.</summary>
+    public sealed class ChatMessageTemplateSelector : DataTemplateSelector
+    {
+        public DataTemplate? UserTemplate { get; set; }
+        public DataTemplate? AssistantTemplate { get; set; }
+
+        public override DataTemplate? SelectTemplate(object item, DependencyObject container)
+        {
+            if (item is ChatMessageViewModel message)
+            {
+                return message.Role == ChatRole.User ? UserTemplate : AssistantTemplate;
+            }
+
+            return base.SelectTemplate(item, container);
+        }
+    }
+}

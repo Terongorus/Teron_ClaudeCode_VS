@@ -4,25 +4,25 @@
   <Extern href="stdidcmd.h"/>
   <Extern href="vsshlids.h"/>
 
-  <Commands package="guidAntigravityPackage">
+  <Commands package="guidClaudeCodePackage">
     <Groups>
       <!-- Tools menu group -->
-      <Group guid="guidAntigravityCmdSet" id="AntigravityToolsGroup" priority="0x0600">
+      <Group guid="guidClaudeCodeCmdSet" id="ClaudeCodeToolsGroup" priority="0x0600">
         <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS"/>
       </Group>
 
       <!-- View menu group -->
-      <Group guid="guidAntigravityCmdSet" id="AntigravityViewGroup" priority="0x0600">
+      <Group guid="guidClaudeCodeCmdSet" id="ClaudeCodeViewGroup" priority="0x0600">
         <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_VIEW"/>
       </Group>
 
       <!-- Solution Explorer item context menu group -->
-      <Group guid="guidAntigravityCmdSet" id="AntigravitySolutionExplorerGroup" priority="0x0600">
+      <Group guid="guidClaudeCodeCmdSet" id="ClaudeCodeSolutionExplorerGroup" priority="0x0600">
         <Parent guid="guidSHLMainMenu" id="IDM_VS_CTXT_ITEMNODE"/>
       </Group>
 
       <!-- Toolbar group -->
-      <Group guid="guidAntigravityCmdSet" id="AntigravityToolbarGroup" priority="0x0100">
+      <Group guid="guidClaudeCodeCmdSet" id="ClaudeCodeToolbarGroup" priority="0x0100">
         <Parent guid="guidSHLMainMenu" id="IDM_VS_TOOL_STANDARD"/>
       </Group>
     </Groups>
@@ -30,38 +30,38 @@
     <Buttons>
 
       <!-- Toolbar button -->
-      <Button guid="guidAntigravityCmdSet" id="cmdidAntigravityToolbar"
+      <Button guid="guidClaudeCodeCmdSet" id="cmdidClaudeCodeToolbar"
               priority="0x0100" type="Button">
-        <Parent guid="guidAntigravityCmdSet" id="AntigravityToolbarGroup"/>
+        <Parent guid="guidClaudeCodeCmdSet" id="ClaudeCodeToolbarGroup"/>
         <Strings>
-          <ButtonText>Antigravity</ButtonText>
+          <ButtonText>Claude Code</ButtonText>
         </Strings>
       </Button>
 
       <!-- Tools menu -->
-      <Button guid="guidAntigravityCmdSet" id="cmdidAntigravityToolsMenu"
+      <Button guid="guidClaudeCodeCmdSet" id="cmdidClaudeCodeToolsMenu"
               priority="0x0200" type="Button">
-        <Parent guid="guidAntigravityCmdSet" id="AntigravityToolsGroup"/>
+        <Parent guid="guidClaudeCodeCmdSet" id="ClaudeCodeToolsGroup"/>
         <Strings>
-          <ButtonText>Antigravity</ButtonText>
+          <ButtonText>Claude Code</ButtonText>
         </Strings>
       </Button>
 
       <!-- Solution Explorer context menu -->
-      <Button guid="guidAntigravityCmdSet" id="cmdidAntigravitySolutionExplorer"
+      <Button guid="guidClaudeCodeCmdSet" id="cmdidClaudeCodeSolutionExplorer"
               priority="0x0300" type="Button">
-        <Parent guid="guidAntigravityCmdSet" id="AntigravitySolutionExplorerGroup"/>
+        <Parent guid="guidClaudeCodeCmdSet" id="ClaudeCodeSolutionExplorerGroup"/>
         <Strings>
-          <ButtonText>Antigravity</ButtonText>
+          <ButtonText>Claude Code</ButtonText>
         </Strings>
       </Button>
 
-      <!-- View → Antigravity (tool window command) -->
-      <Button guid="guidAntigravityCmdSet" id="cmdidAntigravityWindow"
+      <!-- View → Claude Code (tool window command) -->
+      <Button guid="guidClaudeCodeCmdSet" id="cmdidClaudeCodeWindow"
               priority="0x0001" type="Button">
-        <Parent guid="guidAntigravityCmdSet" id="AntigravityViewGroup"/>
+        <Parent guid="guidClaudeCodeCmdSet" id="ClaudeCodeViewGroup"/>
         <Strings>
-          <ButtonText>Antigravity</ButtonText>
+          <ButtonText>Claude Code</ButtonText>
         </Strings>
       </Button>
 
@@ -70,22 +70,22 @@
 
   <Symbols>
 
-    <!-- Your package GUID -->
-    <GuidSymbol name="guidAntigravityPackage" value="{8A2B3C4D-E5F6-47A8-9B0C-123456789DEF}" />
+    <!-- Package GUID -->
+    <GuidSymbol name="guidClaudeCodePackage" value="{B99322A3-3DA7-4F49-8780-FB0AAAE9F4B9}" />
 
-    <!-- Your command set -->
-    <GuidSymbol name="guidAntigravityCmdSet" value="{A1B2C3D4-E5F6-47A8-9B0C-123456789ABC}">
+    <!-- Command set -->
+    <GuidSymbol name="guidClaudeCodeCmdSet" value="{09826C76-D07D-4F05-B59C-2DACB68816BF}">
       <!-- Groups -->
-      <IDSymbol name="AntigravityToolsGroup" value="0x1010"/>
-      <IDSymbol name="AntigravityViewGroup" value="0x1020"/>
-      <IDSymbol name="AntigravitySolutionExplorerGroup" value="0x1030"/>
-      <IDSymbol name="AntigravityToolbarGroup" value="0x1040"/>
+      <IDSymbol name="ClaudeCodeToolsGroup" value="0x1010"/>
+      <IDSymbol name="ClaudeCodeViewGroup" value="0x1020"/>
+      <IDSymbol name="ClaudeCodeSolutionExplorerGroup" value="0x1030"/>
+      <IDSymbol name="ClaudeCodeToolbarGroup" value="0x1040"/>
 
       <!-- Buttons -->
-      <IDSymbol name="cmdidAntigravityToolbar" value="0x0100"/>
-      <IDSymbol name="cmdidAntigravityToolsMenu" value="0x0101"/>
-      <IDSymbol name="cmdidAntigravitySolutionExplorer" value="0x0102"/>
-      <IDSymbol name="cmdidAntigravityWindow" value="0x0200"/>
+      <IDSymbol name="cmdidClaudeCodeToolbar" value="0x0100"/>
+      <IDSymbol name="cmdidClaudeCodeToolsMenu" value="0x0101"/>
+      <IDSymbol name="cmdidClaudeCodeSolutionExplorer" value="0x0102"/>
+      <IDSymbol name="cmdidClaudeCodeWindow" value="0x0200"/>
     </GuidSymbol>
 
   </Symbols>

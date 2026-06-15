@@ -1,11 +1,11 @@
-﻿using Microsoft.VisualStudio.Shell;
-using System;
+﻿using ClaudeCodeVS.Core;
 using System.ComponentModel.Design;
+using Microsoft.VisualStudio.Shell;
 using Task = System.Threading.Tasks.Task;
 
-namespace Antigravity_CLI_GUI.Commands
+namespace ClaudeCodeVS.Commands
 {
-    internal sealed class AntigravityCommand
+    internal sealed class ClaudeCodeCommand
     {
         public static async Task InitializeAsync(AsyncPackage package)
         {
@@ -18,15 +18,15 @@ namespace Antigravity_CLI_GUI.Commands
 
             void Add(uint id)
             {
-                var cmdId = new CommandID(GuidList.guidAntigravityCmdSet, (int)id);
+                var cmdId = new CommandID(GuidList.guidClaudeCodeCmdSet, (int)id);
                 var cmd = new MenuCommand((s, e) => ShowWindow(package), cmdId);
                 commandService.AddCommand(cmd);
             }
 
-            Add(PkgCmdIDList.cmdidAntigravityToolbar);
-            Add(PkgCmdIDList.cmdidAntigravityToolsMenu);
-            Add(PkgCmdIDList.cmdidAntigravitySolutionExplorer);
-            Add(PkgCmdIDList.cmdidAntigravityWindow);
+            Add(PkgCmdIDList.cmdidClaudeCodeToolbar);
+            Add(PkgCmdIDList.cmdidClaudeCodeToolsMenu);
+            Add(PkgCmdIDList.cmdidClaudeCodeSolutionExplorer);
+            Add(PkgCmdIDList.cmdidClaudeCodeWindow);
 
         }
 
@@ -38,7 +38,7 @@ namespace Antigravity_CLI_GUI.Commands
             _ = package.JoinableTaskFactory.RunAsync(async () =>
             {
                 await package.ShowToolWindowAsync(
-                    typeof(AntigravityToolWindow),
+                    typeof(ClaudeCodeToolWindow),
                     0,
                     true,
                     package.DisposalToken);

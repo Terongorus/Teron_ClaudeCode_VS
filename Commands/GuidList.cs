@@ -1,11 +1,11 @@
 using System;
 
-namespace Antigravity_CLI_GUI.Commands
+namespace ClaudeCodeVS.Commands
 {
     internal static class GuidList
     {
-        public const string guidAntigravityPackageString = "8A2B3C4D-E5F6-47A8-9B0C-123456789DEF";
-        public static readonly Guid guidAntigravityCmdSet =
-            new Guid("A1B2C3D4-E5F6-47A8-9B0C-123456789ABC");
+        public const string guidClaudeCodePackageString = "B99322A3-3DA7-4F49-8780-FB0AAAE9F4B9";
+        public static readonly Guid guidClaudeCodeCmdSet =
+            new Guid("09826C76-D07D-4F05-B59C-2DACB68816BF");
     }
 }

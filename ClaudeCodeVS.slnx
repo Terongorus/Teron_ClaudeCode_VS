@@ -1,5 +1,5 @@
 <Solution>
-  <Project Path="Antigravity_CLI_GUI.csproj">
+  <Project Path="ClaudeCodeVS.csproj">
     <Deploy />
   </Project>
 </Solution>
