@@ -45,13 +45,13 @@ namespace ClaudeCodeVS.ViewModels
     {
         public string DisplayName { get; }
 
-        /// <summary>Budget passed to the CLI via the MAX_THINKING_TOKENS environment variable, or null for the CLI default.</summary>
-        public int? MaxThinkingTokens { get; }
+        /// <summary>Value passed to the CLI's <c>--effort</c> flag, or null to omit the flag (CLI default).</summary>
+        public string? EffortArg { get; }
 
-        public ThinkingLevelOption(string displayName, int? maxThinkingTokens)
+        public ThinkingLevelOption(string displayName, string? effortArg)
         {
             DisplayName = displayName;
-            MaxThinkingTokens = maxThinkingTokens;
+            EffortArg = effortArg;
         }
 
         public override string ToString() => DisplayName;
@@ -73,9 +73,24 @@ namespace ClaudeCodeVS.ViewModels
         private readonly Dictionary<int, ContentBlockViewModel> _blocksByIndex = new Dictionary<int, ContentBlockViewModel>();
         private readonly Dictionary<string, ToolCallViewModel> _toolCallsByUseId = new Dictionary<string, ToolCallViewModel>();
 
+        // Tools the user has chosen to allow for the remainder of the current session.
+        private readonly HashSet<string> _sessionPermissions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         public ObservableCollection<ChatMessageViewModel> Messages { get; } = new ObservableCollection<ChatMessageViewModel>();
         public ObservableCollection<string> SlashCommands { get; } = new ObservableCollection<string>();
         public ObservableCollection<string> RawOutput { get; } = new ObservableCollection<string>();
+
+        /// <summary>Account info and subscription rate-limit usage, loaded on demand.</summary>
+        public AccountUsageViewModel AccountUsage { get; } = new AccountUsageViewModel();
+
+        /// <summary>Resolved path to the claude executable; empty until <see cref="Initialize"/> succeeds.</summary>
+        public string ClaudePath => _claudePath;
+
+        /// <summary>
+        /// Raised on the UI thread whenever a permission request card is added to the chat.
+        /// The chat view should force-scroll to the bottom so the user sees the prompt.
+        /// </summary>
+        public event EventHandler? PermissionRequestAdded;
 
         public IReadOnlyList<ModelOption> Models { get; } = new[]
         {
@@ -91,16 +106,17 @@ namespace ClaudeCodeVS.ViewModels
             new PermissionModeOption("Default", "default"),
             new PermissionModeOption("Accept Edits", "acceptEdits"),
             new PermissionModeOption("Plan Mode", "plan"),
+            new PermissionModeOption("Auto (background safety checks)", "auto"),
             new PermissionModeOption("Bypass Permissions", "bypassPermissions"),
         };
 
         public IReadOnlyList<ThinkingLevelOption> ThinkingLevels { get; } = new[]
         {
-            new ThinkingLevelOption("Standard", null),
-            new ThinkingLevelOption("Low", 4096),
-            new ThinkingLevelOption("Medium", 10000),
-            new ThinkingLevelOption("High", 24576),
-            new ThinkingLevelOption("Max", 32000),
+            new ThinkingLevelOption("Auto (CLI default)", null),
+            new ThinkingLevelOption("Low", "low"),
+            new ThinkingLevelOption("Medium", "medium"),
+            new ThinkingLevelOption("High", "high"),
+            new ThinkingLevelOption("Max", "max"),
         };
 
         private ModelOption _selectedModel;
@@ -191,7 +207,7 @@ namespace ClaudeCodeVS.ViewModels
 
                 return $"{_sessionTurns} turn{(_sessionTurns == 1 ? "" : "s")} · " +
                        $"${_sessionCostUsd:0.0000} · " +
-                       $"{_sessionInputTokens} in / {_sessionOutputTokens} out tok";
+                       $"{_sessionInputTokens:N0} in / {_sessionOutputTokens:N0} out tokens";
             }
         }
 
@@ -234,7 +250,10 @@ namespace ClaudeCodeVS.ViewModels
 
             _session = new ClaudeCodeSession();
             Hook(_session);
-            _session.Start(_claudePath, _workingDirectory, SelectedModel.Value, SelectedPermissionMode.Value, _lastSessionId, SelectedThinkingLevel.MaxThinkingTokens);
+            _session.Start(
+                _claudePath, _workingDirectory,
+                SelectedModel.Value, SelectedPermissionMode.Value,
+                _lastSessionId, SelectedThinkingLevel.EffortArg);
 
             IsBusy = false;
             StatusText = "Starting Claude Code…";
@@ -246,6 +265,7 @@ namespace ClaudeCodeVS.ViewModels
             _lastSessionId = null;
             Messages.Clear();
             RawOutput.Clear();
+            _sessionPermissions.Clear();
 
             _sessionTurns = 0;
             _sessionCostUsd = 0;
@@ -259,6 +279,10 @@ namespace ClaudeCodeVS.ViewModels
         /// <summary>Stops the running process. The next sent message resumes the conversation.</summary>
         public void StopSession()
         {
+            // Show an "interrupted" marker in the chat if a response was in flight.
+            if (IsBusy && _currentAssistantMessage != null)
+                _currentAssistantMessage.Blocks.Add(new InterruptedBlockViewModel());
+
             StopSessionCore();
             ResetTurnState();
             IsBusy = false;
@@ -426,14 +450,30 @@ namespace ClaudeCodeVS.ViewModels
         {
             EnsureAssistantMessage();
 
-            if (!string.IsNullOrEmpty(e.ToolUseId) && _toolCallsByUseId.TryGetValue(e.ToolUseId!, out var call))
+            _toolCallsByUseId.TryGetValue(e.ToolUseId ?? "", out ToolCallViewModel? call);
+            if (call != null)
                 call.Status = ToolCallStatus.AwaitingApproval;
 
+            // If the user previously chose "Allow for session" for this tool, auto-allow silently.
+            if (_sessionPermissions.Contains(e.ToolName))
+            {
+                if (call != null) call.Status = ToolCallStatus.Running;
+                _ = RespondToPermissionAsync(e, allow: true);
+                return;
+            }
+
             string title = e.Title ?? $"Allow {ToolPresentation.GetDisplayName(e.ToolName)}?";
-            var request = new PermissionRequestViewModel(e.ToolName, title, e.Input, allow => RespondToPermissionAsync(e, allow));
+            var request = new PermissionRequestViewModel(e.ToolName, title, e.Input,
+                (allow, forSession) =>
+                {
+                    if (allow && forSession)
+                        _sessionPermissions.Add(e.ToolName);
+                    return RespondToPermissionAsync(e, allow);
+                });
             _currentAssistantMessage!.Blocks.Add(request);
 
             StatusText = "Waiting for your approval…";
+            PermissionRequestAdded?.Invoke(this, EventArgs.Empty);
         }
 
         private async Task RespondToPermissionAsync(PermissionRequestEvent e, bool allow)
@@ -460,7 +500,7 @@ namespace ClaudeCodeVS.ViewModels
                 parts.Add($"${result.TotalCostUsd.Value:0.0000}");
 
             if (result.InputTokens.HasValue || result.OutputTokens.HasValue)
-                parts.Add($"{result.InputTokens ?? 0} in / {result.OutputTokens ?? 0} out tok");
+                parts.Add($"{result.InputTokens ?? 0:N0} in / {result.OutputTokens ?? 0:N0} out tok");
 
             _currentAssistantMessage!.Blocks.Add(new ResultFooterViewModel(string.Join(" · ", parts), result.IsError));
 

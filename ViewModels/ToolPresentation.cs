@@ -155,6 +155,30 @@ namespace ClaudeCodeVS.ViewModels
             }
         }
 
+        /// <summary>
+        /// Raw "+"/"-" diff lines for Edit/NotebookEdit tool calls; null for everything else.
+        /// Used by DiffViewer to render colored line backgrounds instead of the markdown renderer.
+        /// </summary>
+        public static string? GetRawDiff(string toolName, JObject? input)
+        {
+            if (toolName != "Edit" && toolName != "NotebookEdit") return null;
+            input ??= new JObject();
+
+            string? oldStr = S(input, "old_string");
+            string? newStr = S(input, "new_string");
+            if (oldStr == null && newStr == null) return null;
+
+            var sb = new StringBuilder();
+            if (oldStr != null)
+                foreach (var line in SplitLines(oldStr))
+                    sb.AppendLine("- " + line);
+            if (newStr != null)
+                foreach (var line in SplitLines(newStr))
+                    sb.AppendLine("+ " + line);
+
+            return sb.ToString().TrimEnd();
+        }
+
         /// <summary>Markdown for the expanded card body, or null if there's nothing beyond the summary.</summary>
         public static string? GetDetailMarkdown(string toolName, JObject? input, string? output, bool isError)
         {

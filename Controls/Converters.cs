@@ -1,6 +1,7 @@
 using ClaudeCodeVS.ViewModels;
 using System;
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
@@ -49,6 +50,30 @@ namespace ClaudeCodeVS.Controls
         }
 
         public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>Returns just the file name part of a relative path string (for the @ file picker).</summary>
+    public sealed class FilePathToNameConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value is string s ? Path.GetFileName(s) : "";
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>Returns just the directory portion of a relative path string, with a trailing slash.</summary>
+    public sealed class FilePathToDirConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is not string s) return "";
+            string dir = Path.GetDirectoryName(s)?.Replace('\\', '/') ?? "";
+            return dir.Length > 0 ? dir + "/" : "";
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
             => throw new NotSupportedException();
     }
 

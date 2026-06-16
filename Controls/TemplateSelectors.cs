@@ -12,6 +12,7 @@ namespace ClaudeCodeVS.Controls
         public DataTemplate? ToolCallTemplate { get; set; }
         public DataTemplate? PermissionTemplate { get; set; }
         public DataTemplate? ResultTemplate { get; set; }
+        public DataTemplate? InterruptedTemplate { get; set; }
 
         public override DataTemplate? SelectTemplate(object item, DependencyObject container)
         {
@@ -22,6 +23,7 @@ namespace ClaudeCodeVS.Controls
                 ToolCallViewModel => ToolCallTemplate,
                 PermissionRequestViewModel => PermissionTemplate,
                 ResultFooterViewModel => ResultTemplate,
+                InterruptedBlockViewModel => InterruptedTemplate,
                 _ => base.SelectTemplate(item, container)
             };
         }

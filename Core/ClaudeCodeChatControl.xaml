@@ -26,6 +26,42 @@
         <controls:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
         <controls:ToolStatusToBrushConverter x:Key="ToolStatusToBrushConverter"/>
         <controls:EqualityToVisibilityConverter x:Key="EqualityToVisibilityConverter"/>
+        <controls:FilePathToNameConverter x:Key="FilePathToNameConverter"/>
+        <controls:FilePathToDirConverter x:Key="FilePathToDirConverter"/>
+
+        <!-- ListBoxItem style for popups: replaces all WPF system-color defaults with VS theme brushes -->
+        <Style x:Key="PopupListItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+            <Setter Property="Padding" Value="6,4"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderThickness="0" CornerRadius="3" Margin="2,1">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ClaudeAccentTintBrush}"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsSelected" Value="True"/>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBrush}"/>
+                            </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <!-- Accent (Send) button - small filled circle -->
         <Style x:Key="AccentButtonStyle" TargetType="Button">
@@ -197,10 +233,67 @@
 
         <!-- Small-caps section header inside the command menu -->
         <Style x:Key="MenuSectionHeaderStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
             <Setter Property="FontSize" Value="10"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Opacity" Value="0.55"/>
             <Setter Property="Margin" Value="8,8,8,2"/>
+        </Style>
+
+        <!-- Secondary outlined button (permission prompts, neutral actions) -->
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource HoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Deny button: outlined with error tint (permission prompts) -->
+        <Style x:Key="DenyButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+            <Setter Property="BorderBrush" Value="{StaticResource ErrorBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+        </Style>
+
+        <!-- Usage progress bar: replaces default WPF ProgressBar system-color template -->
+        <Style x:Key="UsageBarStyle" TargetType="ProgressBar">
+            <Setter Property="Height" Value="6"/>
+            <Setter Property="Minimum" Value="0"/>
+            <Setter Property="Maximum" Value="100"/>
+            <Setter Property="Background" Value="{StaticResource HairlineBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource ClaudeAccentBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ProgressBar">
+                        <Border x:Name="PART_Track" Background="{TemplateBinding Background}" CornerRadius="3">
+                            <Border x:Name="PART_Indicator" HorizontalAlignment="Left" CornerRadius="3"
+                                    Background="{TemplateBinding Foreground}"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <!-- Reusable menu-row item: option DisplayName + checkmark when selected -->
@@ -280,9 +373,11 @@
         </DataTemplate>
 
         <DataTemplate x:Key="ThinkingBlockTemplate" DataType="{x:Type vm:ThinkingBlockViewModel}">
-            <Expander IsExpanded="{Binding IsExpanded}" Margin="0,2,0,2" Opacity="0.75">
+            <Expander IsExpanded="{Binding IsExpanded}" Margin="0,2,0,2" Opacity="0.75"
+                      Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
                 <Expander.Header>
-                    <TextBlock Text="Thinking" FontStyle="Italic" FontSize="11.5"/>
+                    <TextBlock Text="Thinking" FontStyle="Italic" FontSize="11.5"
+                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                 </Expander.Header>
                 <controls:MarkdownViewer Margin="18,4,0,2"/>
             </Expander>
@@ -292,7 +387,8 @@
             <Border Background="{StaticResource CardBackgroundBrush}"
                     BorderBrush="{StaticResource HairlineBrush}"
                     BorderThickness="1" CornerRadius="4" Margin="0,3,0,3">
-                <Expander IsExpanded="{Binding IsExpanded}" IsEnabled="{Binding HasDetail}" Padding="2">
+                <Expander IsExpanded="{Binding IsExpanded}" IsEnabled="{Binding HasDetail}" Padding="2"
+                          Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
                     <Expander.Header>
                         <Grid Margin="4,2">
                             <Grid.ColumnDefinitions>
@@ -301,18 +397,25 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="{Binding Icon}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="0" Text="{Binding Icon}" Margin="0,0,6,0" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                             <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontWeight="SemiBold"
-                                       VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                       VerticalAlignment="Center" Margin="0,0,6,0"
+                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                             <TextBlock Grid.Column="2" Text="{Binding Summary}" Opacity="0.7"
-                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                             <TextBlock Grid.Column="3" Text="{Binding StatusGlyph}" FontWeight="Bold"
                                        Margin="6,0,4,0" VerticalAlignment="Center"
                                        Foreground="{Binding Status, Converter={StaticResource ToolStatusToBrushConverter}}"/>
                         </Grid>
                     </Expander.Header>
-                    <controls:MarkdownViewer Margin="22,4,4,4"
-                                              Visibility="{Binding HasDetail, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                    <StackPanel Margin="22,4,4,4">
+                        <controls:DiffViewer RawDiff="{Binding RawDiff}"
+                                              Visibility="{Binding RawDiff, Converter={StaticResource NullToVisibilityConverter}}"/>
+                        <controls:MarkdownViewer
+                                              Visibility="{Binding HasMarkdownDetail, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                    </StackPanel>
                 </Expander>
             </Border>
         </DataTemplate>
@@ -331,7 +434,13 @@
                         <Button Content="Allow" Command="{Binding AllowCommand}" Style="{StaticResource AccentButtonStyle}"
                                 Width="Auto" Height="Auto" VerticalAlignment="Top"
                                 Padding="14,6" Margin="0,0,8,0" MinWidth="72"/>
-                        <Button Content="Deny" Command="{Binding DenyCommand}" MinWidth="72" Padding="14,6"/>
+                        <Button Content="Allow for Session" Command="{Binding AllowForSessionCommand}"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Width="Auto" Height="Auto" VerticalAlignment="Top"
+                                Padding="14,6" Margin="0,0,8,0" MinWidth="120"/>
+                        <Button Content="Deny" Command="{Binding DenyCommand}"
+                                Style="{StaticResource DenyButtonStyle}"
+                                MinWidth="72" Padding="14,6"/>
                     </StackPanel>
                     <TextBlock Text="{Binding ResolutionText}" FontStyle="Italic" Opacity="0.7" Margin="0,8,0,0"
                                Visibility="{Binding IsResolved, Converter={StaticResource BoolToVisibilityConverter}}"/>
@@ -354,12 +463,21 @@
             </TextBlock>
         </DataTemplate>
 
+        <DataTemplate x:Key="InterruptedTemplate" DataType="{x:Type vm:InterruptedBlockViewModel}">
+            <Border Background="{StaticResource CardBackgroundBrush}"
+                    BorderBrush="{StaticResource HairlineBrush}"
+                    BorderThickness="1" CornerRadius="4" Margin="0,4,0,4" Padding="8,6">
+                <TextBlock Text="⏹ Response interrupted" FontStyle="Italic" Opacity="0.6" FontSize="12"/>
+            </Border>
+        </DataTemplate>
+
         <controls:ContentBlockTemplateSelector x:Key="BlockTemplateSelector"
             TextTemplate="{StaticResource TextBlockTemplate}"
             ThinkingTemplate="{StaticResource ThinkingBlockTemplate}"
             ToolCallTemplate="{StaticResource ToolCallTemplate}"
             PermissionTemplate="{StaticResource PermissionTemplate}"
-            ResultTemplate="{StaticResource ResultFooterTemplate}"/>
+            ResultTemplate="{StaticResource ResultFooterTemplate}"
+            InterruptedTemplate="{StaticResource InterruptedTemplate}"/>
 
         <!-- ===================== Message templates ===================== -->
 
@@ -442,7 +560,7 @@
                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                           Padding="10,4" ScrollChanged="OnChatScrollChanged"
                           Visibility="{Binding ClaudeNotFoundMessage, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=Invert}">
-                <ItemsControl ItemsSource="{Binding Messages}" ItemTemplateSelector="{StaticResource MessageTemplateSelector}"/>
+                <ItemsControl x:Name="MessageList" ItemsSource="{Binding Messages}" ItemTemplateSelector="{StaticResource MessageTemplateSelector}"/>
             </ScrollViewer>
 
             <Border Padding="24" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="380"
@@ -505,6 +623,8 @@
                          MinHeight="28" MaxHeight="160"
                          VerticalScrollBarVisibility="Auto"
                          BorderThickness="0" Background="Transparent"
+                         Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                         CaretBrush="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                          Padding="2,2" FontSize="12.5"
                          PreviewKeyDown="OnInputPreviewKeyDown"
                          TextChanged="OnInputTextChanged"/>
@@ -512,10 +632,44 @@
                 <Popup x:Name="SlashCommandPopup" PlacementTarget="{Binding ElementName=InputBox}"
                        Placement="Top" StaysOpen="False" AllowsTransparency="True">
                     <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
+                            TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                             BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="4"
                             MaxHeight="160" MinWidth="240">
                         <ListBox x:Name="SlashCommandList" BorderThickness="0" Background="Transparent"
+                                 Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                 ItemContainerStyle="{StaticResource PopupListItemStyle}"
                                  PreviewMouseLeftButtonUp="OnSlashCommandChosen"/>
+                    </Border>
+                </Popup>
+
+                <Popup x:Name="FilePickerPopup" PlacementTarget="{Binding ElementName=InputBox}"
+                       Placement="Top" StaysOpen="False" AllowsTransparency="True">
+                    <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
+                            TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                            BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="4"
+                            MaxHeight="200" MinWidth="300">
+                        <ListBox x:Name="FilePickerList" BorderThickness="0" Background="Transparent"
+                                 Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                 ItemContainerStyle="{StaticResource PopupListItemStyle}"
+                                 PreviewMouseLeftButtonUp="OnFilePickerChosen">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding Converter={StaticResource FilePathToNameConverter}}"
+                                                   FontFamily="Consolas" FontSize="11.5" Margin="0,0,10,0"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding Converter={StaticResource FilePathToDirConverter}}"
+                                                   FontFamily="Consolas" FontSize="10" Opacity="0.5"
+                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
                     </Border>
                 </Popup>
 
@@ -539,6 +693,7 @@
                     <Popup x:Name="CommandMenuPopup" PlacementTarget="{Binding ElementName=CommandMenuButton}"
                            Placement="Top" StaysOpen="False" AllowsTransparency="True">
                         <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
+                                TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="6"
                                 MinWidth="230" MaxWidth="320" MaxHeight="380" Margin="0,0,0,6">
                             <Border.Effect>
@@ -552,19 +707,178 @@
                                     <TextBlock Text="PERMISSION MODE" Style="{StaticResource MenuSectionHeaderStyle}"/>
                                     <ItemsControl ItemsSource="{Binding PermissionModes}" ItemTemplate="{StaticResource PermissionMenuItemTemplate}"/>
 
-                                    <TextBlock Text="THINKING BUDGET" Style="{StaticResource MenuSectionHeaderStyle}"/>
+                                    <TextBlock Text="EFFORT" Style="{StaticResource MenuSectionHeaderStyle}"/>
                                     <ItemsControl ItemsSource="{Binding ThinkingLevels}" ItemTemplate="{StaticResource ThinkingMenuItemTemplate}"/>
 
                                     <Border Height="1" Background="{StaticResource HairlineBrush}" Margin="6,6"/>
 
-                                    <TextBlock Text="USAGE" Style="{StaticResource MenuSectionHeaderStyle}"/>
+                                    <TextBlock Text="THIS SESSION" Style="{StaticResource MenuSectionHeaderStyle}"/>
                                     <TextBlock Text="{Binding SessionUsageText}" FontSize="11" Opacity="0.75"
-                                               Margin="8,0,8,6" TextWrapping="Wrap"/>
+                                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                               Margin="8,0,8,4" TextWrapping="Wrap"/>
+                                    <Button Content="Account &amp; Usage →" Style="{StaticResource MenuRowButtonStyle}"
+                                            Click="OnAccountUsageClicked" FontSize="11"
+                                            Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                            Margin="0,0,0,2"/>
 
                                     <Border Height="1" Background="{StaticResource HairlineBrush}" Margin="6,6"/>
 
                                     <TextBlock Text="COMMANDS" Style="{StaticResource MenuSectionHeaderStyle}"/>
                                     <ItemsControl ItemsSource="{Binding SlashCommands}" ItemTemplate="{StaticResource SlashCommandMenuItemTemplate}"/>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Border>
+                    </Popup>
+
+                    <Popup x:Name="AccountUsagePopup" PlacementTarget="{Binding ElementName=CommandMenuButton}"
+                           Placement="Top" StaysOpen="False" AllowsTransparency="True">
+                        <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
+                                TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="6"
+                                MinWidth="340" MaxWidth="420" Margin="0,0,0,6">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="16" Opacity="0.3" ShadowDepth="2" Color="Black"/>
+                            </Border.Effect>
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="480">
+                                <StackPanel Margin="14,10">
+
+                                    <!-- Title row -->
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Account &amp; Usage" FontWeight="SemiBold" FontSize="13"
+                                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                        <Button Grid.Column="1" Content="✕" Style="{StaticResource IconButtonStyle}"
+                                                Click="OnCloseAccountUsageClicked" Width="20" Height="20" FontSize="10"/>
+                                    </Grid>
+
+                                    <!-- Loading -->
+                                    <TextBlock Text="Loading…" FontSize="11" Opacity="0.6"
+                                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                               Margin="0,0,0,8"
+                                               Visibility="{Binding AccountUsage.IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                                    <!-- Error -->
+                                    <TextBlock Text="{Binding AccountUsage.LoadError}" FontSize="11" TextWrapping="Wrap"
+                                               Foreground="{StaticResource ErrorBrush}" Margin="0,0,0,8"
+                                               Visibility="{Binding AccountUsage.LoadError, Converter={StaticResource NullToVisibilityConverter}}"/>
+
+                                    <!-- Content (hidden while loading) -->
+                                    <StackPanel Visibility="{Binding AccountUsage.IsLoading, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}">
+
+                                        <!-- ── ACCOUNT ─────────────────────────────── -->
+                                        <TextBlock Text="ACCOUNT" Style="{StaticResource MenuSectionHeaderStyle}" Margin="0,0,0,6"/>
+
+                                        <Grid Margin="0,2,0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Auth method" Opacity="0.65" FontSize="11.5"
+                                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding AccountUsage.AuthMethod}" FontSize="11.5"
+                                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                        </Grid>
+
+                                        <Grid Margin="0,2,0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Email" Opacity="0.65" FontSize="11.5"
+                                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding AccountUsage.Email}" FontSize="11.5"
+                                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                        </Grid>
+
+                                        <Grid Margin="0,2,0,2"
+                                              Visibility="{Binding AccountUsage.Organization, Converter={StaticResource NullToVisibilityConverter}}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Organization" Opacity="0.65" FontSize="11.5"
+                                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding AccountUsage.Organization}" FontSize="11.5"
+                                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                                       MaxWidth="200" TextTrimming="CharacterEllipsis"/>
+                                        </Grid>
+
+                                        <Grid Margin="0,2,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="Plan" Opacity="0.65" FontSize="11.5"
+                                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding AccountUsage.Plan}" FontSize="11.5"
+                                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                        </Grid>
+
+                                        <Border Height="1" Background="{StaticResource HairlineBrush}" Margin="0,0,0,8"/>
+
+                                        <!-- ── USAGE ──────────────────────────────── -->
+                                        <TextBlock Text="USAGE" Style="{StaticResource MenuSectionHeaderStyle}" Margin="0,0,0,8"/>
+
+                                        <!-- Session bar -->
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding AccountUsage.SessionLabel}" FontSize="11.5" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding AccountUsage.SessionPercentLabel}" FontSize="11.5"
+                                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                        </Grid>
+                                        <ProgressBar Value="{Binding AccountUsage.SessionPercent}"
+                                                     Style="{StaticResource UsageBarStyle}" Margin="0,0,0,4"
+                                                     Visibility="{Binding AccountUsage.HasRateLimitData, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        <Border Height="6" CornerRadius="3" Background="{StaticResource HairlineBrush}" Margin="0,0,0,4"
+                                                Visibility="{Binding AccountUsage.HasRateLimitData, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
+                                        <TextBlock Text="{Binding AccountUsage.SessionResetLabel}" FontSize="10.5" Opacity="0.6"
+                                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                                   Margin="0,0,0,10"/>
+
+                                        <!-- Weekly bar -->
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding AccountUsage.WeeklyLabel}" FontSize="11.5" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding AccountUsage.WeeklyPercentLabel}" FontSize="11.5"
+                                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                        </Grid>
+                                        <ProgressBar Value="{Binding AccountUsage.WeeklyPercent}"
+                                                     Style="{StaticResource UsageBarStyle}" Margin="0,0,0,4"
+                                                     Visibility="{Binding AccountUsage.HasRateLimitData, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        <Border Height="6" CornerRadius="3" Background="{StaticResource HairlineBrush}" Margin="0,0,0,4"
+                                                Visibility="{Binding AccountUsage.HasRateLimitData, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
+                                        <TextBlock Text="{Binding AccountUsage.WeeklyResetLabel}" FontSize="10.5" Opacity="0.6"
+                                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                                   Margin="0,0,0,6"/>
+
+                                        <TextBlock FontSize="11" Margin="0,0,0,10">
+                                            <Hyperlink RequestNavigate="OnManageUsageClicked"
+                                                       NavigateUri="https://claude.ai/settings/limits"
+                                                       Foreground="{StaticResource ClaudeAccentBrush}">
+                                                Manage usage on claude.ai
+                                            </Hyperlink>
+                                        </TextBlock>
+
+                                        <Border Height="1" Background="{StaticResource HairlineBrush}" Margin="0,0,0,8"/>
+
+                                        <!-- ── THIS SESSION ───────────────────────── -->
+                                        <TextBlock Text="THIS SESSION" Style="{StaticResource MenuSectionHeaderStyle}" Margin="0,0,0,4"/>
+                                        <TextBlock Text="{Binding SessionUsageText}" FontSize="11" Opacity="0.75"
+                                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                                   Margin="0,0,0,10" TextWrapping="Wrap"/>
+
+                                    </StackPanel>
                                 </StackPanel>
                             </ScrollViewer>
                         </Border>

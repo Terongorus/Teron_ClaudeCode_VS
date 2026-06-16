@@ -3,7 +3,6 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -45,7 +44,7 @@ namespace ClaudeCodeVS.Core
         public bool IsRunning => _process != null && !_process.HasExited;
 
         /// <summary>Starts the underlying `claude` process. Output is consumed on background tasks.</summary>
-        public void Start(string claudePath, string workingDirectory, string? model, string permissionMode, string? resumeSessionId = null, int? maxThinkingTokens = null)
+        public void Start(string claudePath, string workingDirectory, string? model, string permissionMode, string? resumeSessionId = null, string? effortArg = null)
         {
             if (_process != null)
                 throw new InvalidOperationException("Session already started.");
@@ -86,6 +85,12 @@ namespace ClaudeCodeVS.Core
                 args.Add(resumeSessionId!);
             }
 
+            if (!string.IsNullOrWhiteSpace(effortArg))
+            {
+                args.Add("--effort");
+                args.Add(effortArg!);
+            }
+
             var psi = new ProcessStartInfo
             {
                 FileName = fileName,
@@ -99,9 +104,6 @@ namespace ClaudeCodeVS.Core
                 StandardOutputEncoding = new UTF8Encoding(false),
                 StandardErrorEncoding = new UTF8Encoding(false),
             };
-
-            if (maxThinkingTokens.HasValue)
-                psi.EnvironmentVariables["MAX_THINKING_TOKENS"] = maxThinkingTokens.Value.ToString(CultureInfo.InvariantCulture);
 
             _process = new Process { StartInfo = psi, EnableRaisingEvents = true };
             _process.Exited += (s, e) => ProcessExited?.Invoke(this, EventArgs.Empty);
