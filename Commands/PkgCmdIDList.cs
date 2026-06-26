@@ -1,4 +1,4 @@
-namespace ClaudeCodeCLIGUI.Commands
+namespace ClaudeCodeGUI.Commands
 {
     internal static class PkgCmdIDList
     {

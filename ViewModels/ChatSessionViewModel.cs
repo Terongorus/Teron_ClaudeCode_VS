@@ -1,5 +1,5 @@
-using ClaudeCodeCLIGUI.Core;
-using ClaudeCodeCLIGUI.Protocol;
+using ClaudeCodeGUI.Core;
+using ClaudeCodeGUI.Protocol;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
@@ -8,7 +8,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 
-namespace ClaudeCodeCLIGUI.ViewModels
+namespace ClaudeCodeGUI.ViewModels
 {
     public sealed class ModelOption
     {

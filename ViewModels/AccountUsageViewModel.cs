@@ -5,7 +5,7 @@ using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace ClaudeCodeCLIGUI.ViewModels
+namespace ClaudeCodeGUI.ViewModels
 {
     public sealed class AccountUsageViewModel : ObservableObject
     {

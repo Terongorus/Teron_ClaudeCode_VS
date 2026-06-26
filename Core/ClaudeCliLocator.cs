@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 
-namespace ClaudeCodeCLIGUI.Core
+namespace ClaudeCodeGUI.Core
 {
     /// <summary>
     /// Locates the Claude Code CLI executable on the current machine.

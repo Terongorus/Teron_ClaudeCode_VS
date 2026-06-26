@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace ClaudeCodeCLIGUI.ViewModels
+namespace ClaudeCodeGUI.ViewModels
 {
     public abstract class ObservableObject : INotifyPropertyChanged
     {

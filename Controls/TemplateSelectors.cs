@@ -1,8 +1,8 @@
-using ClaudeCodeCLIGUI.ViewModels;
+using ClaudeCodeGUI.ViewModels;
 using System.Windows;
 using System.Windows.Controls;
 
-namespace ClaudeCodeCLIGUI.Controls
+namespace ClaudeCodeGUI.Controls
 {
     /// <summary>Picks the right DataTemplate for each kind of <see cref="ContentBlockViewModel"/>.</summary>
     public sealed class ContentBlockTemplateSelector : DataTemplateSelector
