@@ -1,6 +1,6 @@
 using System.Collections.ObjectModel;
 
-namespace ClaudeCodeCLIGUI.ViewModels
+namespace ClaudeCodeGUI.ViewModels
 {
     public enum ChatRole
     {

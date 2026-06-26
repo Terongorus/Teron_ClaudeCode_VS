@@ -1,5 +1,5 @@
-using ClaudeCodeCLIGUI.Controls;
-using ClaudeCodeCLIGUI.Protocol;
+using ClaudeCodeGUI.Controls;
+using ClaudeCodeGUI.Protocol;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using System.Windows.Documents;
 using System.Windows.Input;
 
-namespace ClaudeCodeCLIGUI.ViewModels
+namespace ClaudeCodeGUI.ViewModels
 {
     /// <summary>Base type for the pieces that make up a chat message (text, thinking, tool calls, ...).</summary>
     public abstract class ContentBlockViewModel : ObservableObject

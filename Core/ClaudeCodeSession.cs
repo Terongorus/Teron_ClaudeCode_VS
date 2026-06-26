@@ -1,4 +1,4 @@
-using ClaudeCodeCLIGUI.Protocol;
+using ClaudeCodeGUI.Protocol;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace ClaudeCodeCLIGUI.Core
+namespace ClaudeCodeGUI.Core
 {
     /// <summary>
     /// Hosts a single `claude -p --input-format stream-json --output-format stream-json

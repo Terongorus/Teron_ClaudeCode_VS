@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="ClaudeCodeCLIGUI.a873f3b2-b2a2-4f5b-ad1e-8d0f1c3dc271" Version="0.1.0" Language="en-US" Publisher="ClaudeCodeCLIGUI" />
+    <Identity Id="ClaudeCodeGUI.a873f3b2-b2a2-4f5b-ad1e-8d0f1c3dc271" Version="0.1.0" Language="en-US" Publisher="ClaudeCodeGUI" />
     <DisplayName>Claude Code for Visual Studio</DisplayName>
     <Description>Run Claude Code directly inside Visual Studio: chat with Claude, review streamed responses and tool calls, approve file edits and commands, and keep your project's context in sync with the Claude Code CLI.</Description>
   </Metadata>

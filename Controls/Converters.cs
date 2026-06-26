@@ -1,4 +1,4 @@
-using ClaudeCodeCLIGUI.ViewModels;
+using ClaudeCodeGUI.ViewModels;
 using System;
 using System.Globalization;
 using System.IO;
@@ -6,7 +6,7 @@ using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
 
-namespace ClaudeCodeCLIGUI.Controls
+namespace ClaudeCodeGUI.Controls
 {
     /// <summary>Bool -> Visibility. Pass ConverterParameter="Invert" to flip the mapping.</summary>
     public sealed class BoolToVisibilityConverter : IValueConverter

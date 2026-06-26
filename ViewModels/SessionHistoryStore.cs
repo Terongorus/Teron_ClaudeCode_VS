@@ -4,13 +4,13 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace ClaudeCodeCLIGUI.ViewModels
+namespace ClaudeCodeGUI.ViewModels
 {
     internal static class SessionHistoryStore
     {
         private static readonly string s_path = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "ClaudeCodeCLIGUI", "sessions.json");
+            "ClaudeCodeGUI", "sessions.json");
 
         public static List<SessionHistoryEntry> Load()
         {

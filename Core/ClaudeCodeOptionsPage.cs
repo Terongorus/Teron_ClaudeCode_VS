@@ -2,7 +2,7 @@ using Microsoft.VisualStudio.Shell;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 
-namespace ClaudeCodeCLIGUI.Core
+namespace ClaudeCodeGUI.Core
 {
     /// <summary>Tools &gt; Options &gt; Claude Code &gt; General.</summary>
     [ComVisible(true)]

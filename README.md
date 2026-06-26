@@ -60,9 +60,9 @@ If the CLI can't be found automatically, set an explicit path under
 ## Building from source
 
 ```bash
-dotnet build ClaudeCodeCLIGUI.csproj
+dotnet build ClaudeCodeGUI.csproj
 ```
 
 Press F5 in Visual Studio to launch an experimental instance with the extension loaded, or
-double-click the generated `bin/Debug/net481/ClaudeCodeCLIGUI.vsix` to install it into your main
+double-click the generated `bin/Debug/net481/ClaudeCodeGUI.vsix` to install it into your main
 Visual Studio.
