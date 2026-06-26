@@ -1,10 +1,10 @@
-using ClaudeCodeVS.ViewModels;
+using ClaudeCodeCLIGUI.ViewModels;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 
-namespace ClaudeCodeVS.Controls
+namespace ClaudeCodeCLIGUI.Controls
 {
     /// <summary>Renders an <see cref="IMarkdownContent"/> view model's markdown, refreshing as it streams in.</summary>
     public partial class MarkdownViewer : UserControl

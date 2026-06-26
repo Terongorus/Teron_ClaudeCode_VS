@@ -1,6 +1,6 @@
 using System;
 
-namespace ClaudeCodeVS.Commands
+namespace ClaudeCodeCLIGUI.Commands
 {
     internal static class GuidList
     {

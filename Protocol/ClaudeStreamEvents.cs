@@ -1,7 +1,8 @@
 using Newtonsoft.Json.Linq;
+using System.Collections.Generic;
 using System.Linq;
 
-namespace ClaudeCodeVS.Protocol
+namespace ClaudeCodeCLIGUI.Protocol
 {
     /// <summary>
     /// Base type for a single parsed line of the `claude -p --input-format stream-json
@@ -177,17 +178,51 @@ namespace ClaudeCodeVS.Protocol
                 DurationMs = root.Value<long?>("duration_ms") ?? 0,
                 NumTurns = root.Value<int?>("num_turns") ?? 0,
                 InputTokens = root["usage"]?.Value<int?>("input_tokens"),
-                OutputTokens = root["usage"]?.Value<int?>("output_tokens")
+                OutputTokens = root["usage"]?.Value<int?>("output_tokens"),
+                Errors = root["errors"] is JArray errs
+                    ? errs.Select(t => t.Value<string>() ?? "").Where(s => s.Length > 0).ToArray()
+                    : System.Array.Empty<string>()
             };
         }
 
         private static ClaudeMessage ParseControlRequest(JObject root)
         {
             var request = root["request"] as JObject ?? new JObject();
+            string requestId = root.Value<string>("request_id") ?? "";
+            string subtype = request.Value<string>("subtype") ?? "";
+
+            if (subtype == "ask_user_question")
+            {
+                var questions = new List<AskQuestion>();
+                if (request["questions"] is JArray arr)
+                {
+                    foreach (var token in arr.OfType<JObject>())
+                    {
+                        var q = new AskQuestion
+                        {
+                            QuestionText = token.Value<string>("question") ?? "",
+                            Header = token.Value<string>("header") ?? "",
+                            IsMultiSelect = token.Value<bool?>("multiSelect") ?? false
+                        };
+                        if (token["options"] is JArray opts)
+                        {
+                            q.Options = opts.OfType<JObject>().Select(o => new AskQuestionOption
+                            {
+                                Label = o.Value<string>("label") ?? "",
+                                Description = o.Value<string>("description") ?? "",
+                                Value = o.Value<string>("value") ?? o.Value<string>("label") ?? ""
+                            }).ToArray();
+                        }
+                        questions.Add(q);
+                    }
+                }
+                return new AskUserQuestionEvent { RequestId = requestId, Questions = questions };
+            }
+
             return new PermissionRequestEvent
             {
-                RequestId = root.Value<string>("request_id") ?? "",
-                Subtype = request.Value<string>("subtype") ?? "",
+                RequestId = requestId,
+                Subtype = subtype,
                 ToolName = request.Value<string>("tool_name") ?? "",
                 ToolUseId = request.Value<string>("tool_use_id"),
                 Input = request["input"] as JObject ?? new JObject(),
@@ -270,9 +305,10 @@ namespace ClaudeCodeVS.Protocol
         public int NumTurns { get; set; }
         public int? InputTokens { get; set; }
         public int? OutputTokens { get; set; }
+        public IReadOnlyList<string> Errors { get; set; } = System.Array.Empty<string>();
     }
 
-    /// <summary>A `can_use_tool` (or other) control request that must be answered via a control_response.</summary>
+    /// <summary>A `can_use_tool` control request that must be answered via a control_response.</summary>
     public sealed class PermissionRequestEvent : ClaudeMessage
     {
         public string RequestId { get; set; } = "";
@@ -282,5 +318,28 @@ namespace ClaudeCodeVS.Protocol
         public JObject Input { get; set; } = new JObject();
         public string? Title { get; set; }
         public string? Description { get; set; }
+    }
+
+    /// <summary>One question inside an `ask_user_question` control request.</summary>
+    public sealed class AskQuestion
+    {
+        public string QuestionText { get; set; } = "";
+        public string Header { get; set; } = "";
+        public bool IsMultiSelect { get; set; }
+        public AskQuestionOption[] Options { get; set; } = System.Array.Empty<AskQuestionOption>();
+    }
+
+    public sealed class AskQuestionOption
+    {
+        public string Label { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Value { get; set; } = "";
+    }
+
+    /// <summary>An `ask_user_question` control request — Claude is asking the user to make choices before proceeding.</summary>
+    public sealed class AskUserQuestionEvent : ClaudeMessage
+    {
+        public string RequestId { get; set; } = "";
+        public IReadOnlyList<AskQuestion> Questions { get; set; } = System.Array.Empty<AskQuestion>();
     }
 }

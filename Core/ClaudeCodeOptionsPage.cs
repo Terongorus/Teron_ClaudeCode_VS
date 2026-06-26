@@ -2,7 +2,7 @@ using Microsoft.VisualStudio.Shell;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 
-namespace ClaudeCodeVS.Core
+namespace ClaudeCodeCLIGUI.Core
 {
     /// <summary>Tools &gt; Options &gt; Claude Code &gt; General.</summary>
     [ComVisible(true)]
@@ -26,9 +26,9 @@ namespace ClaudeCodeVS.Core
 
         [Category("Defaults")]
         [DisplayName("Default Permission Mode")]
-        [Description("Permission mode used when starting a new session.")]
+        [Description("Permission mode used when starting a new session. 'acceptEdits' (recommended) auto-approves file edits and asks for shell commands. 'default' asks for everything but may silently deny file edits in headless mode.")]
         [TypeConverter(typeof(PermissionModeConverter))]
-        public string DefaultPermissionMode { get; set; } = "default";
+        public string DefaultPermissionMode { get; set; } = "acceptEdits";
 
         [Category("Defaults")]
         [DisplayName("Default Effort Level")]

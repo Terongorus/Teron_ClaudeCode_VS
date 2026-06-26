@@ -1,6 +1,6 @@
 using Microsoft.VisualStudio.Shell;
 
-namespace ClaudeCodeVS.Core
+namespace ClaudeCodeCLIGUI.Core
 {
     public class ClaudeCodeToolWindow : ToolWindowPane
     {

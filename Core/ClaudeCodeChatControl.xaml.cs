@@ -1,4 +1,4 @@
-using ClaudeCodeVS.ViewModels;
+using ClaudeCodeCLIGUI.ViewModels;
 using Community.VisualStudio.Toolkit;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
@@ -11,10 +11,13 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Navigation;
+using System.Windows.Threading;
 
-namespace ClaudeCodeVS.Core
+namespace ClaudeCodeCLIGUI.Core
 {
     public partial class ClaudeCodeChatControl : UserControl
     {
@@ -90,12 +93,13 @@ namespace ClaudeCodeVS.Core
             _vm.Dispose();
         }
 
+#pragma warning disable VSTHRD001, VSTHRD110
         private void OnPermissionRequestAdded(object sender, EventArgs e)
         {
-            // Always scroll to bottom when a permission card appears so the user sees it,
-            // regardless of where they were scrolled to before.
-            ChatScrollViewer.ScrollToEnd();
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded,
+                new Action(() => ChatScrollViewer.ScrollToEnd()));
         }
+#pragma warning restore VSTHRD001, VSTHRD110
 
         private async Task IndexProjectFilesAsync()
         {
@@ -165,6 +169,101 @@ namespace ClaudeCodeVS.Core
             _vm.NewSession();
         }
 
+        private void OnHistoryClicked(object sender, RoutedEventArgs e)
+        {
+            if (_vm.IsSessionHistoryVisible)
+            {
+                _vm.IsSessionHistoryVisible = false;
+            }
+            else
+            {
+                SessionSearchBox.Text = "";
+                _vm.IsSessionHistoryVisible = true;
+            }
+        }
+
+        private void OnCloseHistoryClicked(object sender, RoutedEventArgs e)
+        {
+            _vm.IsSessionHistoryVisible = false;
+        }
+
+        private void OnSessionSearchChanged(object sender, TextChangedEventArgs e)
+        {
+            string filter = SessionSearchBox.Text;
+            var view = CollectionViewSource.GetDefaultView(_vm.SessionHistory);
+            if (string.IsNullOrWhiteSpace(filter))
+                view.Filter = null;
+            else
+                view.Filter = obj => obj is SessionHistoryEntry entry &&
+                    entry.Title.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private void OnSessionItemClicked(object sender, MouseButtonEventArgs e)
+        {
+            if (((FrameworkElement)sender).DataContext is SessionHistoryEntry entry)
+                _vm.ResumeSessionEntry(entry);
+        }
+
+#pragma warning disable VSTHRD001, VSTHRD110
+        private void OnEditSessionTitleClicked(object sender, RoutedEventArgs e)
+        {
+            if (((FrameworkElement)sender).Tag is SessionHistoryEntry entry)
+            {
+                entry.IsEditing = true;
+                Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
+                {
+                    if (SessionListBox.ItemContainerGenerator.ContainerFromItem(entry) is ListBoxItem container)
+                    {
+                        var tb = FindVisualChild<TextBox>(container);
+                        if (tb != null) { tb.Focus(); tb.SelectAll(); }
+                    }
+                }));
+            }
+        }
+#pragma warning restore VSTHRD001, VSTHRD110
+
+        private void OnSessionTitleKeyDown(object sender, KeyEventArgs e)
+        {
+            if (sender is TextBox tb && tb.DataContext is SessionHistoryEntry entry)
+            {
+                if (e.Key == Key.Enter)
+                {
+                    _vm.CommitSessionEntryTitle(entry, tb.Text);
+                    e.Handled = true;
+                }
+                else if (e.Key == Key.Escape)
+                {
+                    entry.IsEditing = false;
+                    e.Handled = true;
+                }
+            }
+        }
+
+        private void OnSessionTitleLostFocus(object sender, RoutedEventArgs e)
+        {
+            if (sender is TextBox tb && tb.DataContext is SessionHistoryEntry entry)
+                _vm.CommitSessionEntryTitle(entry, tb.Text);
+        }
+
+        private void OnDeleteSessionClicked(object sender, RoutedEventArgs e)
+        {
+            if (((FrameworkElement)sender).Tag is SessionHistoryEntry entry)
+                _vm.DeleteSessionEntry(entry);
+        }
+
+        private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+        {
+            int count = VisualTreeHelper.GetChildrenCount(parent);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                if (child is T match) return match;
+                var result = FindVisualChild<T>(child);
+                if (result != null) return result;
+            }
+            return null;
+        }
+
         private void OnSettingsClicked(object sender, RoutedEventArgs e)
         {
             ClaudeCodePackage.Instance?.ShowOptions();
@@ -195,6 +294,15 @@ namespace ClaudeCodeVS.Core
         private void OnCloseAccountUsageClicked(object sender, RoutedEventArgs e)
         {
             AccountUsagePopup.IsOpen = false;
+        }
+
+        private void OnCopyRawOutputClicked(object sender, RoutedEventArgs e)
+        {
+            if (_vm.RawOutput.Count > 0)
+            {
+                try { Clipboard.SetText(string.Join("\n", _vm.RawOutput)); }
+                catch { }
+            }
         }
 
         private void OnManageUsageClicked(object sender, RequestNavigateEventArgs e)

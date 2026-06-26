@@ -1,8 +1,8 @@
-using ClaudeCodeVS.ViewModels;
+using ClaudeCodeCLIGUI.ViewModels;
 using System.Windows;
 using System.Windows.Controls;
 
-namespace ClaudeCodeVS.Controls
+namespace ClaudeCodeCLIGUI.Controls
 {
     /// <summary>Picks the right DataTemplate for each kind of <see cref="ContentBlockViewModel"/>.</summary>
     public sealed class ContentBlockTemplateSelector : DataTemplateSelector
@@ -11,6 +11,7 @@ namespace ClaudeCodeVS.Controls
         public DataTemplate? ThinkingTemplate { get; set; }
         public DataTemplate? ToolCallTemplate { get; set; }
         public DataTemplate? PermissionTemplate { get; set; }
+        public DataTemplate? AskUserQuestionTemplate { get; set; }
         public DataTemplate? ResultTemplate { get; set; }
         public DataTemplate? InterruptedTemplate { get; set; }
 
@@ -22,6 +23,7 @@ namespace ClaudeCodeVS.Controls
                 ThinkingBlockViewModel => ThinkingTemplate,
                 ToolCallViewModel => ToolCallTemplate,
                 PermissionRequestViewModel => PermissionTemplate,
+                AskUserQuestionViewModel => AskUserQuestionTemplate,
                 ResultFooterViewModel => ResultTemplate,
                 InterruptedBlockViewModel => InterruptedTemplate,
                 _ => base.SelectTemplate(item, container)

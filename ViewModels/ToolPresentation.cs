@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 
-namespace ClaudeCodeVS.ViewModels
+namespace ClaudeCodeCLIGUI.ViewModels
 {
     /// <summary>
     /// Formats Claude Code's built-in (and MCP) tool calls for display: an icon, a friendly

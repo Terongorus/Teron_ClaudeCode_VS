@@ -7,7 +7,7 @@ using System.Windows.Documents;
 using System.Windows.Markup;
 using System.Windows.Media;
 
-namespace ClaudeCodeVS.Controls
+namespace ClaudeCodeCLIGUI.Controls
 {
     public static class MarkdownRenderer
     {

@@ -1,9 +1,9 @@
-﻿using ClaudeCodeVS.Core;
+using ClaudeCodeCLIGUI.Core;
 using System.ComponentModel.Design;
 using Microsoft.VisualStudio.Shell;
 using Task = System.Threading.Tasks.Task;
 
-namespace ClaudeCodeVS.Commands
+namespace ClaudeCodeCLIGUI.Commands
 {
     internal sealed class ClaudeCodeCommand
     {

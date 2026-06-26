@@ -1,13 +1,14 @@
-using ClaudeCodeVS.Core;
-using ClaudeCodeVS.Protocol;
+using ClaudeCodeCLIGUI.Core;
+using ClaudeCodeCLIGUI.Protocol;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 
-namespace ClaudeCodeVS.ViewModels
+namespace ClaudeCodeCLIGUI.ViewModels
 {
     public sealed class ModelOption
     {
@@ -76,15 +77,27 @@ namespace ClaudeCodeVS.ViewModels
         // Tools the user has chosen to allow for the remainder of the current session.
         private readonly HashSet<string> _sessionPermissions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        // Session history
+        private readonly List<SessionHistoryEntry> _allSessions;
+        private string? _pendingSessionTitle;
+
         public ObservableCollection<ChatMessageViewModel> Messages { get; } = new ObservableCollection<ChatMessageViewModel>();
         public ObservableCollection<string> SlashCommands { get; } = new ObservableCollection<string>();
         public ObservableCollection<string> RawOutput { get; } = new ObservableCollection<string>();
+        public ObservableCollection<SessionHistoryEntry> SessionHistory { get; } = new ObservableCollection<SessionHistoryEntry>();
 
         /// <summary>Account info and subscription rate-limit usage, loaded on demand.</summary>
         public AccountUsageViewModel AccountUsage { get; } = new AccountUsageViewModel();
 
         /// <summary>Resolved path to the claude executable; empty until <see cref="Initialize"/> succeeds.</summary>
         public string ClaudePath => _claudePath;
+
+        private bool _isSessionHistoryVisible;
+        public bool IsSessionHistoryVisible
+        {
+            get => _isSessionHistoryVisible;
+            set => SetField(ref _isSessionHistoryVisible, value);
+        }
 
         /// <summary>
         /// Raised on the UI thread whenever a permission request card is added to the chat.
@@ -103,8 +116,8 @@ namespace ClaudeCodeVS.ViewModels
 
         public IReadOnlyList<PermissionModeOption> PermissionModes { get; } = new[]
         {
-            new PermissionModeOption("Default", "default"),
             new PermissionModeOption("Accept Edits", "acceptEdits"),
+            new PermissionModeOption("Default", "default"),
             new PermissionModeOption("Plan Mode", "plan"),
             new PermissionModeOption("Auto (background safety checks)", "auto"),
             new PermissionModeOption("Bypass Permissions", "bypassPermissions"),
@@ -217,6 +230,10 @@ namespace ClaudeCodeVS.ViewModels
             _selectedModel = Models[0];
             _selectedPermissionMode = PermissionModes[0];
             _selectedThinkingLevel = ThinkingLevels[0];
+
+            _allSessions = SessionHistoryStore.Load();
+            foreach (var e in _allSessions)
+                SessionHistory.Add(e);
         }
 
         /// <summary>Resolves the `claude` executable. Returns false if it couldn't be found.</summary>
@@ -263,6 +280,7 @@ namespace ClaudeCodeVS.ViewModels
         public void NewSession()
         {
             _lastSessionId = null;
+            _pendingSessionTitle = null;
             Messages.Clear();
             RawOutput.Clear();
             _sessionPermissions.Clear();
@@ -302,6 +320,10 @@ namespace ClaudeCodeVS.ViewModels
             userMessage.Blocks.Add(new TextBlockViewModel { Text = text });
             Messages.Add(userMessage);
 
+            // Record the first message as the session title.
+            if (_pendingSessionTitle == null)
+                _pendingSessionTitle = text.Length <= 60 ? text : text.Substring(0, 57) + "…";
+
             ResetTurnState();
             IsBusy = true;
             StatusText = "Working…";
@@ -312,8 +334,6 @@ namespace ClaudeCodeVS.ViewModels
         private void StopSessionCore()
         {
             if (_session == null) return;
-
-            _lastSessionId = _session.LastSessionId ?? _lastSessionId;
             _session.Dispose();
             _session = null;
         }
@@ -343,6 +363,7 @@ namespace ClaudeCodeVS.ViewModels
             session.ToolResult += (s, e) => Post(() => OnToolResult(e));
             session.TurnCompleted += (s, e) => Post(() => OnTurnCompleted(e));
             session.PermissionRequested += (s, e) => Post(() => OnPermissionRequested(e));
+            session.AskUserQuestionRequested += (s, e) => Post(() => OnAskUserQuestionRequested(e));
             session.RawLineReceived += (s, e) => Post(() => OnRawLine(e));
             session.ErrorReceived += (s, e) => Post(() => OnErrorLine(e));
             session.ProcessExited += (s, e) => Post(OnProcessExited);
@@ -448,32 +469,74 @@ namespace ClaudeCodeVS.ViewModels
 
         private void OnPermissionRequested(PermissionRequestEvent e)
         {
-            EnsureAssistantMessage();
+            // Diagnostic: always log entry so Raw output confirms this handler fires.
+            RawOutput.Add($"[permission] {e.ToolName} requested (id={e.RequestId}, tool_use_id={e.ToolUseId})");
+            TrimRawOutput();
 
-            _toolCallsByUseId.TryGetValue(e.ToolUseId ?? "", out ToolCallViewModel? call);
-            if (call != null)
-                call.Status = ToolCallStatus.AwaitingApproval;
-
-            // If the user previously chose "Allow for session" for this tool, auto-allow silently.
-            if (_sessionPermissions.Contains(e.ToolName))
+            try
             {
-                if (call != null) call.Status = ToolCallStatus.Running;
-                _ = RespondToPermissionAsync(e, allow: true);
-                return;
-            }
+                EnsureAssistantMessage();
 
-            string title = e.Title ?? $"Allow {ToolPresentation.GetDisplayName(e.ToolName)}?";
-            var request = new PermissionRequestViewModel(e.ToolName, title, e.Input,
-                (allow, forSession) =>
+                _toolCallsByUseId.TryGetValue(e.ToolUseId ?? "", out ToolCallViewModel? call);
+                if (call != null)
+                    call.Status = ToolCallStatus.AwaitingApproval;
+
+                // If the user previously chose "Allow for session" for this tool, auto-allow silently.
+                if (_sessionPermissions.Contains(e.ToolName))
                 {
-                    if (allow && forSession)
-                        _sessionPermissions.Add(e.ToolName);
-                    return RespondToPermissionAsync(e, allow);
-                });
-            _currentAssistantMessage!.Blocks.Add(request);
+                    if (call != null) call.Status = ToolCallStatus.Running;
+                    _ = RespondToPermissionAsync(e, allow: true);
+                    return;
+                }
 
-            StatusText = "Waiting for your approval…";
-            PermissionRequestAdded?.Invoke(this, EventArgs.Empty);
+                string title = e.Title ?? $"Allow {ToolPresentation.GetDisplayName(e.ToolName)}?";
+                var request = new PermissionRequestViewModel(e.ToolName, title, e.Input,
+                    (allow, forSession) =>
+                    {
+                        if (allow && forSession)
+                            _sessionPermissions.Add(e.ToolName);
+                        return RespondToPermissionAsync(e, allow);
+                    });
+
+                if (_currentAssistantMessage == null)
+                    EnsureAssistantMessage();
+                _currentAssistantMessage!.Blocks.Add(request);
+
+                StatusText = "⚠ Approval required — see chat";
+                PermissionRequestAdded?.Invoke(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                // Card creation failed — deny so the CLI doesn't hang indefinitely.
+                RawOutput.Add($"[permission-request error] {ex.GetType().Name}: {ex.Message}");
+                TrimRawOutput();
+                _ = RespondToPermissionAsync(e, allow: false);
+            }
+        }
+
+        private void OnAskUserQuestionRequested(AskUserQuestionEvent e)
+        {
+            try
+            {
+                EnsureAssistantMessage();
+
+                var vm = new AskUserQuestionViewModel(e.Questions,
+                    async answers =>
+                    {
+                        StatusText = "Working…";
+                        if (_session != null)
+                            await _session.RespondToAskUserQuestionAsync(e.RequestId, answers).ConfigureAwait(false);
+                    });
+
+                _currentAssistantMessage!.Blocks.Add(vm);
+                StatusText = "⚠ Claude has a question — see chat";
+                PermissionRequestAdded?.Invoke(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                RawOutput.Add($"[ask-user-question error] {ex.GetType().Name}: {ex.Message}");
+                TrimRawOutput();
+            }
         }
 
         private async Task RespondToPermissionAsync(PermissionRequestEvent e, bool allow)
@@ -491,8 +554,20 @@ namespace ClaudeCodeVS.ViewModels
         {
             EnsureAssistantMessage();
 
-            if (result.IsError && _currentAssistantMessage!.Blocks.Count == 0 && !string.IsNullOrEmpty(result.ResultText))
-                _currentAssistantMessage.Blocks.Add(new TextBlockViewModel { Text = result.ResultText! });
+            // Update session ID for future resumes only after a successful turn.
+            // On startup failure (numTurns == 0 + error, e.g. bad resume ID) clear it so the
+            // next message starts fresh instead of retrying the same stale ID.
+            if (!result.IsError && !string.IsNullOrEmpty(result.SessionId))
+                _lastSessionId = result.SessionId;
+            else if (result.IsError && result.NumTurns == 0)
+                _lastSessionId = null;
+
+            if (result.IsError && _currentAssistantMessage!.Blocks.Count == 0)
+            {
+                string msg = result.ResultText
+                    ?? (result.Errors.Count > 0 ? string.Join("\n", result.Errors) : "An error occurred.");
+                _currentAssistantMessage.Blocks.Add(new TextBlockViewModel { Text = msg });
+            }
 
             var parts = new List<string> { result.IsError ? "Error" : "Done", FormatDuration(result.DurationMs) };
 
@@ -503,6 +578,11 @@ namespace ClaudeCodeVS.ViewModels
                 parts.Add($"{result.InputTokens ?? 0:N0} in / {result.OutputTokens ?? 0:N0} out tok");
 
             _currentAssistantMessage!.Blocks.Add(new ResultFooterViewModel(string.Join(" · ", parts), result.IsError));
+
+            // Persist to session history after each completed turn.
+            string? sid = _session?.LastSessionId ?? result.SessionId;
+            if (!string.IsNullOrEmpty(sid))
+                SaveOrUpdateSession(sid!);
 
             _sessionTurns++;
             _sessionCostUsd += result.TotalCostUsd ?? 0;
@@ -544,6 +624,72 @@ namespace ClaudeCodeVS.ViewModels
         }
 
         private static string FormatDuration(long ms) => ms < 1000 ? $"{ms} ms" : $"{ms / 1000.0:0.0}s";
+
+        // ─── Session history ──────────────────────────────────────────────────────
+
+        private void SaveOrUpdateSession(string sessionId)
+        {
+            var existing = _allSessions.FirstOrDefault(e => e.SessionId == sessionId);
+            if (existing != null)
+            {
+                existing.LastUsed = DateTime.UtcNow;
+                int idx = _allSessions.IndexOf(existing);
+                if (idx > 0)
+                {
+                    _allSessions.RemoveAt(idx);
+                    _allSessions.Insert(0, existing);
+                    SessionHistory.Move(SessionHistory.IndexOf(existing), 0);
+                }
+            }
+            else
+            {
+                var entry = new SessionHistoryEntry
+                {
+                    SessionId = sessionId,
+                    Title = _pendingSessionTitle ?? "Untitled",
+                    LastUsed = DateTime.UtcNow,
+                    WorkingDirectory = _workingDirectory
+                };
+                _allSessions.Insert(0, entry);
+                SessionHistory.Insert(0, entry);
+                while (_allSessions.Count > 100)
+                {
+                    _allSessions.RemoveAt(_allSessions.Count - 1);
+                    SessionHistory.RemoveAt(SessionHistory.Count - 1);
+                }
+            }
+            SessionHistoryStore.Save(_allSessions);
+        }
+
+        public void ResumeSessionEntry(SessionHistoryEntry entry)
+        {
+            IsSessionHistoryVisible = false;
+            _lastSessionId = entry.SessionId;
+            _pendingSessionTitle = entry.Title;
+            Messages.Clear();
+            RawOutput.Clear();
+            _sessionPermissions.Clear();
+            _sessionTurns = 0;
+            _sessionCostUsd = 0;
+            _sessionInputTokens = 0;
+            _sessionOutputTokens = 0;
+            OnPropertyChanged(nameof(SessionUsageText));
+            StartSession();
+        }
+
+        public void DeleteSessionEntry(SessionHistoryEntry entry)
+        {
+            _allSessions.Remove(entry);
+            SessionHistory.Remove(entry);
+            SessionHistoryStore.Save(_allSessions);
+        }
+
+        public void CommitSessionEntryTitle(SessionHistoryEntry entry, string newTitle)
+        {
+            entry.Title = string.IsNullOrWhiteSpace(newTitle) ? "Untitled" : newTitle.Trim();
+            entry.IsEditing = false;
+            SessionHistoryStore.Save(_allSessions);
+        }
 
         public void Dispose() => StopSessionCore();
     }

@@ -1,4 +1,4 @@
-using ClaudeCodeVS.Protocol;
+using ClaudeCodeCLIGUI.Protocol;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
@@ -8,7 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace ClaudeCodeVS.Core
+namespace ClaudeCodeCLIGUI.Core
 {
     /// <summary>
     /// Hosts a single `claude -p --input-format stream-json --output-format stream-json
@@ -34,6 +34,7 @@ namespace ClaudeCodeVS.Core
         public event EventHandler<ToolResultEvent>? ToolResult;
         public event EventHandler<ResultMessage>? TurnCompleted;
         public event EventHandler<PermissionRequestEvent>? PermissionRequested;
+        public event EventHandler<AskUserQuestionEvent>? AskUserQuestionRequested;
         public event EventHandler<string>? RawLineReceived;
         public event EventHandler<string>? ErrorReceived;
         public event EventHandler? ProcessExited;
@@ -199,6 +200,26 @@ namespace ClaudeCodeVS.Core
             return WriteLineAsync(payload);
         }
 
+        /// <summary>Answers an `ask_user_question` control request with the user's selections.</summary>
+        public Task RespondToAskUserQuestionAsync(string requestId, System.Collections.Generic.Dictionary<string, string> answers)
+        {
+            var answersObj = new JObject();
+            foreach (var kv in answers)
+                answersObj[kv.Key] = kv.Value;
+
+            var payload = new JObject
+            {
+                ["type"] = "control_response",
+                ["response"] = new JObject
+                {
+                    ["subtype"] = "success",
+                    ["request_id"] = requestId,
+                    ["response"] = new JObject { ["answers"] = answersObj }
+                }
+            };
+            return WriteLineAsync(payload);
+        }
+
         /// <summary>Answers a `can_use_tool` control request.</summary>
         public Task RespondToPermissionAsync(string requestId, bool allow, JObject? updatedInput = null, string? denyMessage = null)
         {
@@ -333,7 +354,12 @@ namespace ClaudeCodeVS.Core
                     break;
 
                 case PermissionRequestEvent permission:
+                    ErrorReceived?.Invoke(this, $"[permission] control_request parsed: {permission.ToolName} subtype={permission.Subtype}");
                     PermissionRequested?.Invoke(this, permission);
+                    break;
+
+                case AskUserQuestionEvent askQuestion:
+                    AskUserQuestionRequested?.Invoke(this, askQuestion);
                     break;
             }
         }

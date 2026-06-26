@@ -1,9 +1,9 @@
-<UserControl x:Class="ClaudeCodeVS.Core.ClaudeCodeChatControl"
+<UserControl x:Class="ClaudeCodeCLIGUI.Core.ClaudeCodeChatControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vs="clr-namespace:Microsoft.VisualStudio.Shell;assembly=Microsoft.VisualStudio.Shell.15.0"
-             xmlns:vm="clr-namespace:ClaudeCodeVS.ViewModels"
-             xmlns:controls="clr-namespace:ClaudeCodeVS.Controls"
+             xmlns:vm="clr-namespace:ClaudeCodeCLIGUI.ViewModels"
+             xmlns:controls="clr-namespace:ClaudeCodeCLIGUI.Controls"
              Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
              Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
 
@@ -57,6 +57,29 @@
                                 </MultiTrigger.Conditions>
                                 <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBrush}"/>
                             </MultiTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ListBoxItem style for session history: hover highlight, no selection blue -->
+        <Style x:Key="SessionListItemStyle" TargetType="ListBoxItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}"
+                                BorderThickness="0" CornerRadius="3" Margin="4,1">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBrush}"/>
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -420,13 +443,100 @@
             </Border>
         </DataTemplate>
 
+        <DataTemplate x:Key="AskUserQuestionTemplate" DataType="{x:Type vm:AskUserQuestionViewModel}">
+            <Border Background="{StaticResource ClaudeAccentTintBrush}"
+                    BorderBrush="{StaticResource ClaudeAccentBrush}"
+                    TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                    BorderThickness="1" CornerRadius="4" Margin="0,4,0,4" Padding="10,8">
+                <StackPanel>
+                    <TextBlock Text="Claude has a question" FontWeight="SemiBold" Margin="0,0,0,8"
+                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+
+                    <ItemsControl ItemsSource="{Binding QuestionAnswers}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:QuestionAnswerViewModel}">
+                                <StackPanel Margin="0,0,0,10">
+                                    <TextBlock Text="{Binding Question.QuestionText}" FontWeight="SemiBold"
+                                               TextWrapping="Wrap" Margin="0,0,0,4"
+                                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+
+                                    <!-- Option list (single-select) -->
+                                    <ListBox ItemsSource="{Binding Question.Options}"
+                                             SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
+                                             ItemContainerStyle="{StaticResource PopupListItemStyle}"
+                                             BorderThickness="0" Background="Transparent"
+                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                             Visibility="{Binding HasOptions, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="◉ " FontSize="11" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource ClaudeAccentBrush}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Text" Value="○ "/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                                        <Setter Property="Text" Value="◉ "/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Label}" FontSize="12"
+                                                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                                        <TextBlock Text="{Binding Description}" FontSize="10.5" Opacity="0.6"
+                                                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                                                   Visibility="{Binding Description, Converter={StaticResource NullToVisibilityConverter}}"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+
+                                    <!-- Free-text input (when no options) -->
+                                    <TextBox Text="{Binding AnswerText, UpdateSourceTrigger=PropertyChanged}"
+                                             Margin="0,2,0,0" Padding="4,4" FontSize="12"
+                                             BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
+                                             Background="Transparent"
+                                             Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                             CaretBrush="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                             Visibility="{Binding HasOptions, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Action buttons -->
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0"
+                                Visibility="{Binding IsResolved, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}">
+                        <Button Content="Submit" Command="{Binding SubmitCommand}" Style="{StaticResource AccentButtonStyle}"
+                                Width="Auto" Height="Auto" VerticalAlignment="Top"
+                                Padding="14,6" Margin="0,0,8,0" MinWidth="72"/>
+                        <Button Content="Skip" Command="{Binding SkipCommand}" Style="{StaticResource SecondaryButtonStyle}"
+                                Width="Auto" Height="Auto" VerticalAlignment="Top"
+                                Padding="14,6" MinWidth="60"/>
+                    </StackPanel>
+
+                    <!-- Resolution text -->
+                    <TextBlock Text="{Binding ResolutionText}" FontStyle="Italic" Opacity="0.7" Margin="0,8,0,0"
+                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                               Visibility="{Binding IsResolved, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
         <DataTemplate x:Key="PermissionTemplate" DataType="{x:Type vm:PermissionRequestViewModel}">
             <Border Background="{StaticResource ClaudeAccentTintBrush}"
                     BorderBrush="{StaticResource ClaudeAccentBrush}"
+                    TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                     BorderThickness="1" CornerRadius="4" Margin="0,4,0,4" Padding="10,8">
                 <StackPanel>
-                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold"/>
-                    <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" Opacity="0.8" Margin="0,4,0,0"/>
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
+                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                    <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" Opacity="0.8" Margin="0,4,0,0"
+                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                     <controls:MarkdownViewer Margin="0,6,0,0"
                                               Visibility="{Binding HasDetail, Converter={StaticResource BoolToVisibilityConverter}}"/>
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0"
@@ -443,6 +553,7 @@
                                 MinWidth="72" Padding="14,6"/>
                     </StackPanel>
                     <TextBlock Text="{Binding ResolutionText}" FontStyle="Italic" Opacity="0.7" Margin="0,8,0,0"
+                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                Visibility="{Binding IsResolved, Converter={StaticResource BoolToVisibilityConverter}}"/>
                 </StackPanel>
             </Border>
@@ -476,6 +587,7 @@
             ThinkingTemplate="{StaticResource ThinkingBlockTemplate}"
             ToolCallTemplate="{StaticResource ToolCallTemplate}"
             PermissionTemplate="{StaticResource PermissionTemplate}"
+            AskUserQuestionTemplate="{StaticResource AskUserQuestionTemplate}"
             ResultTemplate="{StaticResource ResultFooterTemplate}"
             InterruptedTemplate="{StaticResource InterruptedTemplate}"/>
 
@@ -519,6 +631,7 @@
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
                 <Border Grid.Column="0" Width="22" Height="22" CornerRadius="5"
@@ -536,12 +649,18 @@
                     <TextBlock Text="✚"/>
                 </Button>
 
-                <ToggleButton Grid.Column="3" Content="Raw" Style="{StaticResource PillToggleStyle}"
+                <Button Grid.Column="3" x:Name="HistoryButton" Style="{StaticResource IconButtonStyle}"
+                        Click="OnHistoryClicked" Margin="2,0" VerticalAlignment="Center"
+                        ToolTip="Session history">
+                    <TextBlock Text="☰"/>
+                </Button>
+
+                <ToggleButton Grid.Column="4" Content="Raw" Style="{StaticResource PillToggleStyle}"
                                IsChecked="{Binding IsRawOutputVisible}"
                                Margin="2,0" VerticalAlignment="Center"
                                ToolTip="Show raw CLI output"/>
 
-                <Button Grid.Column="4" Style="{StaticResource IconButtonStyle}"
+                <Button Grid.Column="5" Style="{StaticResource IconButtonStyle}"
                         Click="OnSettingsClicked" Margin="2,0,0,0" VerticalAlignment="Center"
                         ToolTip="Claude Code settings">
                     <TextBlock Text="⚙"/>
@@ -572,20 +691,190 @@
                                TextAlignment="Center" Opacity="0.85"/>
                 </StackPanel>
             </Border>
+
+            <!-- ===================== Session History Overlay ===================== -->
+            <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
+                    TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                    Visibility="{Binding IsSessionHistoryVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="10,10,10,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="Session History" FontWeight="SemiBold" FontSize="13"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                        <Button Grid.Column="1" Content="✕" Style="{StaticResource IconButtonStyle}"
+                                Click="OnCloseHistoryClicked" Width="22" Height="22" FontSize="10"/>
+                    </Grid>
+
+                    <Border Grid.Row="1" Margin="10,0,10,8"
+                            Background="{StaticResource CardBackgroundBrush}"
+                            BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="5">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="⌕" Margin="8,0,4,0" VerticalAlignment="Center"
+                                       Opacity="0.5" FontSize="14"
+                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                            <Grid Grid.Column="1">
+                                <TextBox x:Name="SessionSearchBox" BorderThickness="0" Background="Transparent"
+                                         Padding="2,5" FontSize="12"
+                                         Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                         CaretBrush="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                         TextChanged="OnSessionSearchChanged"/>
+                                <TextBlock IsHitTestVisible="False" Text="Search sessions…" Opacity="0.4"
+                                           Margin="2,5,2,5" FontSize="12" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Text, ElementName=SessionSearchBox}" Value="">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <ListBox Grid.Row="2" x:Name="SessionListBox"
+                             ItemsSource="{Binding SessionHistory}"
+                             BorderThickness="0" Background="Transparent"
+                             Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ItemContainerStyle="{StaticResource SessionListItemStyle}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:SessionHistoryEntry}">
+                                <Grid VerticalAlignment="Center">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Title text (click to resume) -->
+                                    <TextBlock Grid.Column="0" Text="{Binding Title}" FontSize="12.5"
+                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                               Cursor="Hand" MouseLeftButtonUp="OnSessionItemClicked"
+                                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+
+                                    <!-- Inline title editor -->
+                                    <TextBox Grid.Column="0" Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"
+                                             FontSize="12.5" BorderThickness="0,0,0,1"
+                                             BorderBrush="{StaticResource ClaudeAccentBrush}"
+                                             Background="Transparent" Padding="0,1"
+                                             Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                             CaretBrush="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                             KeyDown="OnSessionTitleKeyDown" LostFocus="OnSessionTitleLostFocus">
+                                        <TextBox.Style>
+                                            <Style TargetType="TextBox">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBox.Style>
+                                    </TextBox>
+
+                                    <!-- Time ago (hidden while editing) -->
+                                    <TextBlock Grid.Column="1" Text="{Binding TimeAgo}" FontSize="11" Opacity="0.55"
+                                               VerticalAlignment="Center" Margin="0,0,4,0"
+                                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+
+                                    <!-- Edit + Delete (visible on row hover, hidden while editing) -->
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <StackPanel.Style>
+                                            <Style TargetType="StackPanel">
+                                                <Setter Property="Visibility" Value="Hidden"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </StackPanel.Style>
+                                        <Button Content="✎" Style="{StaticResource IconButtonStyle}"
+                                                Width="22" Height="22" FontSize="12" Margin="2,0"
+                                                Tag="{Binding}" Click="OnEditSessionTitleClicked"/>
+                                        <Button Content="✕" Style="{StaticResource IconButtonStyle}"
+                                                Width="22" Height="22" FontSize="10" Margin="2,0"
+                                                Foreground="{StaticResource ErrorBrush}"
+                                                Tag="{Binding}" Click="OnDeleteSessionClicked"/>
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Grid>
+            </Border>
         </Grid>
 
         <!-- ===================== Raw output panel ===================== -->
         <Border Grid.Row="3" MaxHeight="160" BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,1,0,0"
                 Visibility="{Binding IsRawOutputVisible, Converter={StaticResource BoolToVisibilityConverter}}">
-            <ScrollViewer x:Name="RawOutputScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
-                <ItemsControl ItemsSource="{Binding RawOutput}" Margin="6,2">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="10" TextWrapping="NoWrap" Opacity="0.75"/>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <Grid Grid.Row="0" Margin="6,3,6,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="Raw CLI Output" FontSize="10" Opacity="0.55" VerticalAlignment="Center"
+                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                    <Button Grid.Column="1" Content="Copy All" Style="{StaticResource ChipButtonStyle}"
+                            Click="OnCopyRawOutputClicked" Padding="7,2" FontSize="10"/>
+                </Grid>
+                <ScrollViewer Grid.Row="1" x:Name="RawOutputScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding RawOutput}" Margin="6,2">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="10" TextWrapping="NoWrap" Opacity="0.75"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
         </Border>
 
         <!-- ===================== Input area ===================== -->
@@ -833,7 +1122,7 @@
                                             <TextBlock Grid.Column="1" Text="{Binding AccountUsage.SessionPercentLabel}" FontSize="11.5"
                                                        Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                                         </Grid>
-                                        <ProgressBar Value="{Binding AccountUsage.SessionPercent}"
+                                        <ProgressBar Value="{Binding AccountUsage.SessionPercent, Mode=OneWay}"
                                                      Style="{StaticResource UsageBarStyle}" Margin="0,0,0,4"
                                                      Visibility="{Binding AccountUsage.HasRateLimitData, Converter={StaticResource BoolToVisibilityConverter}}"/>
                                         <Border Height="6" CornerRadius="3" Background="{StaticResource HairlineBrush}" Margin="0,0,0,4"
@@ -853,7 +1142,7 @@
                                             <TextBlock Grid.Column="1" Text="{Binding AccountUsage.WeeklyPercentLabel}" FontSize="11.5"
                                                        Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                                         </Grid>
-                                        <ProgressBar Value="{Binding AccountUsage.WeeklyPercent}"
+                                        <ProgressBar Value="{Binding AccountUsage.WeeklyPercent, Mode=OneWay}"
                                                      Style="{StaticResource UsageBarStyle}" Margin="0,0,0,4"
                                                      Visibility="{Binding AccountUsage.HasRateLimitData, Converter={StaticResource BoolToVisibilityConverter}}"/>
                                         <Border Height="6" CornerRadius="3" Background="{StaticResource HairlineBrush}" Margin="0,0,0,4"

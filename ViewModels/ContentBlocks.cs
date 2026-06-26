@@ -1,11 +1,14 @@
-using ClaudeCodeVS.Controls;
+using ClaudeCodeCLIGUI.Controls;
+using ClaudeCodeCLIGUI.Protocol;
 using Newtonsoft.Json.Linq;
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using System.Windows.Documents;
 using System.Windows.Input;
 
-namespace ClaudeCodeVS.ViewModels
+namespace ClaudeCodeCLIGUI.ViewModels
 {
     /// <summary>Base type for the pieces that make up a chat message (text, thinking, tool calls, ...).</summary>
     public abstract class ContentBlockViewModel : ObservableObject
@@ -240,6 +243,93 @@ namespace ClaudeCodeVS.ViewModels
             IsResolved = true;
             ResolutionText = allow ? (forSession ? "Allowed for this session" : "Allowed") : "Denied";
             _ = respond(allow, forSession);
+        }
+    }
+
+    /// <summary>Tracks the user's current selection for one question inside an AskUserQuestion card.</summary>
+    public sealed class QuestionAnswerViewModel : ObservableObject
+    {
+        public AskQuestion Question { get; }
+        public bool HasOptions => Question.Options.Length > 0;
+
+        private int _selectedIndex = -1;
+        public int SelectedIndex
+        {
+            get => _selectedIndex;
+            set => SetField(ref _selectedIndex, value);
+        }
+
+        private string _answerText = "";
+        public string AnswerText
+        {
+            get => _answerText;
+            set => SetField(ref _answerText, value);
+        }
+
+        public string? GetAnswer()
+        {
+            if (HasOptions)
+            {
+                return _selectedIndex >= 0 && _selectedIndex < Question.Options.Length
+                    ? Question.Options[_selectedIndex].Value
+                    : null;
+            }
+            return string.IsNullOrWhiteSpace(_answerText) ? null : _answerText.Trim();
+        }
+
+        public QuestionAnswerViewModel(AskQuestion question) { Question = question; }
+    }
+
+    /// <summary>An inline card for `ask_user_question` control requests — lets the user answer before Claude continues.</summary>
+    public sealed class AskUserQuestionViewModel : ContentBlockViewModel
+    {
+        public ObservableCollection<QuestionAnswerViewModel> QuestionAnswers { get; }
+            = new ObservableCollection<QuestionAnswerViewModel>();
+
+        private bool _isResolved;
+        public bool IsResolved
+        {
+            get => _isResolved;
+            private set => SetField(ref _isResolved, value);
+        }
+
+        private string? _resolutionText;
+        public string? ResolutionText
+        {
+            get => _resolutionText;
+            private set => SetField(ref _resolutionText, value);
+        }
+
+        public ICommand SubmitCommand { get; }
+        public ICommand SkipCommand { get; }
+
+        public AskUserQuestionViewModel(IReadOnlyList<AskQuestion> questions, Func<Dictionary<string, string>, Task> respond)
+        {
+            foreach (var q in questions)
+                QuestionAnswers.Add(new QuestionAnswerViewModel(q));
+
+            SubmitCommand = new RelayCommand(() => Resolve(skip: false, respond), () => !IsResolved);
+            SkipCommand = new RelayCommand(() => Resolve(skip: true, respond), () => !IsResolved);
+        }
+
+        private void Resolve(bool skip, Func<Dictionary<string, string>, Task> respond)
+        {
+            if (IsResolved) return;
+            IsResolved = true;
+
+            var answers = new Dictionary<string, string>();
+            if (!skip)
+            {
+                foreach (var qa in QuestionAnswers)
+                {
+                    string? answer = qa.GetAnswer();
+                    if (answer != null)
+                        answers[qa.Question.QuestionText] = answer;
+                }
+            }
+
+            ResolutionText = skip ? "Skipped" : $"Submitted {answers.Count} answer(s)";
+            _ = respond(answers);
         }
     }
 
