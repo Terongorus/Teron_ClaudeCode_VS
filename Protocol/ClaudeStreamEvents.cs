@@ -47,6 +47,9 @@ namespace TeronClaudeCodeVS.Protocol
                 case "control_request":
                     return ParseControlRequest(root);
 
+                case "control_response":
+                    return ParseControlResponse(root);
+
                 default:
                     return null;
             }
@@ -61,7 +64,7 @@ namespace TeronClaudeCodeVS.Protocol
                 {
                     SessionId = root.Value<string>("session_id") ?? "",
                     Model = root.Value<string>("model") ?? "",
-                    PermissionMode = root.Value<string>("permissionMode") ?? "default",
+                    PermissionMode = root.Value<string>("permissionMode") ?? "manual",
                     Cwd = root.Value<string>("cwd") ?? "",
                     SlashCommands = root["slash_commands"]?
                         .Select(t => t.Value<string>() ?? "")
@@ -152,7 +155,8 @@ namespace TeronClaudeCodeVS.Protocol
             return null;
         }
 
-        private static string ExtractText(JToken? content)
+        /// <summary>Extracts plain text from a tool_result's `content` field (string or an array of text blocks). Also reused by <see cref="TeronClaudeCodeVS.ViewModels.TranscriptReplay"/> for the on-disk transcript, which uses the identical shape.</summary>
+        internal static string ExtractText(JToken? content)
         {
             if (content == null) return "";
             if (content.Type == JTokenType.String) return content.Value<string>() ?? "";
@@ -230,6 +234,23 @@ namespace TeronClaudeCodeVS.Protocol
                 Description = request.Value<string>("description")
             };
         }
+
+        /// <summary>
+        /// Parses a client-originated control_request's reply, e.g. the answer to an interrupt
+        /// request. Wire shape (confirmed live): {"type":"control_response","response":
+        /// {"subtype":"success","request_id":"...","response":{...payload...}}} - note request_id
+        /// lives inside the outer "response" object here, unlike control_request where it's top-level.
+        /// </summary>
+        private static ClaudeMessage ParseControlResponse(JObject root)
+        {
+            var envelope = root["response"] as JObject ?? new JObject();
+            return new ControlResponseEvent
+            {
+                RequestId = envelope.Value<string>("request_id") ?? "",
+                Subtype = envelope.Value<string>("subtype") ?? "",
+                Response = envelope["response"] as JObject ?? new JObject()
+            };
+        }
     }
 
     /// <summary>A line that wasn't valid JSON (e.g. stderr noise) - surfaced for the raw output panel only.</summary>
@@ -243,7 +264,7 @@ namespace TeronClaudeCodeVS.Protocol
     {
         public string SessionId { get; set; } = "";
         public string Model { get; set; } = "";
-        public string PermissionMode { get; set; } = "default";
+        public string PermissionMode { get; set; } = "manual";
         public string Cwd { get; set; } = "";
         public string[] SlashCommands { get; set; } = System.Array.Empty<string>();
     }
@@ -341,5 +362,13 @@ namespace TeronClaudeCodeVS.Protocol
     {
         public string RequestId { get; set; } = "";
         public IReadOnlyList<AskQuestion> Questions { get; set; } = System.Array.Empty<AskQuestion>();
+    }
+
+    /// <summary>The CLI's reply to a client-originated control_request (e.g. an interrupt), correlated by RequestId.</summary>
+    public sealed class ControlResponseEvent : ClaudeMessage
+    {
+        public string RequestId { get; set; } = "";
+        public string Subtype { get; set; } = "";
+        public JObject Response { get; set; } = new JObject();
     }
 }

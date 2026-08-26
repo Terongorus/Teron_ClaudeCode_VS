@@ -26,6 +26,7 @@ namespace TeronClaudeCodeVS.Core
 
         private string[] _projectFiles = Array.Empty<string>();
         private int _atTokenStart = -1;
+        private bool _sendOnCtrlEnter;
 
         private static readonly HashSet<string> s_excludedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
             { ".git", "node_modules", "bin", "obj", ".vs", ".idea", "packages", "__pycache__", ".nuget" };
@@ -69,6 +70,13 @@ namespace TeronClaudeCodeVS.Core
                     if (effort != null)
                         _vm.SelectedThinkingLevel = effort;
                 }
+
+                _sendOnCtrlEnter = options.SendOnCtrlEnter;
+
+                _vm.SetAdvancedOptions(
+                    options.AdditionalDirectories, options.AllowedTools, options.DisallowedTools,
+                    options.AppendSystemPrompt, options.SystemPrompt,
+                    options.McpConfigPaths, options.StrictMcpConfig);
             }
 
             MessageList.AddHandler(
@@ -269,9 +277,11 @@ namespace TeronClaudeCodeVS.Core
             ClaudeCodePackage.Instance?.ShowOptions();
         }
 
-        private void OnStopClicked(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100
+        private async void OnStopClicked(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
-            _vm.StopSession();
+            await _vm.StopSessionAsync();
         }
 
         private void OnCommandMenuClicked(object sender, RoutedEventArgs e)
@@ -419,7 +429,11 @@ namespace TeronClaudeCodeVS.Core
                 }
             }
 
-            if (e.Key == Key.Enter && Keyboard.Modifiers != ModifierKeys.Shift)
+            bool isSendChord = _sendOnCtrlEnter
+                ? e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control
+                : e.Key == Key.Enter && Keyboard.Modifiers != ModifierKeys.Shift;
+
+            if (isSendChord)
             {
                 e.Handled = true;
                 await SendCurrentInputAsync();

@@ -1,5 +1,7 @@
 using Microsoft.VisualStudio.Shell;
 using System.ComponentModel;
+using System.ComponentModel.Design;
+using System.Drawing.Design;
 using System.Runtime.InteropServices;
 
 namespace TeronClaudeCodeVS.Core
@@ -26,7 +28,7 @@ namespace TeronClaudeCodeVS.Core
 
         [Category("Defaults")]
         [DisplayName("Default Permission Mode")]
-        [Description("Permission mode used when starting a new session. 'acceptEdits' (recommended) auto-approves file edits and asks for shell commands. 'default' asks for everything but may silently deny file edits in headless mode.")]
+        [Description("Permission mode used when starting a new session. 'acceptEdits' (recommended) auto-approves file edits and asks for shell commands. 'manual' asks for everything. Blank = let the CLI use its own configured default.")]
         [TypeConverter(typeof(PermissionModeConverter))]
         public string DefaultPermissionMode { get; set; } = "acceptEdits";
 
@@ -36,12 +38,62 @@ namespace TeronClaudeCodeVS.Core
         [TypeConverter(typeof(EffortConverter))]
         public string DefaultEffortLevel { get; set; } = "";
 
+        [Category("Defaults")]
+        [DisplayName("Additional Allowed Directories")]
+        [Description("Extra directories (one per line) the CLI is allowed to read/write outside the working directory, passed via --add-dir.")]
+        [Editor(typeof(MultilineStringEditor), typeof(UITypeEditor))]
+        public string AdditionalDirectories { get; set; } = "";
+
         // ─── Input ──────────────────────────────────────────────────────────────
 
         [Category("Input")]
         [DisplayName("Send on Ctrl+Enter")]
         [Description("When true, Ctrl+Enter sends a message; Enter inserts a newline. When false (default), Enter sends and Shift+Enter inserts a newline.")]
         public bool SendOnCtrlEnter { get; set; } = false;
+
+        // ─── Tools ──────────────────────────────────────────────────────────────
+
+        [Category("Tools")]
+        [DisplayName("Allowed Tools")]
+        [Description("Tool names to allow, e.g. \"Bash(git *)\" or \"Edit\" (space/newline-separated). Passed via --allowedTools.")]
+        [Editor(typeof(MultilineStringEditor), typeof(UITypeEditor))]
+        public string AllowedTools { get; set; } = "";
+
+        [Category("Tools")]
+        [DisplayName("Disallowed Tools")]
+        [Description("Tool names to deny (space/newline-separated). Passed via --disallowedTools.")]
+        [Editor(typeof(MultilineStringEditor), typeof(UITypeEditor))]
+        public string DisallowedTools { get; set; } = "";
+
+        // ─── Advanced ───────────────────────────────────────────────────────────
+
+        [Category("Advanced")]
+        [DisplayName("Append System Prompt")]
+        [Description("Text appended to the CLI's default system prompt via --append-system-prompt. Blank = don't append anything.")]
+        [Editor(typeof(MultilineStringEditor), typeof(UITypeEditor))]
+        public string AppendSystemPrompt { get; set; } = "";
+
+        [Category("Advanced")]
+        [DisplayName("System Prompt (replace)")]
+        [Description("Replaces the CLI's entire default system prompt via --system-prompt. Can break the extension's own tool-use assumptions if misused - most users want 'Append System Prompt' instead. Blank = use the CLI's default.")]
+        [Editor(typeof(MultilineStringEditor), typeof(UITypeEditor))]
+        public string SystemPrompt { get; set; } = "";
+
+        [Category("Advanced")]
+        [DisplayName("MCP Config Files")]
+        [Description("Paths to MCP server config JSON files (one per line), passed via --mcp-config. Blank = use whatever MCP configuration the CLI already has (e.g. project .mcp.json).")]
+        [Editor(typeof(MultilineStringEditor), typeof(UITypeEditor))]
+        public string McpConfigPaths { get; set; } = "";
+
+        [Category("Advanced")]
+        [DisplayName("Strict MCP Config")]
+        [Description("When true, only use MCP servers from 'MCP Config Files' above, ignoring all other MCP configuration (--strict-mcp-config).")]
+        public bool StrictMcpConfig { get; set; } = false;
+
+        [Category("Advanced")]
+        [DisplayName("Enable IDE Companion Server")]
+        [Description("Runs a local loopback-only WebSocket server (like the official VS Code extension's own 'ide' MCP server) so the CLI can see live diagnostics, the active selection, and show proposed edits as a real Visual Studio diff view. Disable if you don't want any local listening socket, even loopback-only.")]
+        public bool EnableIdeCompanionServer { get; set; } = true;
 
         // ─── Internal (not shown in Tools > Options) ───────────────────────────
 
@@ -64,7 +116,7 @@ namespace TeronClaudeCodeVS.Core
             public override bool GetStandardValuesSupported(ITypeDescriptorContext? context) => true;
             public override bool GetStandardValuesExclusive(ITypeDescriptorContext? context) => true;
             public override StandardValuesCollection GetStandardValues(ITypeDescriptorContext? context)
-                => new StandardValuesCollection(new[] { "default", "acceptEdits", "plan", "auto", "bypassPermissions" });
+                => new StandardValuesCollection(new[] { "", "manual", "acceptEdits", "dontAsk", "plan", "auto", "bypassPermissions" });
         }
 
         private sealed class EffortConverter : TypeConverter
@@ -72,7 +124,7 @@ namespace TeronClaudeCodeVS.Core
             public override bool GetStandardValuesSupported(ITypeDescriptorContext? context) => true;
             public override bool GetStandardValuesExclusive(ITypeDescriptorContext? context) => false;
             public override StandardValuesCollection GetStandardValues(ITypeDescriptorContext? context)
-                => new StandardValuesCollection(new[] { "", "low", "medium", "high", "max" });
+                => new StandardValuesCollection(new[] { "", "low", "medium", "high", "xhigh", "max" });
         }
     }
 }

@@ -18,6 +18,8 @@ namespace TeronClaudeCodeVS.Core
         /// <summary>Per-VS-instance singleton, used by the tool window to reach package services (e.g. the Options page).</summary>
         internal static ClaudeCodePackage? Instance { get; private set; }
 
+        private IdeCompanionServer? _ideServer;
+
         protected override async Task InitializeAsync(CancellationToken cancellationToken, IProgress<ServiceProgressData> progress)
         {
             Instance = this;
@@ -33,5 +35,47 @@ namespace TeronClaudeCodeVS.Core
         internal ClaudeCodeOptionsPage GetOptions() => (ClaudeCodeOptionsPage)GetDialogPage(typeof(ClaudeCodeOptionsPage));
 
         internal void ShowOptions() => ShowOptionPage(typeof(ClaudeCodeOptionsPage));
+
+        /// <summary>
+        /// Lazily starts (or stops, if the setting was just turned off) the shared IDE companion
+        /// server - one per VS instance, shared across every chat session/tool window, matching
+        /// how the CLI subprocess is meant to discover exactly one IDE per environment. Call from
+        /// the UI thread (matches every other VS SDK call this server's handlers make).
+        /// </summary>
+        internal IdeCompanionServer? GetOrStartIdeServer()
+        {
+            if (!GetOptions().EnableIdeCompanionServer)
+            {
+                _ideServer?.Stop();
+                return null;
+            }
+
+            if (_ideServer == null)
+                _ideServer = new IdeCompanionServer(new VsIdeToolHandlers(), GetWorkspaceFoldersSync);
+
+            if (!_ideServer.IsRunning)
+                _ideServer.Start();
+            else
+                _ideServer.RefreshWorkspaceFolders();
+
+            return _ideServer;
+        }
+
+        // Called synchronously from IdeCompanionServer.WriteLockFile - blocking-join is
+        // intentional here (matches the fire-and-forget-elsewhere-but-synchronous-here need of
+        // writing the lockfile before Start() returns), same as other callers of this method
+        // that are already on the UI thread when they call it.
+        private static System.Collections.Generic.IReadOnlyList<string> GetWorkspaceFoldersSync()
+        {
+            string dir = ThreadHelper.JoinableTaskFactory.Run(VsIdeToolHandlers.GetWorkingDirectoryAsync);
+            return new[] { dir };
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+                _ideServer?.Dispose();
+            base.Dispose(disposing);
+        }
     }
 }

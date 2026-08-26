@@ -30,10 +30,10 @@ namespace TeronClaudeCodeVS.ViewModels
     {
         public string DisplayName { get; }
 
-        /// <summary>Value passed to `--permission-mode`.</summary>
-        public string Value { get; }
+        /// <summary>Value passed to `--permission-mode`, or null to omit the flag (CLI default).</summary>
+        public string? Value { get; }
 
-        public PermissionModeOption(string displayName, string value)
+        public PermissionModeOption(string displayName, string? value)
         {
             DisplayName = displayName;
             Value = value;
@@ -81,6 +81,10 @@ namespace TeronClaudeCodeVS.ViewModels
         private readonly List<SessionHistoryEntry> _allSessions;
         private string? _pendingSessionTitle;
 
+        // Advanced CLI-flag settings, read once from Options at startup (no live chat-UI toggle
+        // for these, unlike model/permission-mode/effort) - see SetAdvancedOptions.
+        private ClaudeSessionStartOptions _advancedOptions = new ClaudeSessionStartOptions();
+
         public ObservableCollection<ChatMessageViewModel> Messages { get; } = new ObservableCollection<ChatMessageViewModel>();
         public ObservableCollection<string> SlashCommands { get; } = new ObservableCollection<string>();
         public ObservableCollection<string> RawOutput { get; } = new ObservableCollection<string>();
@@ -116,8 +120,10 @@ namespace TeronClaudeCodeVS.ViewModels
 
         public IReadOnlyList<PermissionModeOption> PermissionModes { get; } = new[]
         {
+            new PermissionModeOption("CLI Default", null),
             new PermissionModeOption("Accept Edits", "acceptEdits"),
-            new PermissionModeOption("Default", "default"),
+            new PermissionModeOption("Manual", "manual"),
+            new PermissionModeOption("Don't Ask", "dontAsk"),
             new PermissionModeOption("Plan Mode", "plan"),
             new PermissionModeOption("Auto (background safety checks)", "auto"),
             new PermissionModeOption("Bypass Permissions", "bypassPermissions"),
@@ -129,6 +135,7 @@ namespace TeronClaudeCodeVS.ViewModels
             new ThinkingLevelOption("Low", "low"),
             new ThinkingLevelOption("Medium", "medium"),
             new ThinkingLevelOption("High", "high"),
+            new ThinkingLevelOption("X-High", "xhigh"),
             new ThinkingLevelOption("Max", "max"),
         };
 
@@ -228,13 +235,50 @@ namespace TeronClaudeCodeVS.ViewModels
         {
             _dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
             _selectedModel = Models[0];
-            _selectedPermissionMode = PermissionModes[0];
+            // "Accept Edits" is the extension's own startup default (not the CLI's) - selected by
+            // value rather than array index so reordering PermissionModes above can't silently
+            // change this.
+            _selectedPermissionMode = PermissionModes.First(m => m.Value == "acceptEdits");
             _selectedThinkingLevel = ThinkingLevels[0];
 
             _allSessions = SessionHistoryStore.Load();
             foreach (var e in _allSessions)
                 SessionHistory.Add(e);
         }
+
+        /// <summary>
+        /// Parses the Options page's raw multi-line/token strings into <see cref="_advancedOptions"/>.
+        /// Call once at startup, before the first <see cref="StartSession"/>. Directory/file-path
+        /// lists split on newline only (a path can contain spaces); tool-name lists split on any
+        /// whitespace, matching the CLI's own "comma or space-separated" acceptance.
+        /// </summary>
+        public void SetAdvancedOptions(string additionalDirectories, string allowedTools, string disallowedTools,
+            string appendSystemPrompt, string systemPrompt, string mcpConfigPaths, bool strictMcpConfig)
+        {
+            _advancedOptions = new ClaudeSessionStartOptions
+            {
+                AdditionalDirectories = SplitLines(additionalDirectories),
+                AllowedTools = SplitTokens(allowedTools),
+                DisallowedTools = SplitTokens(disallowedTools),
+                AppendSystemPrompt = string.IsNullOrWhiteSpace(appendSystemPrompt) ? null : appendSystemPrompt,
+                SystemPrompt = string.IsNullOrWhiteSpace(systemPrompt) ? null : systemPrompt,
+                McpConfigPaths = SplitLines(mcpConfigPaths),
+                StrictMcpConfig = strictMcpConfig
+            };
+        }
+
+        private static IReadOnlyList<string> SplitLines(string text) =>
+            string.IsNullOrWhiteSpace(text)
+                ? Array.Empty<string>()
+                : text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => s.Trim())
+                    .Where(s => s.Length > 0)
+                    .ToArray();
+
+        private static IReadOnlyList<string> SplitTokens(string text) =>
+            string.IsNullOrWhiteSpace(text)
+                ? Array.Empty<string>()
+                : text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
 
         /// <summary>Resolves the `claude` executable. Returns false if it couldn't be found.</summary>
         public bool Initialize(string? claudeExecutableOverride, string workingDirectory)
@@ -265,12 +309,15 @@ namespace TeronClaudeCodeVS.ViewModels
             StopSessionCore();
             ResetTurnState();
 
+            int? ideServerPort = ClaudeCodePackage.Instance?.GetOrStartIdeServer()?.Port;
+
             _session = new ClaudeCodeSession();
             Hook(_session);
             _session.Start(
                 _claudePath, _workingDirectory,
                 SelectedModel.Value, SelectedPermissionMode.Value,
-                _lastSessionId, SelectedThinkingLevel.EffortArg);
+                _lastSessionId, SelectedThinkingLevel.EffortArg,
+                _advancedOptions, ideServerPort);
 
             IsBusy = false;
             StatusText = "Starting Claude Code…";
@@ -294,12 +341,31 @@ namespace TeronClaudeCodeVS.ViewModels
             StartSession();
         }
 
-        /// <summary>Stops the running process. The next sent message resumes the conversation.</summary>
-        public void StopSession()
+        /// <summary>
+        /// Interrupts the in-flight turn via the CLI's control_request protocol, keeping the
+        /// process alive (confirmed live: the same process accepts a normal follow-up turn
+        /// afterward with no --resume needed). Falls back to killing the process only if the
+        /// session isn't running or the interrupt times out with no response.
+        /// </summary>
+        public async Task StopSessionAsync()
         {
             // Show an "interrupted" marker in the chat if a response was in flight.
             if (IsBusy && _currentAssistantMessage != null)
                 _currentAssistantMessage.Blocks.Add(new InterruptedBlockViewModel());
+
+            if (_session != null && _session.IsRunning)
+            {
+                var response = await _session.SendInterruptAsync().ConfigureAwait(true);
+                if (response != null)
+                {
+                    ResetTurnState();
+                    IsBusy = false;
+                    StatusText = "Stopped";
+                    return;
+                }
+                // No control_response within the timeout - the process may be wedged; fall back
+                // to the kill path below rather than leaving the UI stuck in a busy state.
+            }
 
             StopSessionCore();
             ResetTurnState();
@@ -674,6 +740,20 @@ namespace TeronClaudeCodeVS.ViewModels
             _sessionInputTokens = 0;
             _sessionOutputTokens = 0;
             OnPropertyChanged(nameof(SessionUsageText));
+
+            // The live wire never replays history on --resume (confirmed live against the real
+            // CLI) - hydrate the visible transcript from the CLI's own on-disk record instead,
+            // best-effort. A hydration failure should never block actually resuming the session.
+            try
+            {
+                foreach (var msg in TranscriptReplay.Load(entry.WorkingDirectory, entry.SessionId))
+                    Messages.Add(msg);
+            }
+            catch (Exception ex)
+            {
+                RawOutput.Add($"[transcript replay error] {ex.GetType().Name}: {ex.Message}");
+            }
+
             StartSession();
         }
 
