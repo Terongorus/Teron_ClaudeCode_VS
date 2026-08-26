@@ -31,7 +31,7 @@ namespace TeronClaudeCodeVS.Core
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
             string dir = await GetWorkingDirectoryAsync();
-            var folder = new JObject
+            JObject folder = new JObject
             {
                 ["name"] = Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar)),
                 ["uri"] = new Uri(dir).AbsoluteUri,
@@ -48,12 +48,50 @@ namespace TeronClaudeCodeVS.Core
             };
         }
 
-        internal static async Task<string> GetWorkingDirectoryAsync()
+        internal static Task<string> GetWorkingDirectoryAsync() => GetWorkingDirectoryAsync(null);
+
+        /// <param name="diag">
+        /// Optional sink for what each fallback attempt actually returned/threw - two live F5
+        /// passes (2026-08-26) both showed this method falling all the way through to
+        /// Environment.CurrentDirectory with a real .sln open, and neither prior fix attempt
+        /// (adding the EnvDTE fallback below) changed that outcome, so the failure mode itself
+        /// needs to be observed rather than guessed at again.
+        /// </param>
+        internal static async Task<string> GetWorkingDirectoryAsync(Action<string>? diag)
+        {
+            // Confirmed live (2026-08-26): the very first attempt, made from the chat tool
+            // window's Loaded event, consistently hits a real timing race - both VS.Solutions and
+            // EnvDTE agree "no solution" (null solution / empty FullName) at that exact moment,
+            // even though a real .sln is genuinely loaded and visible in Solution Explorer only
+            // moments later. Retrying briefly instead of failing on the first empty read lets the
+            // solution-open sequence (which is itself async) catch up. First live retest of this
+            // retry loop succeeded only on the very last of 10 attempts (~2.7s) - widened the
+            // budget for margin on slower machines/larger solutions; this only delays the chat
+            // window's own background auto-start, never blocks the VS UI thread.
+            const int maxAttempts = 25;
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                string? found = await TryGetSolutionDirectoryAsync(diag).ConfigureAwait(true);
+                if (found != null)
+                    return found;
+
+                if (attempt < maxAttempts)
+                    await Task.Delay(300).ConfigureAwait(true);
+            }
+
+            // Last resort - devenv.exe's own working directory, not a real project folder. Only
+            // reachable when no solution is open at all even after retrying for ~3 seconds.
+            diag?.Invoke("[cwd-diag] no solution found after retrying - falling back to Environment.CurrentDirectory");
+            return Environment.CurrentDirectory;
+        }
+
+        private static async Task<string?> TryGetSolutionDirectoryAsync(Action<string>? diag)
         {
             try
             {
                 var solution = await VS.Solutions.GetCurrentSolutionAsync();
                 string? path = solution?.FullPath;
+                diag?.Invoke($"[cwd-diag] VS.Solutions.GetCurrentSolutionAsync() -> solution={(solution == null ? "null" : "non-null")}, FullPath={(path ?? "<null>")}");
                 if (!string.IsNullOrEmpty(path))
                 {
                     string? dir = Path.GetDirectoryName(path);
@@ -61,16 +99,41 @@ namespace TeronClaudeCodeVS.Core
                         return dir!;
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                diag?.Invoke($"[cwd-diag] VS.Solutions.GetCurrentSolutionAsync() threw {ex.GetType().Name}: {ex.Message}");
+            }
 
-            return Environment.CurrentDirectory;
+            // Fallback confirmed necessary live: VS.Solutions.GetCurrentSolutionAsync() can come
+            // back empty in some hosting timings even with a real .sln loaded in Solution Explorer.
+            // EnvDTE's DTE.Solution is the same API this class already relies on for diagnostics
+            // (GetDiagnosticsAsync) and is reliably populated whenever a solution is actually open.
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+                DTE2? dte = Package.GetGlobalService(typeof(SDTE)) as DTE2;
+                string? solutionPath = dte?.Solution?.FullName;
+                diag?.Invoke($"[cwd-diag] EnvDTE DTE.Solution.FullName -> dte={(dte == null ? "null" : "non-null")}, FullName={(solutionPath ?? "<null>")}");
+                if (!string.IsNullOrEmpty(solutionPath))
+                {
+                    string? dir = Path.GetDirectoryName(solutionPath);
+                    if (!string.IsNullOrEmpty(dir))
+                        return dir!;
+                }
+            }
+            catch (Exception ex)
+            {
+                diag?.Invoke($"[cwd-diag] EnvDTE DTE.Solution.FullName threw {ex.GetType().Name}: {ex.Message}");
+            }
+
+            return null;
         }
 
         public async Task<JObject> GetOpenEditorsAsync()
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-            var tabs = new JArray();
+            JArray tabs = new JArray();
             var frames = await VS.Windows.GetAllDocumentWindowsAsync();
             foreach (var frame in frames)
             {
@@ -184,7 +247,7 @@ namespace TeronClaudeCodeVS.Core
                 endIdx = endPointLine.End.Position;
             }
 
-            var span = new SnapshotSpan(snapshot, startIdx, Math.Max(0, Math.Min(endIdx, snapshot.Length) - startIdx));
+            SnapshotSpan span = new SnapshotSpan(snapshot, startIdx, Math.Max(0, Math.Min(endIdx, snapshot.Length) - startIdx));
             textView.Selection.Select(span, isReversed: false);
             textView.Caret.MoveTo(span.End);
             textView.ViewScroller.EnsureSpanVisible(span);
@@ -245,9 +308,9 @@ namespace TeronClaudeCodeVS.Core
                 catch { filterPath = uri; }
             }
 
-            var byFile = new Dictionary<string, JArray>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, JArray> byFile = new Dictionary<string, JArray>(StringComparer.OrdinalIgnoreCase);
 
-            var dte = Package.GetGlobalService(typeof(SDTE)) as DTE2;
+            DTE2? dte = Package.GetGlobalService(typeof(SDTE)) as DTE2;
             var errorItems = dte?.ToolWindows?.ErrorList?.ErrorItems;
             if (errorItems != null)
             {
@@ -260,7 +323,7 @@ namespace TeronClaudeCodeVS.Core
 
                     if (!byFile.TryGetValue(file, out var arr))
                     {
-                        arr = new JArray();
+                        arr = [];
                         byFile[file] = arr;
                     }
 
@@ -274,7 +337,7 @@ namespace TeronClaudeCodeVS.Core
                 }
             }
 
-            var result = new JArray();
+            JArray result = new JArray();
             foreach (var kv in byFile)
             {
                 Uri fileUri;
@@ -315,9 +378,9 @@ namespace TeronClaudeCodeVS.Core
             diffService.OpenComparisonWindow2(leftPath, rightPath, tabName, tabName, "Current", "Proposed", "", "", options);
             _openDiffTabNames.Add(tabName);
 
-            var tcs = new TaskCompletionSource<(string, string)>();
+            TaskCompletionSource<(string, string)> tcs = new TaskCompletionSource<(string, string)>();
 
-            var model = new InfoBarModel(
+            InfoBarModel model = new InfoBarModel(
                 new[]
                 {
                     new InfoBarTextSpan($"Claude Code proposes changes to {Path.GetFileName(newFilePath)}. "),

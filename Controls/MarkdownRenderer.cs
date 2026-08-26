@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Documents;
 using System.Windows.Markup;
 using System.Windows.Media;
+using System.Xml;
 
 namespace TeronClaudeCodeVS.Controls
 {
@@ -21,13 +22,14 @@ namespace TeronClaudeCodeVS.Controls
 
         // Semi-transparent neutral background for code blocks — reads correctly on both VS light and dark themes.
         private static readonly SolidColorBrush s_codeBg = Frozen(Color.FromArgb(0x18, 0x80, 0x80, 0x80));
+        private static readonly FontFamily s_inlineCodeFont = new FontFamily("Consolas");
 
         // Diff line colors (same hues as GitHub's diff view).
         private static readonly SolidColorBrush s_diffAdd = Frozen(Color.FromArgb(0xFF, 0x3F, 0xB9, 0x50));
         private static readonly SolidColorBrush s_diffRem = Frozen(Color.FromArgb(0xFF, 0xE5, 0x48, 0x4D));
         private static readonly SolidColorBrush s_diffHunk = Frozen(Color.FromArgb(0xFF, 0x79, 0xB8, 0xFF));
 
-        private static SolidColorBrush Frozen(Color c) { var b = new SolidColorBrush(c); b.Freeze(); return b; }
+        private static SolidColorBrush Frozen(Color c) { SolidColorBrush b = new SolidColorBrush(c); b.Freeze(); return b; }
 
         public static FlowDocument Render(string markdown)
         {
@@ -38,10 +40,10 @@ namespace TeronClaudeCodeVS.Controls
             {
                 string xaml = Markdig.Wpf.Markdown.ToXaml(markdown, Pipeline);
 
-                using var reader = new StringReader(xaml);
-                using var xml = System.Xml.XmlReader.Create(reader);
+                using StringReader reader = new StringReader(xaml);
+                using XmlReader xml = System.Xml.XmlReader.Create(reader);
 
-                var doc = (FlowDocument)XamlReader.Load(xml);
+                FlowDocument doc = (FlowDocument)XamlReader.Load(xml);
 
                 // FlowDocument defaults to a fixed ~768px column width meant for paginated
                 // documents; without this, content gets clipped inside a narrow tool window.
@@ -54,7 +56,7 @@ namespace TeronClaudeCodeVS.Controls
             }
             catch
             {
-                var doc = new FlowDocument();
+                FlowDocument doc = new FlowDocument();
                 doc.Blocks.Add(new Paragraph(new Run(markdown)));
                 return doc;
             }
@@ -132,6 +134,17 @@ namespace TeronClaudeCodeVS.Controls
                 ApplyDiffColors(para.Inlines);
             }
 
+            // Inline `code` spans can come through as a bare Run with its own Background rather
+            // than wrapped in a Span - normalize those directly (see FixupSpan for why).
+            foreach (var run in para.Inlines.OfType<Run>())
+            {
+                if (IsLightBackground(run.Background))
+                {
+                    run.Background = s_codeBg;
+                    run.FontFamily = s_inlineCodeFont;
+                }
+            }
+
             // Walk inline containers (Span, Hyperlink, etc.) for nested runs.
             foreach (var inline in para.Inlines.OfType<Span>())
                 FixupSpan(inline);
@@ -141,6 +154,26 @@ namespace TeronClaudeCodeVS.Controls
         {
             if (IsBlackForeground(span.Foreground))
                 span.ClearValue(TextElement.ForegroundProperty);
+
+            // Markdig.Wpf renders inline `code` spans with a light background sized for a white
+            // page; left as-is it shows as a stark, undifferentiated light block in a dark theme
+            // instead of a subtle inline-code chip. Same theme-neutral tint as fenced code blocks,
+            // so it reads correctly in both themes automatically instead of needing its own
+            // hardcoded color.
+            if (IsLightBackground(span.Background))
+            {
+                span.Background = s_codeBg;
+                span.FontFamily = s_inlineCodeFont;
+            }
+
+            foreach (var run in span.Inlines.OfType<Run>())
+            {
+                if (IsLightBackground(run.Background))
+                {
+                    run.Background = s_codeBg;
+                    run.FontFamily = s_inlineCodeFont;
+                }
+            }
 
             foreach (var child in span.Inlines.OfType<Span>())
                 FixupSpan(child);

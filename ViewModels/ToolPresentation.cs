@@ -65,7 +65,7 @@ namespace TeronClaudeCodeVS.ViewModels
 
         public static string GetSummary(string toolName, JObject? input)
         {
-            input ??= new JObject();
+            input ??= [];
 
             switch (toolName)
             {
@@ -131,7 +131,7 @@ namespace TeronClaudeCodeVS.ViewModels
 
                 case "TodoWrite":
                 {
-                    var todos = input["todos"] as JArray;
+                        JArray? todos = input["todos"] as JArray;
                     int total = todos?.Count ?? 0;
                     if (total == 0) return "Update plan";
                     int done = todos!.OfType<JObject>().Count(t => t.Value<string>("status") == "completed");
@@ -156,25 +156,60 @@ namespace TeronClaudeCodeVS.ViewModels
         }
 
         /// <summary>
-        /// Raw "+"/"-" diff lines for Edit/NotebookEdit tool calls; null for everything else.
-        /// Used by DiffViewer to render colored line backgrounds instead of the markdown renderer.
+        /// Line-level "+"/"-"/context diff for Edit/NotebookEdit tool calls; null for everything
+        /// else. Used by DiffViewer to render colored line backgrounds instead of the markdown
+        /// renderer.
         /// </summary>
         public static string? GetRawDiff(string toolName, JObject? input)
         {
             if (toolName != "Edit" && toolName != "NotebookEdit") return null;
-            input ??= new JObject();
+            input ??= [];
 
             string? oldStr = S(input, "old_string");
             string? newStr = S(input, "new_string");
             if (oldStr == null && newStr == null) return null;
 
-            var sb = new StringBuilder();
-            if (oldStr != null)
-                foreach (var line in SplitLines(oldStr))
-                    sb.AppendLine("- " + line);
-            if (newStr != null)
-                foreach (var line in SplitLines(newStr))
-                    sb.AppendLine("+ " + line);
+            string[] oldLines = oldStr != null ? SplitLines(oldStr) : [];
+            string[] newLines = newStr != null ? SplitLines(newStr) : [];
+            return ComputeLineDiff(oldLines, newLines);
+        }
+
+        /// <summary>
+        /// Minimal line-level diff via an LCS backtrack (old/new strings in an Edit call are a
+        /// handful of lines, so the O(n*m) DP table is cheap). Unchanged lines are emitted plain
+        /// (no prefix) so DiffViewer renders them as context instead of duplicating every
+        /// unchanged line as both a removal and an addition.
+        /// </summary>
+        private static string ComputeLineDiff(string[] a, string[] b)
+        {
+            int n = a.Length, m = b.Length;
+            var dp = new int[n + 1, m + 1];
+            for (int i = n - 1; i >= 0; i--)
+                for (int j = m - 1; j >= 0; j--)
+                    dp[i, j] = a[i] == b[j] ? dp[i + 1, j + 1] + 1 : Math.Max(dp[i + 1, j], dp[i, j + 1]);
+
+            StringBuilder sb = new StringBuilder();
+            int x = 0, y = 0;
+            while (x < n && y < m)
+            {
+                if (a[x] == b[y])
+                {
+                    sb.AppendLine(a[x]);
+                    x++; y++;
+                }
+                else if (dp[x + 1, y] >= dp[x, y + 1])
+                {
+                    sb.AppendLine("- " + a[x]);
+                    x++;
+                }
+                else
+                {
+                    sb.AppendLine("+ " + b[y]);
+                    y++;
+                }
+            }
+            while (x < n) { sb.AppendLine("- " + a[x]); x++; }
+            while (y < m) { sb.AppendLine("+ " + b[y]); y++; }
 
             return sb.ToString().TrimEnd();
         }
@@ -182,8 +217,8 @@ namespace TeronClaudeCodeVS.ViewModels
         /// <summary>Markdown for the expanded card body, or null if there's nothing beyond the summary.</summary>
         public static string? GetDetailMarkdown(string toolName, JObject? input, string? output, bool isError)
         {
-            input ??= new JObject();
-            var sb = new StringBuilder();
+            input ??= [];
+            StringBuilder sb = new StringBuilder();
 
             switch (toolName)
             {
@@ -237,23 +272,22 @@ namespace TeronClaudeCodeVS.ViewModels
 
                 case "TodoWrite":
                 {
-                    var todos = input["todos"] as JArray;
-                    if (todos != null)
-                    {
-                        foreach (var t in todos.OfType<JObject>())
+                        if (input["todos"] is JArray todos)
                         {
-                            string content = t.Value<string>("content") ?? "";
-                            string status = t.Value<string>("status") ?? "pending";
-                            string box = status switch
+                            foreach (var t in todos.OfType<JObject>())
                             {
-                                "completed" => "[x]",
-                                "in_progress" => "[~]",
-                                _ => "[ ]"
-                            };
-                            sb.AppendLine($"- {box} {content}");
+                                string content = t.Value<string>("content") ?? "";
+                                string status = t.Value<string>("status") ?? "pending";
+                                string box = status switch
+                                {
+                                    "completed" => "[x]",
+                                    "in_progress" => "[~]",
+                                    _ => "[ ]"
+                                };
+                                sb.AppendLine($"- {box} {content}");
+                            }
                         }
-                    }
-                    break;
+                        break;
                 }
 
                 case "ExitPlanMode":
@@ -266,15 +300,14 @@ namespace TeronClaudeCodeVS.ViewModels
 
                 case "AskUserQuestion":
                 {
-                    var questions = (input["questions"] as JArray)?.OfType<JObject>() ?? Enumerable.Empty<JObject>();
+                    var questions = (input["questions"] as JArray)?.OfType<JObject>() ?? [];
                     foreach (var q in questions)
                     {
                         sb.AppendLine($"**{q.Value<string>("question")}**");
-                        var options = q["options"] as JArray;
-                        if (options != null)
-                            foreach (var opt in options.OfType<JObject>())
-                                sb.AppendLine($"- {opt.Value<string>("label")}");
-                        sb.AppendLine();
+                            if (q["options"] is JArray options)
+                                foreach (var opt in options.OfType<JObject>())
+                                    sb.AppendLine($"- {opt.Value<string>("label")}");
+                            sb.AppendLine();
                     }
                     break;
                 }

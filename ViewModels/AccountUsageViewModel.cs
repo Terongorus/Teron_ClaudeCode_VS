@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
+using TeronClaudeCodeVS.Protocol;
 
 namespace TeronClaudeCodeVS.ViewModels
 {
@@ -95,135 +96,62 @@ namespace TeronClaudeCodeVS.ViewModels
 
         private async Task LoadAllAsync(string claudePath)
         {
-            // Try JSON-formatted auth status first.
-            string jsonOut = await RunCommandAsync(claudePath, "auth status --output-format json");
+            // `claude auth status` always prints JSON directly - no `--output-format` flag exists
+            // for it (confirmed live: passing one is a hard CLI error). There is also no standalone
+            // "usage" subcommand at all (confirmed live: `claude usage` gets swallowed as a chat
+            // prompt instead of being recognized as a command) - real-time rate-limit percentages
+            // are only ever obtained from the `rate_limit_event` messages a live session emits;
+            // see RateLimitUpdated/UpdateRateLimit below, fed from ChatSessionViewModel.
+            string jsonOut = await RunCommandAsync(claudePath, "auth status");
             if (!string.IsNullOrWhiteSpace(jsonOut))
             {
-                try
-                {
-                    ParseAccountJson(JObject.Parse(jsonOut));
-                    goto checkUsage;
-                }
-                catch { }
-            }
-
-            // Fallback: parse plain-text output.
-            string textOut = await RunCommandAsync(claudePath, "auth status");
-            ParseAccountText(textOut);
-
-        checkUsage:
-            // Try to get rate-limit usage percentages.
-            string usageOut = await RunCommandAsync(claudePath, "usage --output-format json");
-            if (!string.IsNullOrWhiteSpace(usageOut))
-            {
-                try { ParseUsageJson(JObject.Parse(usageOut)); }
+                try { ParseAccountJson(JObject.Parse(jsonOut)); }
                 catch { }
             }
         }
 
+        /// <summary>
+        /// Real `claude auth status` schema, confirmed live (2026-08-26) - flat, not nested under
+        /// an "account" key: {"loggedIn":true,"authMethod":"claude.ai","email":"...",
+        /// "orgName":"...","subscriptionType":"pro",...}.
+        /// </summary>
         private void ParseAccountJson(JObject obj)
         {
-            var account = obj["account"] as JObject ?? obj;
-
-            Email = account["email"]?.ToString()
-                    ?? account["emailAddress"]?.ToString()
-                    ?? obj["email"]?.ToString()
-                    ?? "";
-
-            AuthMethod = FormatAuthMethod(
-                account["authType"]?.ToString()
-                ?? account["auth_type"]?.ToString()
-                ?? obj["authType"]?.ToString()
-                ?? "");
-
-            Organization = account["organization"]?.ToString()
-                            ?? obj["organization"]?.ToString();
-
-            Plan = FormatPlan(
-                account["plan"]?.ToString()
-                ?? obj["plan"]?.ToString()
-                ?? "");
-
-            HasAccountInfo = !string.IsNullOrEmpty(Email);
-
-            // Some CLI versions bundle usage in the same JSON.
-            var bundledUsage = (obj["usage"] ?? obj["rateLimits"]) as JObject;
-            if (bundledUsage != null)
-                ParseUsageJson(bundledUsage);
-        }
-
-        private void ParseAccountText(string output)
-        {
-            if (string.IsNullOrWhiteSpace(output)) return;
-
-            foreach (var line in output.Split('\n'))
-            {
-                string t = line.Trim();
-                if (TryExtractColon(t, "email", out string? email))
-                    Email = email!;
-                else if (TryExtractColon(t, "plan", out string? plan))
-                    Plan = FormatPlan(plan!);
-                else if (TryExtractColon(t, "auth", out string? auth))
-                    AuthMethod = FormatAuthMethod(auth!);
-                else if (TryExtractColon(t, "org", out string? org))
-                    Organization = org;
-            }
+            Email = obj["email"]?.ToString() ?? "";
+            AuthMethod = FormatAuthMethod(obj["authMethod"]?.ToString() ?? "");
+            Organization = obj["orgName"]?.ToString();
+            Plan = FormatPlan(obj["subscriptionType"]?.ToString() ?? "");
 
             HasAccountInfo = !string.IsNullOrEmpty(Email);
         }
 
-        private void ParseUsageJson(JObject obj)
+        /// <summary>
+        /// Applies a live `rate_limit_event` from the active session's own stream. Called by
+        /// ChatSessionViewModel whenever one arrives, so the panel reflects real usage from
+        /// whatever activity has actually happened - there's no other source for this data.
+        /// </summary>
+        public void UpdateRateLimit(RateLimitEvent e)
         {
-            var session = obj["session"] ?? obj["sessionUsage"] ?? obj["hourly"];
-            var weekly = obj["weekly"] ?? obj["weeklyUsage"];
-
-            if (session != null)
+            if (e.SessionUtilization.HasValue)
             {
-                double pct = session["percent"]?.Value<double>()
-                             ?? session["percentage"]?.Value<double>()
-                             ?? -1;
-                if (pct >= 0)
-                {
-                    SessionPercent = Math.Min(pct, 100);
-                    SessionPercentLabel = $"{pct:0}%";
-                    SessionLabel = session["label"]?.ToString() ?? "Session (5hr)";
-                    SessionResetLabel = FormatResetLabel(
-                        session["resetsIn"]?.ToString() ?? session["resetAt"]?.ToString() ?? "");
-                    HasRateLimitData = true;
-                }
+                double pct = Math.Min(e.SessionUtilization.Value * 100.0, 100);
+                SessionPercent = pct;
+                SessionPercentLabel = $"{pct:0}%";
+                SessionResetLabel = FormatResetLabel(e.SessionResetsAt);
+                HasRateLimitData = true;
             }
 
-            if (weekly != null)
+            if (e.WeeklyUtilization.HasValue)
             {
-                double pct = weekly["percent"]?.Value<double>()
-                             ?? weekly["percentage"]?.Value<double>()
-                             ?? -1;
-                if (pct >= 0)
-                {
-                    WeeklyPercent = Math.Min(pct, 100);
-                    WeeklyPercentLabel = $"{pct:0}%";
-                    WeeklyLabel = weekly["label"]?.ToString() ?? "Weekly (7 day)";
-                    WeeklyResetLabel = FormatResetLabel(
-                        weekly["resetsIn"]?.ToString() ?? weekly["resetAt"]?.ToString() ?? "");
-                    HasRateLimitData = true;
-                }
+                double pct = Math.Min(e.WeeklyUtilization.Value * 100.0, 100);
+                WeeklyPercent = pct;
+                WeeklyPercentLabel = $"{pct:0}%";
+                WeeklyResetLabel = FormatResetLabel(e.WeeklyResetsAt);
+                HasRateLimitData = true;
             }
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────
-
-        private static bool TryExtractColon(string line, string keyPrefix, out string? value)
-        {
-            if (!line.StartsWith(keyPrefix, StringComparison.OrdinalIgnoreCase))
-            { value = null; return false; }
-
-            int colon = line.IndexOf(':');
-            if (colon < 0)
-            { value = null; return false; }
-
-            value = line.Substring(colon + 1).Trim();
-            return !string.IsNullOrEmpty(value);
-        }
 
         private static string FormatPlan(string raw) =>
             string.IsNullOrEmpty(raw) ? "" : raw.ToLowerInvariant() switch
@@ -238,24 +166,16 @@ namespace TeronClaudeCodeVS.ViewModels
         private static string FormatAuthMethod(string raw) =>
             string.IsNullOrEmpty(raw) ? "" : raw.ToLowerInvariant() switch
             {
-                "claude_ai" or "oauth" or "browser" => "Claude AI",
+                "claude.ai" or "claude_ai" or "oauth" or "browser" => "Claude AI",
                 "api_key" or "apikey" => "API Key",
                 _ => raw
             };
 
-        private static string FormatResetLabel(string raw)
+        private static string FormatResetLabel(long? unixSeconds)
         {
-            if (string.IsNullOrEmpty(raw)) return "";
-            if (raw.StartsWith("Reset", StringComparison.OrdinalIgnoreCase)) return raw;
-            if (TimeSpan.TryParse(raw, out var ts))
-                return $"Resets in {FormatTimeSpan(ts)}";
-            if (DateTime.TryParse(raw, out var dt))
-            {
-                var remaining = dt - DateTime.UtcNow;
-                if (remaining > TimeSpan.Zero)
-                    return $"Resets in {FormatTimeSpan(remaining)}";
-            }
-            return raw;
+            if (!unixSeconds.HasValue) return "";
+            var remaining = DateTimeOffset.FromUnixTimeSeconds(unixSeconds.Value) - DateTimeOffset.UtcNow;
+            return remaining > TimeSpan.Zero ? $"Resets in {FormatTimeSpan(remaining)}" : "";
         }
 
         private static string FormatTimeSpan(TimeSpan ts)
@@ -280,7 +200,7 @@ namespace TeronClaudeCodeVS.ViewModels
                     fullArgs = $"/c \"{claudePath}\" {args}";
                 }
 
-                var psi = new ProcessStartInfo
+                ProcessStartInfo psi = new ProcessStartInfo
                 {
                     FileName = fileName,
                     Arguments = fullArgs,
@@ -291,7 +211,7 @@ namespace TeronClaudeCodeVS.ViewModels
                     StandardOutputEncoding = new UTF8Encoding(false),
                 };
 
-                using var process = Process.Start(psi);
+                using Process process = Process.Start(psi);
                 if (process == null) return "";
 
                 var readTask = process.StandardOutput.ReadToEndAsync();

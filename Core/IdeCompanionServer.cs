@@ -36,6 +36,18 @@ namespace TeronClaudeCodeVS.Core
         public int Port { get; private set; }
         public bool IsRunning => _listener != null;
 
+        /// <summary>
+        /// The per-start auth token required in the <c>X-Claude-Code-Ide-Authorization</c> header.
+        /// Exposed so the spawning session can register this server via an explicit
+        /// <c>--mcp-config</c> entry (see <see cref="ClaudeCodeSession"/>) - confirmed live
+        /// (2026-08-26) to be the mechanism that actually works for a self-spawned `-p`/headless
+        /// process. <c>CLAUDE_CODE_SSE_PORT</c> + <c>--ide</c> was the original design based on
+        /// reading the official extension's source, but empirical testing against the real CLI
+        /// binary showed it never even attempts a connection in `-p` mode - only the lockfile is
+        /// still useful for that path (e.g. a user manually running `claude --ide` in a terminal).
+        /// </summary>
+        public string AuthToken => _authToken;
+
         private const string AuthHeaderName = "X-Claude-Code-Ide-Authorization";
         private string _authToken = "";
         private string? _lockFilePath;
@@ -83,7 +95,7 @@ namespace TeronClaudeCodeVS.Core
 
         private static int GetAvailablePort()
         {
-            var listener = new TcpListener(IPAddress.Loopback, 0);
+            TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
             listener.Start();
             int port = ((IPEndPoint)listener.LocalEndpoint).Port;
             listener.Stop();
@@ -98,9 +110,10 @@ namespace TeronClaudeCodeVS.Core
         private void WriteLockFile()
         {
             Directory.CreateDirectory(LockFileDirectory);
+            CleanUpStaleLockFiles();
             _lockFilePath = Path.Combine(LockFileDirectory, $"{Port}.lock");
 
-            var json = new JObject
+            JObject json = new JObject
             {
                 ["pid"] = Process.GetCurrentProcess().Id,
                 ["workspaceFolders"] = new JArray(_getWorkspaceFolders()),
@@ -111,6 +124,37 @@ namespace TeronClaudeCodeVS.Core
             };
 
             File.WriteAllText(_lockFilePath, json.ToString(Newtonsoft.Json.Formatting.None), new UTF8Encoding(false));
+        }
+
+        /// <summary>
+        /// Deletes any lockfile in <see cref="LockFileDirectory"/> whose recorded pid no longer
+        /// exists. Confirmed live (2026-08-26) that a previous session which didn't shut down
+        /// cleanly (e.g. the experimental instance force-closed rather than disposed) can leave a
+        /// dead lockfile behind indefinitely, and the CLI's own `--ide` auto-connect only proceeds
+        /// when exactly one *valid* lockfile is present - a stale one silently breaks every future
+        /// connection attempt, ours or another IDE's, until manually deleted. Only ever removes
+        /// files whose pid is confirmed gone; never touches another IDE's genuinely live lockfile.
+        /// </summary>
+        private static void CleanUpStaleLockFiles()
+        {
+            string[] files;
+            try { files = Directory.GetFiles(LockFileDirectory, "*.lock"); }
+            catch { return; }
+
+            foreach (string file in files)
+            {
+                try
+                {
+                    JObject json = JObject.Parse(File.ReadAllText(file));
+                    int pid = json.Value<int>("pid");
+                    Process.GetProcessById(pid); // throws ArgumentException if no such process
+                }
+                catch (ArgumentException)
+                {
+                    try { File.Delete(file); } catch { }
+                }
+                catch { }
+            }
         }
 
         /// <summary>Called when the workspace folder set changes while the server is running (e.g. a different solution is opened).</summary>
@@ -171,7 +215,14 @@ namespace TeronClaudeCodeVS.Core
             HttpListenerWebSocketContext wsContext;
             try
             {
-                wsContext = await context.AcceptWebSocketAsync(subProtocol: null).ConfigureAwait(false);
+                // Root-caused live (2026-08-26): the real CLI's WebSocket client sends
+                // "Sec-WebSocket-Protocol: mcp" in its handshake request (confirmed via a raw
+                // header dump). Accepting with subProtocol: null completes the HTTP-level
+                // handshake but never confirms that subprotocol back - per RFC 6455 the client is
+                // then supposed to treat the handshake as invalid, which matched the observed
+                // symptom exactly: connects, then the client never proceeds until its own 30s
+                // connect timeout fires. Echoing "mcp" back is what a compliant server must do.
+                wsContext = await context.AcceptWebSocketAsync(subProtocol: "mcp").ConfigureAwait(false);
             }
             catch
             {
@@ -198,7 +249,7 @@ namespace TeronClaudeCodeVS.Core
         private async Task ReceiveLoopAsync(WebSocket socket, CancellationToken ct)
         {
             var buffer = new byte[16 * 1024];
-            using var messageStream = new MemoryStream();
+            using MemoryStream messageStream = new MemoryStream();
 
             try
             {
@@ -288,7 +339,7 @@ namespace TeronClaudeCodeVS.Core
         private async Task HandleToolCallAsync(JObject? callParams, WebSocket socket, JToken? id, CancellationToken ct)
         {
             string name = callParams?.Value<string>("name") ?? "";
-            var args = callParams?["arguments"] as JObject ?? new JObject();
+            var args = callParams?["arguments"] as JObject ?? [];
 
             if (name == "openDiff")
             {
@@ -298,7 +349,7 @@ namespace TeronClaudeCodeVS.Core
                     args.Value<string>("new_file_contents") ?? "",
                     args.Value<string>("tab_name") ?? "").ConfigureAwait(false);
 
-                var content = new JArray
+                JArray content = new JArray
                 {
                     new JObject { ["type"] = "text", ["text"] = status },
                     new JObject { ["type"] = "text", ["text"] = detail }
@@ -328,19 +379,19 @@ namespace TeronClaudeCodeVS.Core
                 _ => throw new InvalidOperationException($"Unknown tool: {name}")
             };
 
-            var textContent = new JArray { new JObject { ["type"] = "text", ["text"] = payload.ToString(Newtonsoft.Json.Formatting.Indented) } };
+            JArray textContent = new JArray { new JObject { ["type"] = "text", ["text"] = payload.ToString(Newtonsoft.Json.Formatting.Indented) } };
             await SendResultAsync(socket, id, new JObject { ["content"] = textContent }, ct).ConfigureAwait(false);
         }
 
         private Task SendResultAsync(WebSocket socket, JToken? id, JObject result, CancellationToken ct)
         {
-            var payload = new JObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = result };
+            JObject payload = new JObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = result };
             return SendAsync(socket, payload, ct);
         }
 
         private Task SendErrorAsync(WebSocket socket, JToken? id, int code, string message, CancellationToken ct)
         {
-            var payload = new JObject
+            JObject payload = new JObject
             {
                 ["jsonrpc"] = "2.0",
                 ["id"] = id,

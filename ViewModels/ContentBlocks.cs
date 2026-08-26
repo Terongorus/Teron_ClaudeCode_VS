@@ -4,6 +4,7 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Documents;
 using System.Windows.Input;
@@ -197,8 +198,17 @@ namespace TeronClaudeCodeVS.ViewModels
         public string ToolName { get; }
         public string Title { get; }
         public string Summary { get; }
+
+        /// <summary>
+        /// Line-level diff for Edit/NotebookEdit calls; null for everything else. Consumed by
+        /// DiffViewer, same as ToolCallViewModel.RawDiff - keeps the pending-approval card and the
+        /// resolved tool-call card showing an identical diff instead of two different renderers.
+        /// </summary>
+        public string? RawDiff { get; }
+
         public FlowDocument? DetailDocument { get; }
-        public bool HasDetail => DetailDocument != null;
+        public bool HasDetail => RawDiff != null || DetailDocument != null;
+        public bool HasMarkdownDetail => DetailDocument != null;
         public FlowDocument Document => DetailDocument ?? new FlowDocument();
 
         private bool _isResolved;
@@ -229,7 +239,10 @@ namespace TeronClaudeCodeVS.ViewModels
             Title = title;
             Summary = ToolPresentation.GetSummary(toolName, input);
 
-            string? detail = ToolPresentation.GetDetailMarkdown(toolName, input, null, false);
+            RawDiff = ToolPresentation.GetRawDiff(toolName, input);
+
+            // When DiffViewer already shows the diff, don't also render it as a ```diff fence.
+            string? detail = RawDiff == null ? ToolPresentation.GetDetailMarkdown(toolName, input, null, false) : null;
             DetailDocument = detail != null ? MarkdownRenderer.Render(detail) : null;
 
             AllowCommand = new RelayCommand(() => Resolve(true, false, respond), () => !IsResolved);
@@ -246,18 +259,47 @@ namespace TeronClaudeCodeVS.ViewModels
         }
     }
 
+    /// <summary>One selectable option inside a question, tracking its own checked state.</summary>
+    public sealed class SelectableOptionViewModel : ObservableObject
+    {
+        public AskQuestionOption Option { get; }
+        public string Label => Option.Label;
+        public string Description => Option.Description;
+
+        /// <summary>Shared by every option under the same question, for RadioButton mutual exclusion; unused for checkboxes.</summary>
+        public string RadioGroupName { get; }
+
+        private bool _isSelected;
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set => SetField(ref _isSelected, value);
+        }
+
+        public SelectableOptionViewModel(AskQuestionOption option, string radioGroupName)
+        {
+            Option = option;
+            RadioGroupName = radioGroupName;
+        }
+    }
+
     /// <summary>Tracks the user's current selection for one question inside an AskUserQuestion card.</summary>
     public sealed class QuestionAnswerViewModel : ObservableObject
     {
         public AskQuestion Question { get; }
         public bool HasOptions => Question.Options.Length > 0;
+        public bool IsMultiSelect => Question.IsMultiSelect;
+        public bool IsSingleSelectWithOptions => HasOptions && !IsMultiSelect;
 
-        private int _selectedIndex = -1;
-        public int SelectedIndex
-        {
-            get => _selectedIndex;
-            set => SetField(ref _selectedIndex, value);
-        }
+        /// <summary>Backs both the single-select (RadioButton) and multi-select (CheckBox) lists; mirrors Question.Options 1:1.</summary>
+        public ObservableCollection<SelectableOptionViewModel> Options { get; }
+
+        /// <summary>
+        /// Unique per question instance so RadioButtons from different questions in the same card
+        /// don't cross-exclude each other (WPF groups RadioButtons by GroupName across the whole
+        /// visual tree, not just within one ItemsControl).
+        /// </summary>
+        public string RadioGroupName { get; } = Guid.NewGuid().ToString("N");
 
         private string _answerText = "";
         public string AnswerText
@@ -270,21 +312,29 @@ namespace TeronClaudeCodeVS.ViewModels
         {
             if (HasOptions)
             {
-                return _selectedIndex >= 0 && _selectedIndex < Question.Options.Length
-                    ? Question.Options[_selectedIndex].Value
-                    : null;
+                if (IsMultiSelect)
+                {
+                    var selected = Options.Where(o => o.IsSelected).Select(o => o.Option.Value).ToArray();
+                    return selected.Length > 0 ? string.Join(", ", selected) : null;
+                }
+                return Options.FirstOrDefault(o => o.IsSelected)?.Option.Value;
             }
             return string.IsNullOrWhiteSpace(_answerText) ? null : _answerText.Trim();
         }
 
-        public QuestionAnswerViewModel(AskQuestion question) { Question = question; }
+        public QuestionAnswerViewModel(AskQuestion question)
+        {
+            Question = question;
+            Options = new ObservableCollection<SelectableOptionViewModel>(
+                question.Options.Select(o => new SelectableOptionViewModel(o, RadioGroupName)));
+        }
     }
 
     /// <summary>An inline card for `ask_user_question` control requests — lets the user answer before Claude continues.</summary>
     public sealed class AskUserQuestionViewModel : ContentBlockViewModel
     {
         public ObservableCollection<QuestionAnswerViewModel> QuestionAnswers { get; }
-            = new ObservableCollection<QuestionAnswerViewModel>();
+            = [];
 
         private bool _isResolved;
         public bool IsResolved
@@ -317,7 +367,7 @@ namespace TeronClaudeCodeVS.ViewModels
             if (IsResolved) return;
             IsResolved = true;
 
-            var answers = new Dictionary<string, string>();
+            Dictionary<string, string> answers = new Dictionary<string, string>();
             if (!skip)
             {
                 foreach (var qa in QuestionAnswers)
@@ -346,6 +396,21 @@ namespace TeronClaudeCodeVS.ViewModels
         {
             Text = text;
             IsError = isError;
+        }
+    }
+
+    /// <summary>A turn that failed or was cut off (unexpected process exit, rate limit, ...) - shown
+    /// with an explicit "Try again" affordance that resends the original prompt verbatim, so the
+    /// model never has to guess what a follow-up "Continue" refers to.</summary>
+    public sealed class RetryNoticeViewModel : ContentBlockViewModel
+    {
+        public string Text { get; }
+        public ICommand RetryCommand { get; }
+
+        public RetryNoticeViewModel(string text, Action onRetry)
+        {
+            Text = text;
+            RetryCommand = new RelayCommand(onRetry);
         }
     }
 }

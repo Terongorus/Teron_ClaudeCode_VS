@@ -16,13 +16,13 @@ namespace TeronClaudeCodeVS.ViewModels
         {
             try
             {
-                if (!File.Exists(s_path)) return new List<SessionHistoryEntry>();
+                if (!File.Exists(s_path)) return [];
                 string json = File.ReadAllText(s_path);
                 var list = JsonConvert.DeserializeObject<List<SessionHistoryEntry>>(json);
                 return list?.OrderByDescending(e => e.LastUsed).Take(100).ToList()
-                    ?? new List<SessionHistoryEntry>();
+                    ?? [];
             }
-            catch { return new List<SessionHistoryEntry>(); }
+            catch { return []; }
         }
 
         public static void Save(List<SessionHistoryEntry> entries)

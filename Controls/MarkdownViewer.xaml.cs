@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
+using System.Windows.Input;
 
 namespace TeronClaudeCodeVS.Controls
 {
@@ -27,7 +28,7 @@ namespace TeronClaudeCodeVS.Controls
         {
             if (e.Delta == 0) return;
             e.Handled = true;
-            var args = new System.Windows.Input.MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+            MouseWheelEventArgs args = new System.Windows.Input.MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
             {
                 RoutedEvent = System.Windows.UIElement.MouseWheelEvent
             };

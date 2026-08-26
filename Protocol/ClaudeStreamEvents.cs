@@ -27,32 +27,42 @@ namespace TeronClaudeCodeVS.Protocol
             }
 
             string? type = root.Value<string>("type");
-            switch (type)
+            return type switch
             {
-                case "system":
-                    return ParseSystem(root);
+                "system" => ParseSystem(root),
+                "stream_event" => ParseStreamEvent(root),
+                "assistant" => ParseAssistantSnapshot(root),
+                "user" => ParseUserMessage(root),
+                "result" => ParseResult(root),
+                "control_request" => ParseControlRequest(root),
+                "control_response" => ParseControlResponse(root),
+                "rate_limit_event" => ParseRateLimitEvent(root),
+                _ => null,
+            };
+        }
 
-                case "stream_event":
-                    return ParseStreamEvent(root);
+        /// <summary>
+        /// The CLI has no standalone "usage" subcommand (confirmed live: `claude usage` is not a
+        /// real command - it gets swallowed as a chat prompt) - real-time rate-limit utilization is
+        /// only ever emitted as this side-channel event during a live session, right after the
+        /// `status:"requesting"` system message and before the turn's own content starts streaming.
+        /// </summary>
+        private static ClaudeMessage? ParseRateLimitEvent(JObject root)
+        {
+            JObject? info = root["rate_limit_info"] as JObject;
+            if (info?["unifiedWindows"] is not JObject windows) return null;
 
-                case "assistant":
-                    return ParseAssistantSnapshot(root);
+            JObject? fiveHour = windows["five_hour"] as JObject;
+            JObject? sevenDay = windows["seven_day"] as JObject;
+            if (fiveHour == null && sevenDay == null) return null;
 
-                case "user":
-                    return ParseUserMessage(root);
-
-                case "result":
-                    return ParseResult(root);
-
-                case "control_request":
-                    return ParseControlRequest(root);
-
-                case "control_response":
-                    return ParseControlResponse(root);
-
-                default:
-                    return null;
-            }
+            return new RateLimitEvent
+            {
+                SessionUtilization = fiveHour?.Value<double?>("utilization"),
+                SessionResetsAt = fiveHour?.Value<long?>("resetsAt"),
+                WeeklyUtilization = sevenDay?.Value<double?>("utilization"),
+                WeeklyResetsAt = sevenDay?.Value<long?>("resetsAt"),
+            };
         }
 
         private static ClaudeMessage? ParseSystem(JObject root)
@@ -69,13 +79,30 @@ namespace TeronClaudeCodeVS.Protocol
                     SlashCommands = root["slash_commands"]?
                         .Select(t => t.Value<string>() ?? "")
                         .Where(s => s.Length > 0)
-                        .ToArray() ?? System.Array.Empty<string>()
+                        .ToArray() ?? []
                 };
             }
 
             if (subtype == "status")
             {
-                return new StatusMessage { Status = root.Value<string>("status") ?? "" };
+                return new StatusMessage
+                {
+                    Status = root.Value<string>("status") ?? "",
+                    CompactResult = root.Value<string>("compact_result"),
+                    CompactError = root.Value<string>("compact_error")
+                };
+            }
+
+            if (subtype == "compact_boundary")
+            {
+                var meta = root["compact_metadata"] as JObject;
+                return new CompactBoundaryEvent
+                {
+                    Trigger = meta?.Value<string>("trigger") ?? "manual",
+                    PreTokens = meta?.Value<long?>("pre_tokens"),
+                    PostTokens = meta?.Value<long?>("post_tokens"),
+                    TokensFreed = meta?.Value<long?>("cumulative_dropped_tokens")
+                };
             }
 
             return null;
@@ -83,8 +110,7 @@ namespace TeronClaudeCodeVS.Protocol
 
         private static ClaudeMessage? ParseStreamEvent(JObject root)
         {
-            var evt = root["event"] as JObject;
-            if (evt == null) return null;
+            if (root["event"] is not JObject evt) return null;
 
             string? eventType = evt.Value<string>("type");
             switch (eventType)
@@ -97,7 +123,7 @@ namespace TeronClaudeCodeVS.Protocol
 
                 case "content_block_start":
                 {
-                    var block = evt["content_block"] as JObject;
+                        JObject? block = evt["content_block"] as JObject;
                     string blockType = block?.Value<string>("type") ?? "";
                     return new ContentBlockStartEvent
                     {
@@ -110,7 +136,7 @@ namespace TeronClaudeCodeVS.Protocol
 
                 case "content_block_delta":
                 {
-                    var delta = evt["delta"] as JObject;
+                        JObject? delta = evt["delta"] as JObject;
                     string? deltaType = delta?.Value<string>("type");
                     int index = evt.Value<int?>("index") ?? 0;
 
@@ -132,14 +158,13 @@ namespace TeronClaudeCodeVS.Protocol
 
         private static ClaudeMessage ParseAssistantSnapshot(JObject root)
         {
-            var content = root["message"]?["content"] as JArray ?? new JArray();
+            var content = root["message"]?["content"] as JArray ?? [];
             return new AssistantSnapshotEvent { Content = content };
         }
 
         private static ClaudeMessage? ParseUserMessage(JObject root)
         {
-            var content = root["message"]?["content"] as JArray;
-            if (content == null) return null;
+            if (root["message"]?["content"] is not JArray content) return null;
 
             foreach (var item in content.OfType<JObject>())
             {
@@ -185,42 +210,20 @@ namespace TeronClaudeCodeVS.Protocol
                 OutputTokens = root["usage"]?.Value<int?>("output_tokens"),
                 Errors = root["errors"] is JArray errs
                     ? errs.Select(t => t.Value<string>() ?? "").Where(s => s.Length > 0).ToArray()
-                    : System.Array.Empty<string>()
+                    : [],
+                QueuedTurnCount = root.Value<int?>("queued_turn_count") ?? 0
             };
         }
 
         private static ClaudeMessage ParseControlRequest(JObject root)
         {
-            var request = root["request"] as JObject ?? new JObject();
+            var request = root["request"] as JObject ?? [];
             string requestId = root.Value<string>("request_id") ?? "";
             string subtype = request.Value<string>("subtype") ?? "";
 
             if (subtype == "ask_user_question")
             {
-                var questions = new List<AskQuestion>();
-                if (request["questions"] is JArray arr)
-                {
-                    foreach (var token in arr.OfType<JObject>())
-                    {
-                        var q = new AskQuestion
-                        {
-                            QuestionText = token.Value<string>("question") ?? "",
-                            Header = token.Value<string>("header") ?? "",
-                            IsMultiSelect = token.Value<bool?>("multiSelect") ?? false
-                        };
-                        if (token["options"] is JArray opts)
-                        {
-                            q.Options = opts.OfType<JObject>().Select(o => new AskQuestionOption
-                            {
-                                Label = o.Value<string>("label") ?? "",
-                                Description = o.Value<string>("description") ?? "",
-                                Value = o.Value<string>("value") ?? o.Value<string>("label") ?? ""
-                            }).ToArray();
-                        }
-                        questions.Add(q);
-                    }
-                }
-                return new AskUserQuestionEvent { RequestId = requestId, Questions = questions };
+                return new AskUserQuestionEvent { RequestId = requestId, Questions = ParseQuestions(request["questions"] as JArray) };
             }
 
             return new PermissionRequestEvent
@@ -229,10 +232,42 @@ namespace TeronClaudeCodeVS.Protocol
                 Subtype = subtype,
                 ToolName = request.Value<string>("tool_name") ?? "",
                 ToolUseId = request.Value<string>("tool_use_id"),
-                Input = request["input"] as JObject ?? new JObject(),
+                Input = request["input"] as JObject ?? [],
                 Title = request.Value<string>("title"),
-                Description = request.Value<string>("description")
+                Description = request.Value<string>("description"),
+                RequiresUserInteraction = request.Value<bool?>("requires_user_interaction") ?? false
             };
+        }
+
+        /// <summary>
+        /// Shared by the dedicated `ask_user_question` control_request subtype and the built-in
+        /// `AskUserQuestion` tool's `can_use_tool` input (same "questions" shape in both places).
+        /// </summary>
+        internal static List<AskQuestion> ParseQuestions(JArray? arr)
+        {
+            List<AskQuestion> questions = [];
+            if (arr == null) return questions;
+
+            foreach (var token in arr.OfType<JObject>())
+            {
+                AskQuestion q = new()
+                {
+                    QuestionText = token.Value<string>("question") ?? "",
+                    Header = token.Value<string>("header") ?? "",
+                    IsMultiSelect = token.Value<bool?>("multiSelect") ?? false
+                };
+                if (token["options"] is JArray opts)
+                {
+                    q.Options = [.. opts.OfType<JObject>().Select(o => new AskQuestionOption
+                    {
+                        Label = o.Value<string>("label") ?? "",
+                        Description = o.Value<string>("description") ?? "",
+                        Value = o.Value<string>("value") ?? o.Value<string>("label") ?? ""
+                    })];
+                }
+                questions.Add(q);
+            }
+            return questions;
         }
 
         /// <summary>
@@ -243,21 +278,20 @@ namespace TeronClaudeCodeVS.Protocol
         /// </summary>
         private static ClaudeMessage ParseControlResponse(JObject root)
         {
-            var envelope = root["response"] as JObject ?? new JObject();
+            var envelope = root["response"] as JObject ?? [];
             return new ControlResponseEvent
             {
                 RequestId = envelope.Value<string>("request_id") ?? "",
                 Subtype = envelope.Value<string>("subtype") ?? "",
-                Response = envelope["response"] as JObject ?? new JObject()
+                Response = envelope["response"] as JObject ?? []
             };
         }
     }
 
     /// <summary>A line that wasn't valid JSON (e.g. stderr noise) - surfaced for the raw output panel only.</summary>
-    public sealed class RawTextMessage : ClaudeMessage
+    public sealed class RawTextMessage(string text) : ClaudeMessage
     {
-        public string Text { get; }
-        public RawTextMessage(string text) => Text = text;
+        public string Text { get; } = text;
     }
 
     public sealed class InitMessage : ClaudeMessage
@@ -266,12 +300,31 @@ namespace TeronClaudeCodeVS.Protocol
         public string Model { get; set; } = "";
         public string PermissionMode { get; set; } = "manual";
         public string Cwd { get; set; } = "";
-        public string[] SlashCommands { get; set; } = System.Array.Empty<string>();
+        public string[] SlashCommands { get; set; } = [];
     }
 
     public sealed class StatusMessage : ClaudeMessage
     {
         public string Status { get; set; } = "";
+
+        /// <summary>Only set on the status line that reports a /compact outcome ("success"/"failed") - confirmed live (2026-08-26): this line's own `status` field is null, the result lives here instead.</summary>
+        public string? CompactResult { get; set; }
+        public string? CompactError { get; set; }
+    }
+
+    /// <summary>
+    /// Emitted after a successful /compact, confirmed live (2026-08-26) against the real CLI:
+    /// {"type":"system","subtype":"compact_boundary","compact_metadata":{"trigger":"manual",
+    /// "pre_tokens":33547,"post_tokens":885,"cumulative_dropped_tokens":32662,...}}. On failure
+    /// (e.g. "Not enough messages to compact.") no boundary event follows - only the StatusMessage
+    /// above carries CompactResult="failed"/CompactError.
+    /// </summary>
+    public sealed class CompactBoundaryEvent : ClaudeMessage
+    {
+        public string Trigger { get; set; } = "manual";
+        public long? PreTokens { get; set; }
+        public long? PostTokens { get; set; }
+        public long? TokensFreed { get; set; }
     }
 
     public sealed class MessageStartEvent : ClaudeMessage { }
@@ -306,7 +359,7 @@ namespace TeronClaudeCodeVS.Protocol
     /// <summary>Cumulative snapshot of the current assistant message's content blocks (incl. finalized tool_use inputs).</summary>
     public sealed class AssistantSnapshotEvent : ClaudeMessage
     {
-        public JArray Content { get; set; } = new JArray();
+        public JArray Content { get; set; } = [];
     }
 
     public sealed class ToolResultEvent : ClaudeMessage
@@ -326,7 +379,22 @@ namespace TeronClaudeCodeVS.Protocol
         public int NumTurns { get; set; }
         public int? InputTokens { get; set; }
         public int? OutputTokens { get; set; }
-        public IReadOnlyList<string> Errors { get; set; } = System.Array.Empty<string>();
+        public IReadOnlyList<string> Errors { get; set; } = [];
+
+        /// <summary>How many more turns are already queued behind this one - confirmed live (2026-08-26). 0 means this was the last turn in the queue, so the session can go idle.</summary>
+        public int QueuedTurnCount { get; set; }
+    }
+
+    /// <summary>
+    /// Live session/weekly rate-limit utilization, resolved as a fraction in [0,1]. `ResetsAt`
+    /// values are Unix seconds. Arrives once per turn, before the turn's content streams.
+    /// </summary>
+    public sealed class RateLimitEvent : ClaudeMessage
+    {
+        public double? SessionUtilization { get; set; }
+        public long? SessionResetsAt { get; set; }
+        public double? WeeklyUtilization { get; set; }
+        public long? WeeklyResetsAt { get; set; }
     }
 
     /// <summary>A `can_use_tool` control request that must be answered via a control_response.</summary>
@@ -336,9 +404,17 @@ namespace TeronClaudeCodeVS.Protocol
         public string Subtype { get; set; } = "";
         public string ToolName { get; set; } = "";
         public string? ToolUseId { get; set; }
-        public JObject Input { get; set; } = new JObject();
+        public JObject Input { get; set; } = [];
         public string? Title { get; set; }
         public string? Description { get; set; }
+
+        /// <summary>
+        /// True for the built-in `AskUserQuestion` tool's own can_use_tool request (confirmed live,
+        /// 2026-08-26) - distinct from the separate `ask_user_question` control_request subtype
+        /// above. Answering it needs real answer data, not just allow/deny; see
+        /// ChatSessionViewModel.OnPermissionRequested for the routing.
+        /// </summary>
+        public bool RequiresUserInteraction { get; set; }
     }
 
     /// <summary>One question inside an `ask_user_question` control request.</summary>
@@ -347,7 +423,7 @@ namespace TeronClaudeCodeVS.Protocol
         public string QuestionText { get; set; } = "";
         public string Header { get; set; } = "";
         public bool IsMultiSelect { get; set; }
-        public AskQuestionOption[] Options { get; set; } = System.Array.Empty<AskQuestionOption>();
+        public AskQuestionOption[] Options { get; set; } = [];
     }
 
     public sealed class AskQuestionOption
@@ -361,7 +437,7 @@ namespace TeronClaudeCodeVS.Protocol
     public sealed class AskUserQuestionEvent : ClaudeMessage
     {
         public string RequestId { get; set; } = "";
-        public IReadOnlyList<AskQuestion> Questions { get; set; } = System.Array.Empty<AskQuestion>();
+        public IReadOnlyList<AskQuestion> Questions { get; set; } = [];
     }
 
     /// <summary>The CLI's reply to a client-originated control_request (e.g. an interrupt), correlated by RequestId.</summary>
@@ -369,6 +445,6 @@ namespace TeronClaudeCodeVS.Protocol
     {
         public string RequestId { get; set; } = "";
         public string Subtype { get; set; } = "";
-        public JObject Response { get; set; } = new JObject();
+        public JObject Response { get; set; } = [];
     }
 }

@@ -460,29 +460,13 @@
                                                TextWrapping="Wrap" Margin="0,0,0,4"
                                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
 
-                                    <!-- Option list (single-select) -->
-                                    <ListBox ItemsSource="{Binding Question.Options}"
-                                             SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
-                                             ItemContainerStyle="{StaticResource PopupListItemStyle}"
-                                             BorderThickness="0" Background="Transparent"
-                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                             Visibility="{Binding HasOptions, Converter={StaticResource BoolToVisibilityConverter}}">
-                                        <ListBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="◉ " FontSize="11" VerticalAlignment="Center"
-                                                               Foreground="{StaticResource ClaudeAccentBrush}">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Text" Value="○ "/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
-                                                                        <Setter Property="Text" Value="◉ "/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
+                                    <!-- Option list (single-select, radio buttons) -->
+                                    <ItemsControl ItemsSource="{Binding Options}"
+                                                  Visibility="{Binding IsSingleSelectWithOptions, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type vm:SelectableOptionViewModel}">
+                                                <RadioButton GroupName="{Binding RadioGroupName}"
+                                                             IsChecked="{Binding IsSelected, Mode=TwoWay}" Margin="0,3,0,3">
                                                     <StackPanel>
                                                         <TextBlock Text="{Binding Label}" FontSize="12"
                                                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
@@ -490,10 +474,28 @@
                                                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                                                    Visibility="{Binding Description, Converter={StaticResource NullToVisibilityConverter}}"/>
                                                     </StackPanel>
-                                                </StackPanel>
+                                                </RadioButton>
                                             </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <!-- Option list (multi-select, checkboxes) -->
+                                    <ItemsControl ItemsSource="{Binding Options}"
+                                                  Visibility="{Binding IsMultiSelect, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type vm:SelectableOptionViewModel}">
+                                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" Margin="0,3,0,3">
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Label}" FontSize="12"
+                                                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                                        <TextBlock Text="{Binding Description}" FontSize="10.5" Opacity="0.6"
+                                                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                                                   Visibility="{Binding Description, Converter={StaticResource NullToVisibilityConverter}}"/>
+                                                    </StackPanel>
+                                                </CheckBox>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
 
                                     <!-- Free-text input (when no options) -->
                                     <TextBox Text="{Binding AnswerText, UpdateSourceTrigger=PropertyChanged}"
@@ -537,8 +539,10 @@
                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                     <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" Opacity="0.8" Margin="0,4,0,0"
                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                    <controls:DiffViewer Margin="0,6,0,0" RawDiff="{Binding RawDiff}"
+                                          Visibility="{Binding RawDiff, Converter={StaticResource NullToVisibilityConverter}}"/>
                     <controls:MarkdownViewer Margin="0,6,0,0"
-                                              Visibility="{Binding HasDetail, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                              Visibility="{Binding HasMarkdownDetail, Converter={StaticResource BoolToVisibilityConverter}}"/>
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0"
                                 Visibility="{Binding IsResolved, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}">
                         <Button Content="Allow" Command="{Binding AllowCommand}" Style="{StaticResource AccentButtonStyle}"
@@ -582,6 +586,16 @@
             </Border>
         </DataTemplate>
 
+        <DataTemplate x:Key="RetryTemplate" DataType="{x:Type vm:RetryNoticeViewModel}">
+            <StackPanel Margin="0,4,0,4" HorizontalAlignment="Stretch">
+                <TextBlock Text="{Binding Text}" FontSize="12" Opacity="0.75" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                <Button Content="Try again" Command="{Binding RetryCommand}"
+                        Style="{StaticResource AccentButtonStyle}"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                        Padding="14,8"/>
+            </StackPanel>
+        </DataTemplate>
+
         <controls:ContentBlockTemplateSelector x:Key="BlockTemplateSelector"
             TextTemplate="{StaticResource TextBlockTemplate}"
             ThinkingTemplate="{StaticResource ThinkingBlockTemplate}"
@@ -589,7 +603,8 @@
             PermissionTemplate="{StaticResource PermissionTemplate}"
             AskUserQuestionTemplate="{StaticResource AskUserQuestionTemplate}"
             ResultTemplate="{StaticResource ResultFooterTemplate}"
-            InterruptedTemplate="{StaticResource InterruptedTemplate}"/>
+            InterruptedTemplate="{StaticResource InterruptedTemplate}"
+            RetryTemplate="{StaticResource RetryTemplate}"/>
 
         <!-- ===================== Message templates ===================== -->
 
@@ -607,9 +622,15 @@
                           Margin="2,4,12,4"/>
         </DataTemplate>
 
+        <DataTemplate x:Key="SystemMessageTemplate" DataType="{x:Type vm:ChatMessageViewModel}">
+            <ItemsControl ItemsSource="{Binding Blocks}" ItemTemplateSelector="{StaticResource BlockTemplateSelector}"
+                          HorizontalAlignment="Center" Margin="0,2,0,2"/>
+        </DataTemplate>
+
         <controls:ChatMessageTemplateSelector x:Key="MessageTemplateSelector"
             UserTemplate="{StaticResource UserMessageTemplate}"
-            AssistantTemplate="{StaticResource AssistantMessageTemplate}"/>
+            AssistantTemplate="{StaticResource AssistantMessageTemplate}"
+            SystemTemplate="{StaticResource SystemMessageTemplate}"/>
 
     </UserControl.Resources>
 

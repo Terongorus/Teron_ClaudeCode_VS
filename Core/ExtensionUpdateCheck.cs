@@ -28,7 +28,7 @@ namespace TeronClaudeCodeVS.Core
 
         private static HttpClient CreateHttpClient()
         {
-            var client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            HttpClient client = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
             client.DefaultRequestHeaders.UserAgent.ParseAdd("teron-claudecode-vs-extension");
             client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
             return client;
@@ -53,7 +53,7 @@ namespace TeronClaudeCodeVS.Core
 
                 var json = await Http.GetStringAsync(
                     $"https://api.github.com/repos/{GitHubOwner}/{GitHubRepo}/releases/latest");
-                var release = JObject.Parse(json);
+                JObject release = JObject.Parse(json);
 
                 var tag = (string?)release["tag_name"];
                 if (tag is null) { return; }
@@ -84,7 +84,7 @@ namespace TeronClaudeCodeVS.Core
 
         private static async Task ShowUpdateInfoBarAsync(string latestVersion, string downloadUrl)
         {
-            var model = new InfoBarModel(
+            InfoBarModel model = new InfoBarModel(
                 new[]
                 {
                     new InfoBarTextSpan($"A new version of Claude Code for Visual Studio is available (v{latestVersion})."),

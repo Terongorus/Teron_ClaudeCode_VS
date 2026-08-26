@@ -47,7 +47,7 @@ namespace TeronClaudeCodeVS.Controls
         {
             if (e.Delta == 0) return;
             e.Handled = true;
-            var args = new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+            MouseWheelEventArgs args = new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
                 { RoutedEvent = MouseWheelEvent };
             RaiseEvent(args);
         }
@@ -95,9 +95,9 @@ namespace TeronClaudeCodeVS.Controls
                 _                    => Brushes.Transparent,
             };
 
-            var gutter = new Border { Background = gutterBg, Width = 3 };
+            Border gutter = new Border { Background = gutterBg, Width = 3 };
 
-            var tb = new TextBlock
+            TextBlock tb = new TextBlock
             {
                 Text = text,
                 FontFamily = s_mono,
@@ -107,7 +107,7 @@ namespace TeronClaudeCodeVS.Controls
             };
             tb.SetResourceReference(ForegroundProperty, VsBrushes.ToolWindowTextKey);
 
-            var row = new Grid();
+            Grid row = new Grid();
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             Grid.SetColumn(gutter, 0);
@@ -122,7 +122,7 @@ namespace TeronClaudeCodeVS.Controls
 
         private static SolidColorBrush Frozen(Color c)
         {
-            var b = new SolidColorBrush(c);
+            SolidColorBrush b = new SolidColorBrush(c);
             b.Freeze();
             return b;
         }

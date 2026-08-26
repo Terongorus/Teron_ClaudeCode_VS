@@ -42,23 +42,42 @@ namespace TeronClaudeCodeVS.Core
         /// how the CLI subprocess is meant to discover exactly one IDE per environment. Call from
         /// the UI thread (matches every other VS SDK call this server's handlers make).
         /// </summary>
+        /// <summary>
+        /// Set by <see cref="GetOrStartIdeServer"/> on every call - null on success, otherwise the
+        /// reason no server is available (option disabled, or the exception <see cref="IdeCompanionServer.Start"/>
+        /// threw). Exists because two live F5 passes (2026-08-26) both showed the CLI never
+        /// connecting (empty `mcp_servers`) with no visible cause - this makes the actual outcome
+        /// observable from the chat's Raw CLI Output panel instead of failing silently again.
+        /// </summary>
+        internal string? LastIdeServerDiagnostic { get; private set; }
+
         internal IdeCompanionServer? GetOrStartIdeServer()
         {
             if (!GetOptions().EnableIdeCompanionServer)
             {
                 _ideServer?.Stop();
+                LastIdeServerDiagnostic = "disabled via EnableIdeCompanionServer option";
                 return null;
             }
 
-            if (_ideServer == null)
-                _ideServer = new IdeCompanionServer(new VsIdeToolHandlers(), GetWorkspaceFoldersSync);
+            try
+            {
+                if (_ideServer == null)
+                    _ideServer = new IdeCompanionServer(new VsIdeToolHandlers(), GetWorkspaceFoldersSync);
 
-            if (!_ideServer.IsRunning)
-                _ideServer.Start();
-            else
-                _ideServer.RefreshWorkspaceFolders();
+                if (!_ideServer.IsRunning)
+                    _ideServer.Start();
+                else
+                    _ideServer.RefreshWorkspaceFolders();
 
-            return _ideServer;
+                LastIdeServerDiagnostic = $"running, port={_ideServer.Port}";
+                return _ideServer;
+            }
+            catch (Exception ex)
+            {
+                LastIdeServerDiagnostic = $"GetOrStartIdeServer threw {ex.GetType().Name}: {ex.Message}";
+                return null;
+            }
         }
 
         // Called synchronously from IdeCompanionServer.WriteLockFile - blocking-join is

@@ -55,6 +55,7 @@ namespace TeronClaudeCodeVS.Core
 
         public event EventHandler<InitMessage>? SessionInitialized;
         public event EventHandler<StatusMessage>? StatusChanged;
+        public event EventHandler<CompactBoundaryEvent>? CompactBoundary;
         public event EventHandler<MessageStartEvent>? MessageStarted;
         public event EventHandler<ContentBlockStartEvent>? BlockStarted;
         public event EventHandler<TextDeltaEvent>? TextDelta;
@@ -66,6 +67,7 @@ namespace TeronClaudeCodeVS.Core
         public event EventHandler<PermissionRequestEvent>? PermissionRequested;
         public event EventHandler<AskUserQuestionEvent>? AskUserQuestionRequested;
         public event EventHandler<ControlResponseEvent>? ControlResponseReceived;
+        public event EventHandler<RateLimitEvent>? RateLimitUpdated;
         public event EventHandler<string>? RawLineReceived;
         public event EventHandler<string>? ErrorReceived;
         public event EventHandler? ProcessExited;
@@ -74,7 +76,7 @@ namespace TeronClaudeCodeVS.Core
         // control_response, keyed by request_id. Written from SendInterruptAsync (any thread),
         // completed from HandleLine (the stdout read-loop thread) - lock-protected.
         private readonly Dictionary<string, TaskCompletionSource<ControlResponseEvent>> _pendingControlResponses =
-            new Dictionary<string, TaskCompletionSource<ControlResponseEvent>>();
+            [];
 
         /// <summary>The session id reported by the most recent `init`/`result` message, for `--resume`.</summary>
         public string? LastSessionId { get; private set; }
@@ -84,13 +86,13 @@ namespace TeronClaudeCodeVS.Core
         /// <summary>Starts the underlying `claude` process. Output is consumed on background tasks.</summary>
         public void Start(string claudePath, string workingDirectory, string? model, string? permissionMode,
             string? resumeSessionId = null, string? effortArg = null, ClaudeSessionStartOptions? options = null,
-            int? ideServerPort = null)
+            (int Port, string AuthToken)? ideServer = null)
         {
             if (_process != null)
                 throw new InvalidOperationException("Session already started.");
 
             string fileName = claudePath;
-            var args = new List<string>();
+            List<string> args = new List<string>();
 
             string ext = Path.GetExtension(claudePath);
             if (string.Equals(ext, ".cmd", StringComparison.OrdinalIgnoreCase) ||
@@ -110,6 +112,18 @@ namespace TeronClaudeCodeVS.Core
             args.Add("stream-json");
             args.Add("--include-partial-messages");
             args.Add("--verbose");
+
+            // Without this, built-in tool permission requests (Edit/Write/Bash/...) never reach
+            // the control_request/can_use_tool flow at all in -p/headless mode - confirmed live
+            // (2026-08-26): a synthetic harness reproduced a synchronous
+            // {"type":"system","subtype":"permission_denied"} for Edit even with zero IDE
+            // integration, --allowedTools, or --mcp-config involved, and confirming the official
+            // VS Code extension's own real claude.exe invocation (captured live via
+            // Get-CimInstance Win32_Process) always passes this flag. This is what makes the
+            // stdin/stdout control_response protocol this extension already implements
+            // (RespondToPermissionAsync) the thing the CLI actually calls into.
+            args.Add("--permission-prompt-tool");
+            args.Add("stdio");
 
             if (!string.IsNullOrWhiteSpace(permissionMode))
             {
@@ -141,10 +155,26 @@ namespace TeronClaudeCodeVS.Core
                 args.AddRange(options.AdditionalDirectories);
             }
 
+            // mcp__ide__getDiagnostics needs to be pre-authorized here, not approved live.
+            // Root-caused live (2026-08-26): MCP-server-sourced tools don't go through the normal
+            // can_use_tool control_request flow at all - an unauthorized call comes back as a
+            // synchronous {"type":"system","subtype":"permission_denied"} event with no
+            // opportunity for any UI prompt to exist, confirmed by reproducing it against the real
+            // CLI and then confirming --allowedTools eliminates it entirely (permission_denials
+            // goes from non-empty to []). Only getDiagnostics is exposed as a model-callable tool
+            // (the rest of the 11-tool surface is used internally by the CLI's own UI-driven flows
+            // like openDiff, which already goes through the existing can_use_tool approval this
+            // extension already handles for Edit/Write) - see docs/Phase 3 for the full trace.
+            List<string> allowedTools = new List<string>();
+            if (ideServer.HasValue)
+                allowedTools.Add("mcp__ide__getDiagnostics");
             if (options?.AllowedTools?.Count > 0)
+                allowedTools.AddRange(options.AllowedTools);
+
+            if (allowedTools.Count > 0)
             {
                 args.Add("--allowedTools");
-                args.AddRange(options.AllowedTools);
+                args.AddRange(allowedTools);
             }
 
             if (options?.DisallowedTools?.Count > 0)
@@ -165,10 +195,43 @@ namespace TeronClaudeCodeVS.Core
                 args.Add(options!.SystemPrompt!);
             }
 
+            // Registering the IDE companion server as an explicit --mcp-config entry (bundled into
+            // the same flag invocation as any user-configured McpConfigPaths, since the CLI treats
+            // --strict-mcp-config as "only servers from --mcp-config" and this needs to survive
+            // that). Root-caused live (2026-08-26): --ide + CLAUDE_CODE_SSE_PORT (this method's
+            // original design, based on reading the official extension's source) never attempts a
+            // connection at all in -p/headless mode - confirmed via the CLI's own debug log
+            // showing zero IDE-related activity. An explicit ws-transport --mcp-config entry does
+            // work (confirmed end-to-end: mcp_servers:[{"name":"ide","status":"connected"}] in a
+            // real init message) once the server also echoes back the "mcp" subprotocol the CLI's
+            // WebSocket client requests (see IdeCompanionServer.HandleConnectionAsync).
+            List<string> mcpConfigValues = new List<string>();
+            if (ideServer.HasValue)
+            {
+                JObject ideServerConfig = new JObject
+                {
+                    ["mcpServers"] = new JObject
+                    {
+                        ["ide"] = new JObject
+                        {
+                            ["type"] = "ws",
+                            ["url"] = $"ws://127.0.0.1:{ideServer.Value.Port}",
+                            ["headers"] = new JObject
+                            {
+                                ["X-Claude-Code-Ide-Authorization"] = ideServer.Value.AuthToken
+                            }
+                        }
+                    }
+                };
+                mcpConfigValues.Add(ideServerConfig.ToString(Newtonsoft.Json.Formatting.None));
+            }
             if (options?.McpConfigPaths?.Count > 0)
+                mcpConfigValues.AddRange(options.McpConfigPaths);
+
+            if (mcpConfigValues.Count > 0)
             {
                 args.Add("--mcp-config");
-                args.AddRange(options.McpConfigPaths);
+                args.AddRange(mcpConfigValues);
             }
 
             if (options?.StrictMcpConfig == true)
@@ -176,7 +239,7 @@ namespace TeronClaudeCodeVS.Core
                 args.Add("--strict-mcp-config");
             }
 
-            var psi = new ProcessStartInfo
+            ProcessStartInfo psi = new ProcessStartInfo
             {
                 FileName = fileName,
                 Arguments = BuildArguments(args),
@@ -189,13 +252,6 @@ namespace TeronClaudeCodeVS.Core
                 StandardOutputEncoding = new UTF8Encoding(false),
                 StandardErrorEncoding = new UTF8Encoding(false),
             };
-
-            // Discovery mechanism for the IDE companion server (confirmed live against the real
-            // official VS Code extension's own source): the CLI reads this env var to find which
-            // port to connect to, then reads that port's ~/.claude/ide/<port>.lock for the auth
-            // token - no lockfile-scanning ambiguity needed since we spawn the process ourselves.
-            if (ideServerPort.HasValue)
-                psi.EnvironmentVariables["CLAUDE_CODE_SSE_PORT"] = ideServerPort.Value.ToString();
 
             _process = new Process { StartInfo = psi, EnableRaisingEvents = true };
             _process.Exited += (s, e) => ProcessExited?.Invoke(this, EventArgs.Empty);
@@ -216,7 +272,7 @@ namespace TeronClaudeCodeVS.Core
         /// </summary>
         private static string BuildArguments(IEnumerable<string> args)
         {
-            var sb = new StringBuilder();
+            StringBuilder sb = new StringBuilder();
             foreach (var arg in args)
             {
                 if (sb.Length != 0)
@@ -279,7 +335,7 @@ namespace TeronClaudeCodeVS.Core
         /// <summary>Sends a plain-text user turn.</summary>
         public Task SendUserMessageAsync(string text)
         {
-            var payload = new JObject
+            JObject payload = new JObject
             {
                 ["type"] = "user",
                 ["message"] = new JObject
@@ -294,11 +350,11 @@ namespace TeronClaudeCodeVS.Core
         /// <summary>Answers an `ask_user_question` control request with the user's selections.</summary>
         public Task RespondToAskUserQuestionAsync(string requestId, System.Collections.Generic.Dictionary<string, string> answers)
         {
-            var answersObj = new JObject();
+            JObject answersObj = new JObject();
             foreach (var kv in answers)
                 answersObj[kv.Key] = kv.Value;
 
-            var payload = new JObject
+            JObject payload = new JObject
             {
                 ["type"] = "control_response",
                 ["response"] = new JObject
@@ -321,7 +377,7 @@ namespace TeronClaudeCodeVS.Core
             if (allow && updatedInput != null)
                 response["updatedInput"] = updatedInput;
 
-            var payload = new JObject
+            JObject payload = new JObject
             {
                 ["type"] = "control_response",
                 ["response"] = new JObject
@@ -343,17 +399,17 @@ namespace TeronClaudeCodeVS.Core
         public async Task<ControlResponseEvent?> SendInterruptAsync(bool cancelQueued = false, int timeoutMs = 5000)
         {
             string requestId = Guid.NewGuid().ToString();
-            var tcs = new TaskCompletionSource<ControlResponseEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource<ControlResponseEvent> tcs = new TaskCompletionSource<ControlResponseEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
             lock (_pendingControlResponses)
             {
                 _pendingControlResponses[requestId] = tcs;
             }
 
-            var request = new JObject { ["subtype"] = "interrupt" };
+            JObject request = new JObject { ["subtype"] = "interrupt" };
             if (cancelQueued)
                 request["cancel_queued"] = true;
 
-            var payload = new JObject
+            JObject payload = new JObject
             {
                 ["type"] = "control_request",
                 ["request_id"] = requestId,
@@ -448,6 +504,10 @@ namespace TeronClaudeCodeVS.Core
                     StatusChanged?.Invoke(this, status);
                     break;
 
+                case CompactBoundaryEvent compact:
+                    CompactBoundary?.Invoke(this, compact);
+                    break;
+
                 case MessageStartEvent start:
                     MessageStarted?.Invoke(this, start);
                     break;
@@ -496,6 +556,10 @@ namespace TeronClaudeCodeVS.Core
 
                 case AskUserQuestionEvent askQuestion:
                     AskUserQuestionRequested?.Invoke(this, askQuestion);
+                    break;
+
+                case RateLimitEvent rateLimit:
+                    RateLimitUpdated?.Invoke(this, rateLimit);
                     break;
 
                 case ControlResponseEvent controlResponse:

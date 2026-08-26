@@ -9,8 +9,8 @@ namespace TeronClaudeCodeVS.Core
     /// </summary>
     internal static class ToolSchemas
     {
-        public static JArray BuildToolList() => new JArray
-        {
+        public static JArray BuildToolList() =>
+        [
             Tool("openDiff", "Open a diff view comparing the current and proposed contents of a file",
                 Obj(
                     Prop("old_file_path", "string", "Path to the file to show diff for. If not provided, uses active editor."),
@@ -52,15 +52,15 @@ namespace TeronClaudeCodeVS.Core
                 Obj(Prop("filePath", "string", null)), required: new[] { "filePath" }),
 
             Tool("getLatestSelection", "Get the most recent text selection (even if not in the active editor)", Obj(), required: null),
-        };
+        ];
 
         private static JObject Tool(string name, string? description, JObject properties, string[]? required)
         {
-            var inputSchema = new JObject { ["type"] = "object", ["properties"] = properties, ["additionalProperties"] = false };
+            JObject inputSchema = new JObject { ["type"] = "object", ["properties"] = properties, ["additionalProperties"] = false };
             if (required != null)
                 inputSchema["required"] = new JArray(required);
 
-            var tool = new JObject { ["name"] = name, ["inputSchema"] = inputSchema };
+            JObject tool = new JObject { ["name"] = name, ["inputSchema"] = inputSchema };
             if (description != null)
                 tool["description"] = description;
             return tool;
@@ -68,7 +68,7 @@ namespace TeronClaudeCodeVS.Core
 
         private static JObject Obj(params (string name, JObject schema)[] props)
         {
-            var obj = new JObject();
+            JObject obj = new JObject();
             foreach (var (name, schema) in props)
                 obj[name] = schema;
             return obj;
@@ -76,7 +76,7 @@ namespace TeronClaudeCodeVS.Core
 
         private static (string, JObject) Prop(string name, string type, string? description)
         {
-            var schema = new JObject { ["type"] = type };
+            JObject schema = new JObject { ["type"] = type };
             if (description != null)
                 schema["description"] = description;
             return (name, schema);

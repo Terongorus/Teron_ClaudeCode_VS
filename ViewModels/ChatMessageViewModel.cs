@@ -5,7 +5,10 @@ namespace TeronClaudeCodeVS.ViewModels
     public enum ChatRole
     {
         User,
-        Assistant
+        Assistant,
+
+        /// <summary>A local/CLI-generated notice not attributed to either party - e.g. a /compact result.</summary>
+        System
     }
 
     /// <summary>One turn in the conversation - a user prompt, or an assistant turn made up of content blocks.</summary>
@@ -13,7 +16,7 @@ namespace TeronClaudeCodeVS.ViewModels
     {
         public ChatRole Role { get; }
 
-        public ObservableCollection<ContentBlockViewModel> Blocks { get; } = new ObservableCollection<ContentBlockViewModel>();
+        public ObservableCollection<ContentBlockViewModel> Blocks { get; } = [];
 
         public ChatMessageViewModel(ChatRole role)
         {

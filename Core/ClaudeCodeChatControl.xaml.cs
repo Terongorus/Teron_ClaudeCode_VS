@@ -24,7 +24,7 @@ namespace TeronClaudeCodeVS.Core
         private readonly ChatSessionViewModel _vm = new ChatSessionViewModel();
         private string _solutionDirectory = "";
 
-        private string[] _projectFiles = Array.Empty<string>();
+        private string[] _projectFiles = [];
         private int _atTokenStart = -1;
         private bool _sendOnCtrlEnter;
 
@@ -84,7 +84,9 @@ namespace TeronClaudeCodeVS.Core
                 new MouseWheelEventHandler(OnMessageListMouseWheel),
                 handledEventsToo: true);
 
-            _solutionDirectory = await GetWorkingDirectoryAsync();
+            _vm.RawOutput.Add($"[cwd-diag] OnLoaded firing, ClaudeCodePackage.Instance={(ClaudeCodePackage.Instance == null ? "NULL" : "set")}");
+            _solutionDirectory = await VsIdeToolHandlers.GetWorkingDirectoryAsync(line => _vm.RawOutput.Add(line));
+            _vm.RawOutput.Add($"[cwd-diag] resolved _solutionDirectory = {_solutionDirectory}");
 
             _ = IndexProjectFilesAsync();
 
@@ -118,7 +120,7 @@ namespace TeronClaudeCodeVS.Core
 
         private static string[] EnumerateProjectFiles(string root)
         {
-            var files = new List<string>(512);
+            List<string> files = new List<string>(512);
             try { EnumerateRecursive(root, files); } catch { }
             return files.ToArray();
         }
@@ -142,28 +144,45 @@ namespace TeronClaudeCodeVS.Core
             catch { }
         }
 
-        private static async Task<string> GetWorkingDirectoryAsync()
-        {
-            try
-            {
-                var solution = await VS.Solutions.GetCurrentSolutionAsync();
-                string? path = solution?.FullPath;
-                if (!string.IsNullOrEmpty(path))
-                {
-                    string? dir = Path.GetDirectoryName(path);
-                    if (!string.IsNullOrEmpty(dir))
-                        return dir!;
-                }
-            }
-            catch { }
-
-            return Environment.CurrentDirectory;
-        }
-
         private void OnViewModelPropertyChanged(object sender, PropertyChangedEventArgs e)
         {
             if (e.PropertyName == nameof(ChatSessionViewModel.IsBusy))
                 UpdateSendStopVisibility();
+
+            // The Model/Permission Mode/Effort dropdowns in the chat header only ever lived in
+            // the view model - picking a value there was never written back to the Options page,
+            // so it reverted to the "Default *" settings (or the hardcoded ctor defaults) on every
+            // new DevEnv session. Persisting on every change, not just at Loaded, is what makes
+            // "whatever I last picked in the dropdown" survive a restart.
+            //
+            // Deliberately per-property, not "write all three defaults on any change": OnLoaded
+            // applies the three loaded defaults sequentially (SelectedModel, then
+            // SelectedPermissionMode, then SelectedThinkingLevel). A live test caught a real bug
+            // in an earlier version of this fix that wrote all three every time - assigning
+            // SelectedModel fired this handler before SelectedPermissionMode/SelectedThinkingLevel
+            // had been updated from their loaded values, so it read back their still-default
+            // in-memory state and stomped the real persisted DefaultPermissionMode/DefaultEffortLevel
+            // on disk before OnLoaded ever got to apply them. Writing only the one property that
+            // actually changed makes the three settings independent regardless of load order.
+            var options = ClaudeCodePackage.Instance?.GetOptions();
+            if (options == null)
+                return;
+
+            if (e.PropertyName == nameof(ChatSessionViewModel.SelectedModel))
+            {
+                options.DefaultModel = _vm.SelectedModel.Value ?? "";
+                options.SaveSettingsToStorage();
+            }
+            else if (e.PropertyName == nameof(ChatSessionViewModel.SelectedPermissionMode))
+            {
+                options.DefaultPermissionMode = _vm.SelectedPermissionMode.Value ?? "";
+                options.SaveSettingsToStorage();
+            }
+            else if (e.PropertyName == nameof(ChatSessionViewModel.SelectedThinkingLevel))
+            {
+                options.DefaultEffortLevel = _vm.SelectedThinkingLevel.EffortArg ?? "";
+                options.SaveSettingsToStorage();
+            }
         }
 
         private void UpdateSendStopVisibility()
@@ -294,6 +313,11 @@ namespace TeronClaudeCodeVS.Core
         private async void OnAccountUsageClicked(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100
         {
+            await OpenAccountUsagePopupAsync();
+        }
+
+        private async Task OpenAccountUsagePopupAsync()
+        {
             CommandMenuPopup.IsOpen = false;
             AccountUsagePopup.IsOpen = true;
 
@@ -350,15 +374,21 @@ namespace TeronClaudeCodeVS.Core
             CommandMenuPopup.IsOpen = false;
         }
 
-        private void OnSlashCommandMenuItemClicked(object sender, RoutedEventArgs e)
+#pragma warning disable VSTHRD100
+        private async void OnSlashCommandMenuItemClicked(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
         {
+            CommandMenuPopup.IsOpen = false;
+
             if (((FrameworkElement)sender).DataContext is string command)
             {
-                InputBox.Text = "/" + command + " ";
-                InputBox.CaretIndex = InputBox.Text.Length;
+                // Picked from the dedicated command menu (as opposed to typed-and-autocompleted,
+                // where the user may still be adding arguments) - run it immediately instead of
+                // just prefilling the box and waiting for a manual Enter.
+                InputBox.Text = "/" + command;
+                await SendCurrentInputAsync();
             }
 
-            CommandMenuPopup.IsOpen = false;
             Keyboard.Focus(InputBox);
         }
 
@@ -374,6 +404,18 @@ namespace TeronClaudeCodeVS.Core
             string text = InputBox.Text;
             if (string.IsNullOrWhiteSpace(text) || !_vm.CanSend)
                 return;
+
+            // /usage never reaches the model in the real CLI either - confirmed live (2026-08-26)
+            // against the official VS Code extension, it opens a local panel with zero API cost.
+            // Sending it as a chat message just burns a no-op turn (0 in/0 out tokens, nothing
+            // useful shown). Open the same Account & Usage popup the toolbar button does instead.
+            string trimmed = text.Trim();
+            if (trimmed.Equals("/usage", StringComparison.OrdinalIgnoreCase))
+            {
+                InputBox.Clear();
+                await OpenAccountUsagePopupAsync();
+                return;
+            }
 
             InputBox.Clear();
             await _vm.SendMessageAsync(text);
@@ -468,7 +510,7 @@ namespace TeronClaudeCodeVS.Core
             if (text.StartsWith("/", StringComparison.Ordinal) && !text.Contains(" ") && !text.Contains("\n"))
             {
                 string filter = text.Substring(1);
-                var slashMatches = _vm.SlashCommands
+                List<string> slashMatches = _vm.SlashCommands
                     .Where(c => c.StartsWith(filter, StringComparison.OrdinalIgnoreCase))
                     .ToList();
 
@@ -507,7 +549,7 @@ namespace TeronClaudeCodeVS.Core
 
         private string[] FilterProjectFiles(string filter)
         {
-            if (_projectFiles.Length == 0) return Array.Empty<string>();
+            if (_projectFiles.Length == 0) return [];
 
             return _projectFiles
                 .Select(f => GetRelativePath(_solutionDirectory, f))
@@ -649,8 +691,8 @@ namespace TeronClaudeCodeVS.Core
                 if (!baseFull.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal))
                     baseFull += Path.DirectorySeparatorChar;
 
-                var baseUri = new Uri(baseFull);
-                var fullUri = new Uri(Path.GetFullPath(fullPath));
+                Uri baseUri = new Uri(baseFull);
+                Uri fullUri = new Uri(Path.GetFullPath(fullPath));
 
                 if (baseUri.Scheme != fullUri.Scheme)
                     return fullPath;

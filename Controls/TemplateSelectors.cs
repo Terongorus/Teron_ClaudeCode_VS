@@ -14,6 +14,7 @@ namespace TeronClaudeCodeVS.Controls
         public DataTemplate? AskUserQuestionTemplate { get; set; }
         public DataTemplate? ResultTemplate { get; set; }
         public DataTemplate? InterruptedTemplate { get; set; }
+        public DataTemplate? RetryTemplate { get; set; }
 
         public override DataTemplate? SelectTemplate(object item, DependencyObject container)
         {
@@ -26,6 +27,7 @@ namespace TeronClaudeCodeVS.Controls
                 AskUserQuestionViewModel => AskUserQuestionTemplate,
                 ResultFooterViewModel => ResultTemplate,
                 InterruptedBlockViewModel => InterruptedTemplate,
+                RetryNoticeViewModel => RetryTemplate,
                 _ => base.SelectTemplate(item, container)
             };
         }
@@ -36,12 +38,18 @@ namespace TeronClaudeCodeVS.Controls
     {
         public DataTemplate? UserTemplate { get; set; }
         public DataTemplate? AssistantTemplate { get; set; }
+        public DataTemplate? SystemTemplate { get; set; }
 
         public override DataTemplate? SelectTemplate(object item, DependencyObject container)
         {
             if (item is ChatMessageViewModel message)
             {
-                return message.Role == ChatRole.User ? UserTemplate : AssistantTemplate;
+                return message.Role switch
+                {
+                    ChatRole.User => UserTemplate,
+                    ChatRole.System => SystemTemplate,
+                    _ => AssistantTemplate
+                };
             }
 
             return base.SelectTemplate(item, container);

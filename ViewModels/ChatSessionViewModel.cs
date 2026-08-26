@@ -70,9 +70,14 @@ namespace TeronClaudeCodeVS.ViewModels
         private string _workingDirectory = "";
         private string? _lastSessionId;
 
+        /// <summary>The text of the most recently sent turn, kept until it completes successfully -
+        /// used to offer a verbatim "Try again" after a failed/interrupted turn instead of relying
+        /// on the user retyping (or a vague "Continue") to convey what was actually being asked.</summary>
+        private string? _lastSentText;
+
         private ChatMessageViewModel? _currentAssistantMessage;
-        private readonly Dictionary<int, ContentBlockViewModel> _blocksByIndex = new Dictionary<int, ContentBlockViewModel>();
-        private readonly Dictionary<string, ToolCallViewModel> _toolCallsByUseId = new Dictionary<string, ToolCallViewModel>();
+        private readonly Dictionary<int, ContentBlockViewModel> _blocksByIndex = [];
+        private readonly Dictionary<string, ToolCallViewModel> _toolCallsByUseId = [];
 
         // Tools the user has chosen to allow for the remainder of the current session.
         private readonly HashSet<string> _sessionPermissions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -85,10 +90,10 @@ namespace TeronClaudeCodeVS.ViewModels
         // for these, unlike model/permission-mode/effort) - see SetAdvancedOptions.
         private ClaudeSessionStartOptions _advancedOptions = new ClaudeSessionStartOptions();
 
-        public ObservableCollection<ChatMessageViewModel> Messages { get; } = new ObservableCollection<ChatMessageViewModel>();
-        public ObservableCollection<string> SlashCommands { get; } = new ObservableCollection<string>();
-        public ObservableCollection<string> RawOutput { get; } = new ObservableCollection<string>();
-        public ObservableCollection<SessionHistoryEntry> SessionHistory { get; } = new ObservableCollection<SessionHistoryEntry>();
+        public ObservableCollection<ChatMessageViewModel> Messages { get; } = [];
+        public ObservableCollection<string> SlashCommands { get; } = [];
+        public ObservableCollection<string> RawOutput { get; } = [];
+        public ObservableCollection<SessionHistoryEntry> SessionHistory { get; } = [];
 
         /// <summary>Account info and subscription rate-limit usage, loaded on demand.</summary>
         public AccountUsageViewModel AccountUsage { get; } = new AccountUsageViewModel();
@@ -183,7 +188,10 @@ namespace TeronClaudeCodeVS.ViewModels
             }
         }
 
-        public bool CanSend => !IsBusy && ClaudeNotFoundMessage == null;
+        // Deliberately independent of IsBusy: the CLI queues a `user` line written while a turn
+        // is still running and processes it after (confirmed live 2026-08-26) - blocking send
+        // here just makes the input box eat the keystroke with no feedback while busy.
+        public bool CanSend => ClaudeNotFoundMessage == null;
 
         private string _statusText = "";
         public string StatusText
@@ -269,7 +277,7 @@ namespace TeronClaudeCodeVS.ViewModels
 
         private static IReadOnlyList<string> SplitLines(string text) =>
             string.IsNullOrWhiteSpace(text)
-                ? Array.Empty<string>()
+                ? []
                 : text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(s => s.Trim())
                     .Where(s => s.Length > 0)
@@ -277,7 +285,7 @@ namespace TeronClaudeCodeVS.ViewModels
 
         private static IReadOnlyList<string> SplitTokens(string text) =>
             string.IsNullOrWhiteSpace(text)
-                ? Array.Empty<string>()
+                ? []
                 : text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
 
         /// <summary>Resolves the `claude` executable. Returns false if it couldn't be found.</summary>
@@ -309,7 +317,19 @@ namespace TeronClaudeCodeVS.ViewModels
             StopSessionCore();
             ResetTurnState();
 
-            int? ideServerPort = ClaudeCodePackage.Instance?.GetOrStartIdeServer()?.Port;
+            (int Port, string AuthToken)? ideServer;
+            if (ClaudeCodePackage.Instance == null)
+            {
+                ideServer = null;
+                RawOutput.Add("[ide-server-diag] ClaudeCodePackage.Instance is NULL - IDE companion server not started");
+            }
+            else
+            {
+                var server = ClaudeCodePackage.Instance.GetOrStartIdeServer();
+                ideServer = server != null ? (server.Port, server.AuthToken) : ((int, string)?)null;
+                RawOutput.Add($"[ide-server-diag] {ClaudeCodePackage.Instance.LastIdeServerDiagnostic}; ideServer={(ideServer.HasValue ? $"port={ideServer.Value.Port}" : "null")}");
+            }
+            TrimRawOutput();
 
             _session = new ClaudeCodeSession();
             Hook(_session);
@@ -317,7 +337,7 @@ namespace TeronClaudeCodeVS.ViewModels
                 _claudePath, _workingDirectory,
                 SelectedModel.Value, SelectedPermissionMode.Value,
                 _lastSessionId, SelectedThinkingLevel.EffortArg,
-                _advancedOptions, ideServerPort);
+                _advancedOptions, ideServer);
 
             IsBusy = false;
             StatusText = "Starting Claude Code…";
@@ -382,7 +402,7 @@ namespace TeronClaudeCodeVS.ViewModels
             if (_session == null || !_session.IsRunning)
                 StartSession();
 
-            var userMessage = new ChatMessageViewModel(ChatRole.User);
+            ChatMessageViewModel userMessage = new ChatMessageViewModel(ChatRole.User);
             userMessage.Blocks.Add(new TextBlockViewModel { Text = text });
             Messages.Add(userMessage);
 
@@ -390,7 +410,14 @@ namespace TeronClaudeCodeVS.ViewModels
             if (_pendingSessionTitle == null)
                 _pendingSessionTitle = text.Length <= 60 ? text : text.Substring(0, 57) + "…";
 
-            ResetTurnState();
+            _lastSentText = text;
+
+            // Deliberately no ResetTurnState() here: the CLI queues additional `user` lines
+            // written while a turn is still in flight and runs them sequentially on its own
+            // (confirmed live 2026-08-26, `queued_turn_count` on the result) - clearing
+            // _currentAssistantMessage/_blocksByIndex here would corrupt whichever turn is
+            // still actively streaming. The next turn's own state gets set up naturally by
+            // OnMessageStarted/EnsureAssistantMessage when its message_start actually arrives.
             IsBusy = true;
             StatusText = "Working…";
 
@@ -421,6 +448,7 @@ namespace TeronClaudeCodeVS.ViewModels
         {
             session.SessionInitialized += (s, e) => Post(() => OnSessionInitialized(e));
             session.StatusChanged += (s, e) => Post(() => OnStatusChanged(e));
+            session.CompactBoundary += (s, e) => Post(() => OnCompactBoundary(e));
             session.MessageStarted += (s, e) => Post(OnMessageStarted);
             session.BlockStarted += (s, e) => Post(() => OnBlockStarted(e));
             session.TextDelta += (s, e) => Post(() => OnTextDelta(e));
@@ -430,6 +458,7 @@ namespace TeronClaudeCodeVS.ViewModels
             session.TurnCompleted += (s, e) => Post(() => OnTurnCompleted(e));
             session.PermissionRequested += (s, e) => Post(() => OnPermissionRequested(e));
             session.AskUserQuestionRequested += (s, e) => Post(() => OnAskUserQuestionRequested(e));
+            session.RateLimitUpdated += (s, e) => Post(() => AccountUsage.UpdateRateLimit(e));
             session.RawLineReceived += (s, e) => Post(() => OnRawLine(e));
             session.ErrorReceived += (s, e) => Post(() => OnErrorLine(e));
             session.ProcessExited += (s, e) => Post(OnProcessExited);
@@ -453,8 +482,44 @@ namespace TeronClaudeCodeVS.ViewModels
 
         private void OnStatusChanged(StatusMessage status)
         {
-            if (!string.IsNullOrEmpty(status.Status))
-                StatusText = status.Status;
+            if (status.CompactResult == "failed")
+            {
+                AddSystemNotice($"Compact failed · {status.CompactError ?? "unknown error"}", isError: true);
+                return;
+            }
+
+            switch (status.Status)
+            {
+                case "requesting":
+                    StatusText = "Working…";
+                    break;
+                case "compacting":
+                    StatusText = "Compacting…";
+                    break;
+                case string s when !string.IsNullOrEmpty(s):
+                    StatusText = s;
+                    break;
+            }
+        }
+
+        private void OnCompactBoundary(CompactBoundaryEvent e)
+        {
+            string freed = e.TokensFreed.HasValue ? FormatTokenCount(e.TokensFreed.Value) : "some";
+            AddSystemNotice($"Compacted chat · {e.Trigger} · {freed} tokens freed", isError: false);
+        }
+
+        private void AddSystemNotice(string text, bool isError)
+        {
+            var notice = new ChatMessageViewModel(ChatRole.System);
+            notice.Blocks.Add(new ResultFooterViewModel(text, isError));
+            Messages.Add(notice);
+        }
+
+        private static string FormatTokenCount(long n)
+        {
+            if (n >= 1_000_000) return (n / 1_000_000.0).ToString("0.#") + "m";
+            if (n >= 1_000) return (n / 1_000.0).ToString("0.#") + "k";
+            return n.ToString();
         }
 
         private void OnMessageStarted()
@@ -483,7 +548,7 @@ namespace TeronClaudeCodeVS.ViewModels
             }
             else if (e.BlockType == "tool_use")
             {
-                var call = new ToolCallViewModel(e.ToolUseId ?? "", e.ToolName ?? "Tool");
+                ToolCallViewModel call = new ToolCallViewModel(e.ToolUseId ?? "", e.ToolName ?? "Tool");
                 if (!string.IsNullOrEmpty(e.ToolUseId))
                     _toolCallsByUseId[e.ToolUseId!] = call;
                 block = call;
@@ -547,6 +612,18 @@ namespace TeronClaudeCodeVS.ViewModels
                 if (call != null)
                     call.Status = ToolCallStatus.AwaitingApproval;
 
+                // The built-in AskUserQuestion tool's can_use_tool request is flagged
+                // requires_user_interaction - confirmed live (2026-08-26) it's not a plain
+                // allow/deny gate, it needs real answer data or the tool just reports "the user
+                // did not answer" and the model falls back to asking in plain text. Skip the
+                // Allow/Deny card entirely and go straight to the same interactive question UI
+                // used for the dedicated ask_user_question control_request subtype.
+                if (e.RequiresUserInteraction && e.ToolName == "AskUserQuestion")
+                {
+                    OnAskUserQuestionToolRequested(e);
+                    return;
+                }
+
                 // If the user previously chose "Allow for session" for this tool, auto-allow silently.
                 if (_sessionPermissions.Contains(e.ToolName))
                 {
@@ -556,7 +633,7 @@ namespace TeronClaudeCodeVS.ViewModels
                 }
 
                 string title = e.Title ?? $"Allow {ToolPresentation.GetDisplayName(e.ToolName)}?";
-                var request = new PermissionRequestViewModel(e.ToolName, title, e.Input,
+                PermissionRequestViewModel request = new PermissionRequestViewModel(e.ToolName, title, e.Input,
                     (allow, forSession) =>
                     {
                         if (allow && forSession)
@@ -580,13 +657,68 @@ namespace TeronClaudeCodeVS.ViewModels
             }
         }
 
+        /// <summary>
+        /// Handles the built-in AskUserQuestion tool's can_use_tool request (distinct from
+        /// OnAskUserQuestionRequested below, which handles the separate ask_user_question
+        /// control_request subtype - same question schema, different wire mechanism and reply
+        /// shape). Reuses AskUserQuestionViewModel for the UI; the reply must be a can_use_tool
+        /// control_response with the answers embedded in updatedInput (confirmed live,
+        /// 2026-08-26 - see docs/Phase 3, the answers dict alone or nested elsewhere is silently
+        /// ignored and the tool reports "the user did not answer").
+        /// </summary>
+        private void OnAskUserQuestionToolRequested(PermissionRequestEvent e)
+        {
+            try
+            {
+                EnsureAssistantMessage();
+
+                var questions = ClaudeMessage.ParseQuestions(e.Input["questions"] as JArray);
+                AskUserQuestionViewModel vm = new AskUserQuestionViewModel(questions,
+                    async answers => await RespondToAskUserQuestionToolAsync(e, answers).ConfigureAwait(false));
+
+                _currentAssistantMessage!.Blocks.Add(vm);
+                StatusText = "⚠ Claude has a question — see chat";
+                PermissionRequestAdded?.Invoke(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                RawOutput.Add($"[ask-user-question-tool error] {ex.GetType().Name}: {ex.Message}");
+                TrimRawOutput();
+                _ = RespondToPermissionAsync(e, allow: false);
+            }
+        }
+
+        private async Task RespondToAskUserQuestionToolAsync(PermissionRequestEvent e, Dictionary<string, string> answers)
+        {
+            if (_session == null) return;
+
+            bool allow = answers.Count > 0;
+
+            if (!string.IsNullOrEmpty(e.ToolUseId) && _toolCallsByUseId.TryGetValue(e.ToolUseId!, out var call))
+                call.Status = allow ? ToolCallStatus.Running : ToolCallStatus.Error;
+
+            StatusText = "Working…";
+
+            JObject? updatedInput = null;
+            if (allow)
+            {
+                updatedInput = (JObject)e.Input.DeepClone();
+                JObject answersObj = new JObject();
+                foreach (var kv in answers)
+                    answersObj[kv.Key] = kv.Value;
+                updatedInput["answers"] = answersObj;
+            }
+
+            await _session.RespondToPermissionAsync(e.RequestId, allow, updatedInput).ConfigureAwait(false);
+        }
+
         private void OnAskUserQuestionRequested(AskUserQuestionEvent e)
         {
             try
             {
                 EnsureAssistantMessage();
 
-                var vm = new AskUserQuestionViewModel(e.Questions,
+                AskUserQuestionViewModel vm = new AskUserQuestionViewModel(e.Questions,
                     async answers =>
                     {
                         StatusText = "Working…";
@@ -635,7 +767,18 @@ namespace TeronClaudeCodeVS.ViewModels
                 _currentAssistantMessage.Blocks.Add(new TextBlockViewModel { Text = msg });
             }
 
-            var parts = new List<string> { result.IsError ? "Error" : "Done", FormatDuration(result.DurationMs) };
+            if (result.IsError)
+            {
+                AddRetryNotice(
+                    new[] { result.ResultText }.Concat(result.Errors),
+                    "This turn didn't complete. Your message is still here - you can try it again.");
+            }
+            else
+            {
+                _lastSentText = null;
+            }
+
+            List<string> parts = new List<string> { result.IsError ? "Error" : "Done", FormatDuration(result.DurationMs) };
 
             if (result.TotalCostUsd.HasValue)
                 parts.Add($"${result.TotalCostUsd.Value:0.0000}");
@@ -657,8 +800,15 @@ namespace TeronClaudeCodeVS.ViewModels
             OnPropertyChanged(nameof(SessionUsageText));
 
             ResetTurnState();
-            IsBusy = false;
-            StatusText = result.IsError ? "Error" : "Ready";
+
+            // A queued turn (sent while this one was still running) is already in flight on the
+            // CLI side and needs no new send from us - just stay busy until the real last one
+            // finishes, so the UI doesn't flash "Ready" between queued turns.
+            if (result.QueuedTurnCount == 0)
+            {
+                IsBusy = false;
+                StatusText = result.IsError ? "Error" : "Ready";
+            }
         }
 
         private void OnRawLine(string line)
@@ -684,9 +834,47 @@ namespace TeronClaudeCodeVS.ViewModels
         {
             if (IsBusy)
             {
+                EnsureAssistantMessage();
+                AddRetryNotice(
+                    RawOutput.Where(l => l.StartsWith("stderr: ", StringComparison.Ordinal)),
+                    "Claude Code exited unexpectedly. Your message is still here - you can try it again.");
+                ResetTurnState();
+
                 StatusText = "Claude Code exited unexpectedly.";
                 IsBusy = false;
             }
+        }
+
+        /// <summary>
+        /// Offers a verbatim "Try again" for the most recently sent turn after it fails or the
+        /// process dies mid-turn. Confirmed live (2026-08-26) that a killed-mid-turn process still
+        /// has its abandoned user message in the CLI's own session log on --resume, but the model
+        /// only picks it up correctly for content it can reference explicitly - a bare "Continue"
+        /// still leaves it guessing. Resending the exact original text sidesteps that entirely,
+        /// instead of relying on the CLI's own resume fidelity for every failure mode (a genuine
+        /// quota rejection may never even reach the API to be logged in the first place).
+        /// </summary>
+        private void AddRetryNotice(IEnumerable<string?> rateLimitHintSources, string fallbackText)
+        {
+            if (_lastSentText == null || _currentAssistantMessage == null) return;
+
+            string retryText = _lastSentText;
+            bool looksLikeRateLimit = rateLimitHintSources.Any(ContainsRateLimitHint);
+            string notice = looksLikeRateLimit && AccountUsage.HasRateLimitData
+                ? $"You've hit your usage limit · resets {AccountUsage.SessionResetLabel}"
+                : fallbackText;
+
+            _currentAssistantMessage.Blocks.Add(new RetryNoticeViewModel(notice, () => _ = SendMessageAsync(retryText)));
+        }
+
+        private static bool ContainsRateLimitHint(string? text)
+        {
+            if (text == null || text.Length == 0) return false;
+            return text.IndexOf("rate limit", StringComparison.OrdinalIgnoreCase) >= 0
+                || text.IndexOf("usage limit", StringComparison.OrdinalIgnoreCase) >= 0
+                || text.IndexOf("session limit", StringComparison.OrdinalIgnoreCase) >= 0
+                || text.IndexOf("quota", StringComparison.OrdinalIgnoreCase) >= 0
+                || text.IndexOf("out of credits", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static string FormatDuration(long ms) => ms < 1000 ? $"{ms} ms" : $"{ms / 1000.0:0.0}s";
@@ -709,7 +897,7 @@ namespace TeronClaudeCodeVS.ViewModels
             }
             else
             {
-                var entry = new SessionHistoryEntry
+                SessionHistoryEntry entry = new SessionHistoryEntry
                 {
                     SessionId = sessionId,
                     Title = _pendingSessionTitle ?? "Untitled",
