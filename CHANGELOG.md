@@ -3,6 +3,40 @@
 All notable changes to the **Claude Code for Visual Studio** extension will be documented in
 this file.
 
+## [0.3.0] - 2026-08-26
+
+* **New: IDE companion server.** The extension now runs a local companion server the CLI can
+  connect to, the same way the official VS Code extension does — giving Claude live diagnostics
+  from Visual Studio's own Error List, awareness of your open editors/active file/selection, and
+  a real inline diff review flow (a proposed edit opens in a native VS diff window with
+  Accept/Reject) instead of only ever rendering inside the chat.
+* **New: answerable questions.** The `AskUserQuestion` tool now renders as real radio buttons or
+  checkboxes (single- and multi-select) you can actually answer, instead of a dead-end Allow/Deny
+  card.
+* **Fixed: permission prompts for built-in tools (Edit/Write/Bash/…) not appearing at all.** Root
+  cause was a missing CLI flag; this also fixes the inline diff/permission flow for proposed edits.
+  Diff previews inside permission cards are now a real line-level diff instead of a raw dump.
+* **New: `/compact` support.** Shows a "Compacting…" status and a "Compacted chat · N tokens
+  freed" result, instead of silently doing nothing useful.
+* **New: message queuing.** You can keep typing while Claude is still working — each message
+  queues and runs in order, matching the official extension, instead of the input being blocked.
+* **New: retry on failure.** If a turn fails or the CLI process exits unexpectedly (including
+  hitting a usage limit), a "Try again" resends your exact message once you're ready.
+* **New: a real Account & Usage panel** — shows your actual account/subscription info and live
+  5-hour/weekly rate-limit usage, instead of the empty placeholder it showed before.
+* **Fixed: inline code in chat responses** rendering as a harsh, theme-incorrect solid block
+  regardless of your IDE theme.
+* **Fixed: Stop now sends a real interrupt** instead of killing and restarting the CLI process;
+  resuming a past session now restores the full visible transcript, not just the session ID.
+* **Fixed: an invalid default permission-mode value** the CLI would have rejected; the permission
+  mode list now matches the CLI's real options (added Manual and Don't Ask, which were missing).
+* **New: additional CLI flag coverage** under Tools → Options → Claude Code — additional allowed
+  directories, allowed/disallowed tools, system prompt append/replace, and MCP config file
+  loading.
+* **New: Extra High** added to the thinking/effort level options.
+* Slash commands picked from the `/` menu now run immediately instead of requiring a manual
+  Enter; `/usage` now opens the usage panel locally instead of sending a wasted message to Claude.
+
 ## [0.2.0] - 2026-08-26
 
 * **Renamed the extension's underlying identity.** The GitHub repo (and this project's own
