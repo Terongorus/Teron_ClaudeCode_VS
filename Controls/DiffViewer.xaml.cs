@@ -5,7 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 
-namespace ClaudeCodeGUI.Controls
+namespace TeronClaudeCodeVS.Controls
 {
     /// <summary>
     /// Renders a raw unified-diff string (lines prefixed with "+ " or "- ") as a code viewer

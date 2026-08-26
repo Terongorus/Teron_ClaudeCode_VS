@@ -2,7 +2,7 @@ using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace ClaudeCodeGUI.Protocol
+namespace TeronClaudeCodeVS.Protocol
 {
     /// <summary>
     /// Base type for a single parsed line of the `claude -p --input-format stream-json

@@ -1,7 +1,7 @@
 using System;
 using System.Windows.Input;
 
-namespace ClaudeCodeGUI.ViewModels
+namespace TeronClaudeCodeVS.ViewModels
 {
     /// <summary>Minimal ICommand implementation - avoids pulling in an MVVM toolkit for a handful of button bindings.</summary>
     public sealed class RelayCommand : ICommand

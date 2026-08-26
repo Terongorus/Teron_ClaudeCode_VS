@@ -2,7 +2,7 @@ using Microsoft.VisualStudio.Shell;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 
-namespace ClaudeCodeGUI.Core
+namespace TeronClaudeCodeVS.Core
 {
     /// <summary>Tools &gt; Options &gt; Claude Code &gt; General.</summary>
     [ComVisible(true)]
@@ -42,6 +42,12 @@ namespace ClaudeCodeGUI.Core
         [DisplayName("Send on Ctrl+Enter")]
         [Description("When true, Ctrl+Enter sends a message; Enter inserts a newline. When false (default), Enter sends and Shift+Enter inserts a newline.")]
         public bool SendOnCtrlEnter { get; set; } = false;
+
+        // ─── Internal (not shown in Tools > Options) ───────────────────────────
+
+        /// <summary>RESUPPLY throttle state - last self-update check, ISO 8601 UTC, empty if never checked.</summary>
+        [Browsable(false)]
+        public string LastUpdateCheckUtc { get; set; } = "";
 
         // ─── Type converters for dropdown lists ────────────────────────────────
 

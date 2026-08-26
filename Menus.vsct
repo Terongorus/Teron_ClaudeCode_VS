@@ -47,6 +47,15 @@
         </Strings>
       </Button>
 
+      <!-- Tools menu -> Check for Updates (RESUPPLY) -->
+      <Button guid="guidClaudeCodeCmdSet" id="cmdidClaudeCodeCheckForUpdates"
+              priority="0x0201" type="Button">
+        <Parent guid="guidClaudeCodeCmdSet" id="ClaudeCodeToolsGroup"/>
+        <Strings>
+          <ButtonText>Claude Code: Check for Updates</ButtonText>
+        </Strings>
+      </Button>
+
       <!-- Solution Explorer context menu -->
       <Button guid="guidClaudeCodeCmdSet" id="cmdidClaudeCodeSolutionExplorer"
               priority="0x0300" type="Button">
@@ -85,6 +94,7 @@
       <IDSymbol name="cmdidClaudeCodeToolbar" value="0x0100"/>
       <IDSymbol name="cmdidClaudeCodeToolsMenu" value="0x0101"/>
       <IDSymbol name="cmdidClaudeCodeSolutionExplorer" value="0x0102"/>
+      <IDSymbol name="cmdidClaudeCodeCheckForUpdates" value="0x0103"/>
       <IDSymbol name="cmdidClaudeCodeWindow" value="0x0200"/>
     </GuidSymbol>
 

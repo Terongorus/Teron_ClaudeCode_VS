@@ -1,9 +1,10 @@
-using ClaudeCodeGUI.Core;
+using TeronClaudeCodeVS.Core;
+using System;
 using System.ComponentModel.Design;
 using Microsoft.VisualStudio.Shell;
 using Task = System.Threading.Tasks.Task;
 
-namespace ClaudeCodeGUI.Commands
+namespace TeronClaudeCodeVS.Commands
 {
     internal sealed class ClaudeCodeCommand
     {
@@ -16,18 +17,23 @@ namespace ClaudeCodeGUI.Commands
                 is not OleMenuCommandService commandService)
                 return;
 
-            void Add(uint id)
+            void Add(uint id, EventHandler handler)
             {
                 var cmdId = new CommandID(GuidList.guidClaudeCodeCmdSet, (int)id);
-                var cmd = new MenuCommand((s, e) => ShowWindow(package), cmdId);
+                var cmd = new MenuCommand(handler, cmdId);
                 commandService.AddCommand(cmd);
             }
 
-            Add(PkgCmdIDList.cmdidClaudeCodeToolbar);
-            Add(PkgCmdIDList.cmdidClaudeCodeToolsMenu);
-            Add(PkgCmdIDList.cmdidClaudeCodeSolutionExplorer);
-            Add(PkgCmdIDList.cmdidClaudeCodeWindow);
+            Add(PkgCmdIDList.cmdidClaudeCodeToolbar, (s, e) => ShowWindow(package));
+            Add(PkgCmdIDList.cmdidClaudeCodeToolsMenu, (s, e) => ShowWindow(package));
+            Add(PkgCmdIDList.cmdidClaudeCodeSolutionExplorer, (s, e) => ShowWindow(package));
+            Add(PkgCmdIDList.cmdidClaudeCodeWindow, (s, e) => ShowWindow(package));
+            Add(PkgCmdIDList.cmdidClaudeCodeCheckForUpdates, (s, e) => CheckForUpdates(package));
+        }
 
+        private static void CheckForUpdates(AsyncPackage package)
+        {
+            _ = package.JoinableTaskFactory.RunAsync(() => ExtensionUpdateCheck.CheckAsync(force: true));
         }
 
         private static void ShowWindow(AsyncPackage package)

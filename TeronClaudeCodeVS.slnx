@@ -1,5 +1,5 @@
 <Solution>
-  <Project Path="ClaudeCodeGUI.csproj">
+  <Project Path="TeronClaudeCodeVS.csproj">
     <Deploy />
   </Project>
 </Solution>

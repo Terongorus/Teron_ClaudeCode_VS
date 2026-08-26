@@ -30,6 +30,9 @@ installing/logging in once via `claude` makes it available here too.
 - **Session persistence** — model/permission/thinking changes and crash recovery transparently
   `--resume` your conversation
 - **Raw output panel** for debugging the underlying NDJSON protocol
+- **Self-Update via GitHub Releases:** checks [GitHub releases](https://github.com/Terongorus/Teron_ClaudeCode_VS/releases)
+  (not the VS Marketplace) once a day and offers to download and install the latest `.vsix`
+  directly — **Tools → Claude Code: Check for Updates** triggers this on demand.
 
 ## Requirements
 
@@ -60,9 +63,9 @@ If the CLI can't be found automatically, set an explicit path under
 ## Building from source
 
 ```bash
-dotnet build ClaudeCodeGUI.csproj
+dotnet build TeronClaudeCodeVS.csproj
 ```
 
 Press F5 in Visual Studio to launch an experimental instance with the extension loaded, or
-double-click the generated `bin/Debug/net481/ClaudeCodeGUI.vsix` to install it into your main
+double-click the generated `bin/Debug/net481/TeronClaudeCodeVS.vsix` to install it into your main
 Visual Studio.

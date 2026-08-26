@@ -1,11 +1,11 @@
-using ClaudeCodeGUI.Commands;
+using TeronClaudeCodeVS.Commands;
 using Microsoft.VisualStudio.Shell;
 using System;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace ClaudeCodeGUI.Core
+namespace TeronClaudeCodeVS.Core
 {
     [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
     [InstalledProductRegistration("Claude Code for Visual Studio", "Chat with Claude Code without leaving the editor.", "1.0")]
@@ -25,6 +25,9 @@ namespace ClaudeCodeGUI.Core
             await JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
 
             await ClaudeCodeCommand.InitializeAsync(this);
+
+            // Fire-and-forget: never block VS startup on a network call (RESUPPLY).
+            _ = JoinableTaskFactory.RunAsync(() => ExtensionUpdateCheck.CheckAsync());
         }
 
         internal ClaudeCodeOptionsPage GetOptions() => (ClaudeCodeOptionsPage)GetDialogPage(typeof(ClaudeCodeOptionsPage));

@@ -1,7 +1,7 @@
 using Newtonsoft.Json;
 using System;
 
-namespace ClaudeCodeGUI.ViewModels
+namespace TeronClaudeCodeVS.ViewModels
 {
     public sealed class SessionHistoryEntry : ObservableObject
     {

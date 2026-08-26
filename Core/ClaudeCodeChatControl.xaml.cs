@@ -1,4 +1,4 @@
-using ClaudeCodeGUI.ViewModels;
+using TeronClaudeCodeVS.ViewModels;
 using Community.VisualStudio.Toolkit;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
@@ -17,7 +17,7 @@ using System.Windows.Media;
 using System.Windows.Navigation;
 using System.Windows.Threading;
 
-namespace ClaudeCodeGUI.Core
+namespace TeronClaudeCodeVS.Core
 {
     public partial class ClaudeCodeChatControl : UserControl
     {
