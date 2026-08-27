@@ -383,6 +383,124 @@ namespace TeronClaudeCodeVS.ViewModels
         }
     }
 
+    /// <summary>One user comment anchored to a quoted excerpt of the plan text, added from the
+    /// native plan-preview tab's selection adornment (see Controls/PlanCommentAdornment.cs).</summary>
+    public sealed class PlanCommentEntry
+    {
+        public string QuotedExcerpt { get; }
+        public string CommentText { get; }
+        public ICommand RemoveCommand { get; }
+
+        public PlanCommentEntry(string quotedExcerpt, string commentText, Action<PlanCommentEntry> onRemove)
+        {
+            QuotedExcerpt = quotedExcerpt;
+            CommentText = commentText;
+            RemoveCommand = new RelayCommand(() => onRemove(this));
+        }
+    }
+
+    /// <summary>
+    /// The `ExitPlanMode` approval card. Deliberately not a reuse of PermissionRequestViewModel -
+    /// the real extension's semantics here are different: three choices (auto-accept future edits /
+    /// manually approve edits / keep planning) instead of Allow/Allow-for-session/Deny, plus a
+    /// free-text box and comments anchored to specific spans of the plan. Adding any comment swaps
+    /// the primary action to a single "Send feedback and keep planning" button, matching the real
+    /// UI's observed behavior (confirmed live, 2026-08-27).
+    /// </summary>
+    public sealed class PlanApprovalViewModel : ContentBlockViewModel
+    {
+        public string PlanMarkdown { get; }
+        public string PlanFilePath { get; }
+
+        public ObservableCollection<PlanCommentEntry> Comments { get; } = [];
+        public bool HasComments => Comments.Count > 0;
+
+        private string _feedbackText = "";
+        public string FeedbackText
+        {
+            get => _feedbackText;
+            set => SetField(ref _feedbackText, value);
+        }
+
+        private bool _isResolved;
+        public bool IsResolved
+        {
+            get => _isResolved;
+            private set => SetField(ref _isResolved, value);
+        }
+
+        private string? _resolutionText;
+        public string? ResolutionText
+        {
+            get => _resolutionText;
+            private set => SetField(ref _resolutionText, value);
+        }
+
+        public ICommand AutoAcceptCommand { get; }
+        public ICommand ManuallyApproveCommand { get; }
+        public ICommand KeepPlanningCommand { get; }
+        public ICommand SendFeedbackCommand { get; }
+        public ICommand ReopenTabCommand { get; }
+
+        /// <summary>The respond callback receives (allow, autoAccept, denyMessage).</summary>
+        public PlanApprovalViewModel(string planMarkdown, string planFilePath, Func<bool, bool, string?, Task> respond, Action reopenTab)
+        {
+            PlanMarkdown = planMarkdown;
+            PlanFilePath = planFilePath;
+
+            AutoAcceptCommand = new RelayCommand(() => Resolve(true, true, respond), () => !IsResolved);
+            ManuallyApproveCommand = new RelayCommand(() => Resolve(true, false, respond), () => !IsResolved);
+            KeepPlanningCommand = new RelayCommand(() => Resolve(false, false, respond), () => !IsResolved);
+            SendFeedbackCommand = new RelayCommand(() => Resolve(false, false, respond), () => !IsResolved);
+            ReopenTabCommand = new RelayCommand(reopenTab);
+        }
+
+        /// <summary>Called from the plan-preview tab's comment adornment when the user submits a comment.</summary>
+        public void AddComment(string quotedExcerpt, string commentText)
+        {
+            if (IsResolved) return;
+            Comments.Add(new PlanCommentEntry(quotedExcerpt, commentText, RemoveComment));
+            OnPropertyChanged(nameof(HasComments));
+        }
+
+        private void RemoveComment(PlanCommentEntry entry)
+        {
+            Comments.Remove(entry);
+            OnPropertyChanged(nameof(HasComments));
+        }
+
+        private void Resolve(bool allow, bool autoAccept, Func<bool, bool, string?, Task> respond)
+        {
+            if (IsResolved) return;
+            IsResolved = true;
+
+            // Hides the "Add Comment" affordance on the plan tab once this card resolves - the
+            // registry check in PlanCommentAdornmentManager.OnSelectionChanged is what actually
+            // gates the button, so this doesn't need to touch the MEF component directly.
+            if (!string.IsNullOrEmpty(PlanFilePath))
+                PlanCommentRegistry.UnregisterActivePlan(PlanFilePath);
+
+            string? message = null;
+            if (!allow)
+            {
+                // Format confirmed live (2026-08-27): the real extension delivers comments as
+                // `[Re: "<quoted excerpt>"] <comment text>` blocks inside the deny message, not
+                // through any separate wire-level comment mechanism.
+                List<string> parts = [];
+                foreach (PlanCommentEntry c in Comments)
+                    parts.Add($"[Re: \"{c.QuotedExcerpt}\"] {c.CommentText}");
+                if (!string.IsNullOrWhiteSpace(_feedbackText))
+                    parts.Add(_feedbackText.Trim());
+                message = parts.Count > 0 ? string.Join("\n", parts) : "The user chose to keep planning.";
+            }
+
+            ResolutionText = allow
+                ? (autoAccept ? "Approved — auto-accepting edits" : "Approved")
+                : "Sent feedback — continuing to plan";
+            _ = respond(allow, autoAccept, message);
+        }
+    }
+
     /// <summary>Shown in the chat when the user stops the agent mid-turn.</summary>
     public sealed class InterruptedBlockViewModel : ContentBlockViewModel { }
 

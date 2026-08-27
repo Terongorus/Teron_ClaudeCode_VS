@@ -40,6 +40,7 @@ namespace TeronClaudeCodeVS.Core
             Unloaded += OnUnloaded;
             _vm.PropertyChanged += OnViewModelPropertyChanged;
             _vm.PermissionRequestAdded += OnPermissionRequestAdded;
+            _vm.PlanFileReadyToOpen += OnPlanFileReadyToOpen;
         }
 
 #pragma warning disable VSTHRD100
@@ -110,6 +111,28 @@ namespace TeronClaudeCodeVS.Core
                 new Action(() => ChatScrollViewer.ScrollToEnd()));
         }
 #pragma warning restore VSTHRD001, VSTHRD110
+
+        // Opens the CLI-written plan file as a real native VS tab as soon as it's ready for
+        // review, matching the real extension's behavior of surfacing the plan as a separate
+        // document instead of only inline in the chat (see docs/Phase 4). Also used to re-open
+        // the tab via PlanApprovalViewModel.ReopenTabCommand if the user closed it.
+        //
+        // Deliberately the plain source tab, not VS 18's native Markdown "preview" split view -
+        // that was tried via IVsUIShellOpenDocument.OpenStandardEditor with the MarkdownPreview
+        // logical view GUID and crashed VS live with an AccessViolationException from inside the
+        // interop call itself (2026-08-27). That's a corrupted-state exception - uncatchable by a
+        // normal try/catch, so the earlier fallback-on-failure logic here never even ran. Reverted
+        // to the plan's original "out of scope for this pass" call rather than re-attempt a native
+        // API that's already demonstrated it can crash the host process.
+#pragma warning disable VSTHRD100
+        private async void OnPlanFileReadyToOpen(object sender, string planFilePath)
+#pragma warning restore VSTHRD100
+        {
+            if (string.IsNullOrEmpty(planFilePath) || !File.Exists(planFilePath))
+                return;
+
+            await VS.Documents.OpenInPreviewTabAsync(planFilePath);
+        }
 
         private async Task IndexProjectFilesAsync()
         {

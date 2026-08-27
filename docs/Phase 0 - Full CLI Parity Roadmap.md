@@ -49,8 +49,9 @@ and is being executed as dated `/docs` phases from here on. Summary:
   extension's existing Options-page-driven argument pattern.
 - **IDE companion server** - loopback WebSocket MCP server, VS error-list diagnostics bridge,
   inline editor diff apply/accept/reject.
-- **Session & protocol depth** - MCP server management UI (wrapping `claude mcp`), a Plan Mode
-  document view, checkpoints/rewind, richer subagent/background-agent visibility.
+- **Session & protocol depth** - MCP server management UI (wrapping `claude mcp`), a
+  [Plan Mode document view](Phase%204%20-%20Plan%20Mode%20Review%20UI.md), checkpoints/rewind,
+  richer subagent/background-agent visibility.
 - **Editor & VS-native integration** - Solution Explorer/editor context actions, keybindings,
   multi-session tabs, `@`-mention enhancements, an accessibility audit pass.
 - **Long-tail parity** - worktrees, remote control/cloud sessions, plugins/marketplace (wrapping

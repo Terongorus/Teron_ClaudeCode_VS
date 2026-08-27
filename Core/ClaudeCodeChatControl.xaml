@@ -264,6 +264,40 @@
         </Style>
 
         <!-- Secondary outlined button (permission prompts, neutral actions) -->
+        <!--
+          Primary accent-colored text button (Allow / Submit / Try again / plan-approval actions).
+          Deliberately separate from AccentButtonStyle below, which is a fixed 30x30 circular
+          icon-button style built only for the Send button - every text-button consumer that
+          reused AccentButtonStyle had to remember to locally override Width/Height back to Auto
+          (easy to forget, as a freshly-added plan-approval button just demonstrated), and its
+          ContentPresenter never honored Padding at all. This style auto-sizes to content like
+          SecondaryButtonStyle, so callers only need Padding/Margin/alignment.
+        -->
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource ClaudeAccentBrush}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="4">
+                            <ContentPresenter Margin="{TemplateBinding Padding}"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{StaticResource ClaudeAccentDarkBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="SecondaryButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
@@ -513,8 +547,8 @@
                     <!-- Action buttons -->
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0"
                                 Visibility="{Binding IsResolved, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}">
-                        <Button Content="Submit" Command="{Binding SubmitCommand}" Style="{StaticResource AccentButtonStyle}"
-                                Width="Auto" Height="Auto" VerticalAlignment="Top"
+                        <Button Content="Submit" Command="{Binding SubmitCommand}" Style="{StaticResource PrimaryButtonStyle}"
+                                VerticalAlignment="Top"
                                 Padding="14,6" Margin="0,0,8,0" MinWidth="72"/>
                         <Button Content="Skip" Command="{Binding SkipCommand}" Style="{StaticResource SecondaryButtonStyle}"
                                 Width="Auto" Height="Auto" VerticalAlignment="Top"
@@ -545,8 +579,8 @@
                                               Visibility="{Binding HasMarkdownDetail, Converter={StaticResource BoolToVisibilityConverter}}"/>
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0"
                                 Visibility="{Binding IsResolved, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}">
-                        <Button Content="Allow" Command="{Binding AllowCommand}" Style="{StaticResource AccentButtonStyle}"
-                                Width="Auto" Height="Auto" VerticalAlignment="Top"
+                        <Button Content="Allow" Command="{Binding AllowCommand}" Style="{StaticResource PrimaryButtonStyle}"
+                                VerticalAlignment="Top"
                                 Padding="14,6" Margin="0,0,8,0" MinWidth="72"/>
                         <Button Content="Allow for Session" Command="{Binding AllowForSessionCommand}"
                                 Style="{StaticResource SecondaryButtonStyle}"
@@ -556,6 +590,107 @@
                                 Style="{StaticResource DenyButtonStyle}"
                                 MinWidth="72" Padding="14,6"/>
                     </StackPanel>
+                    <TextBlock Text="{Binding ResolutionText}" FontStyle="Italic" Opacity="0.7" Margin="0,8,0,0"
+                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                               Visibility="{Binding IsResolved, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="PlanApprovalTemplate" DataType="{x:Type vm:PlanApprovalViewModel}">
+            <Border Background="{StaticResource ClaudeAccentTintBrush}"
+                    BorderBrush="{StaticResource ClaudeAccentBrush}"
+                    TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                    BorderThickness="1" CornerRadius="4" Margin="0,4,0,4" Padding="10,8">
+                <StackPanel>
+                    <TextBlock Text="Accept this plan?" FontWeight="SemiBold"
+                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                    <TextBlock Text="Select text in the plan tab to add comments" Opacity="0.7" Margin="0,2,0,0"
+                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                    <Button Content="Reopen plan tab" Command="{Binding ReopenTabCommand}"
+                            Style="{StaticResource SecondaryButtonStyle}" HorizontalAlignment="Left"
+                            Padding="8,3" FontSize="11" Margin="0,6,0,0"/>
+
+                    <!-- Staged comments (added from the plan tab's selection adornment) -->
+                    <StackPanel Visibility="{Binding HasComments, Converter={StaticResource BoolToVisibilityConverter}}"
+                                Margin="0,10,0,0">
+                        <TextBlock Text="{Binding Comments.Count, StringFormat='Comments ({0})'}" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                        <ItemsControl ItemsSource="{Binding Comments}" Margin="0,4,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:PlanCommentEntry}">
+                                    <Border Background="{StaticResource CardBackgroundBrush}"
+                                            BorderBrush="{StaticResource HairlineBrush}"
+                                            BorderThickness="1" CornerRadius="3" Padding="8,6" Margin="0,0,0,6">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="{Binding QuotedExcerpt, StringFormat='&quot;{0}&quot;'}"
+                                                           FontStyle="Italic" Opacity="0.7" TextWrapping="Wrap" FontSize="11"
+                                                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                                <TextBlock Text="{Binding CommentText}" TextWrapping="Wrap" Margin="0,3,0,0"
+                                                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Content="✕" Command="{Binding RemoveCommand}"
+                                                    Background="Transparent" BorderThickness="0" Padding="4,0"
+                                                    VerticalAlignment="Top" Opacity="0.6"
+                                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- Action area: hidden entirely once resolved -->
+                    <StackPanel Visibility="{Binding IsResolved, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}">
+                        <!-- Default actions: no comments staged yet -->
+                        <StackPanel Margin="0,10,0,0"
+                                    Visibility="{Binding HasComments, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}">
+                            <Button Content="Yes, and auto-accept" Command="{Binding AutoAcceptCommand}"
+                                    Style="{StaticResource PrimaryButtonStyle}"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                    Padding="14,8" Margin="0,0,0,6"/>
+                            <Button Content="Yes, and manually approve edits" Command="{Binding ManuallyApproveCommand}"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                    Padding="14,8" Margin="0,0,0,6"/>
+                            <Button Content="No, keep planning" Command="{Binding KeepPlanningCommand}"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                    Padding="14,8"/>
+                        </StackPanel>
+
+                        <!-- Comments staged: primary action collapses to a single send-feedback button -->
+                        <StackPanel Visibility="{Binding HasComments, Converter={StaticResource BoolToVisibilityConverter}}"
+                                    Margin="0,10,0,0">
+                            <TextBlock Text="Continue planning" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                            <TextBlock Text="{Binding Comments.Count, StringFormat='{}{0} comment(s) will be included as feedback'}"
+                                       Opacity="0.7" Margin="0,2,0,6"
+                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                            <Button Content="Send feedback and keep planning" Command="{Binding SendFeedbackCommand}"
+                                    Style="{StaticResource PrimaryButtonStyle}"
+                                    HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
+                                    Padding="14,8"/>
+                        </StackPanel>
+
+                        <!-- Below the action button(s), matching the real extension's layout -->
+                        <StackPanel Margin="0,10,0,0">
+                            <TextBlock Text="Tell Claude what to do instead" FontSize="11" Opacity="0.6"
+                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                            <TextBox Text="{Binding FeedbackText, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,2,0,0" Padding="4,4" FontSize="12"
+                                     BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
+                                     Background="Transparent" TextWrapping="Wrap" AcceptsReturn="True" MaxHeight="80"
+                                     Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                     CaretBrush="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                        </StackPanel>
+                    </StackPanel>
+
                     <TextBlock Text="{Binding ResolutionText}" FontStyle="Italic" Opacity="0.7" Margin="0,8,0,0"
                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                Visibility="{Binding IsResolved, Converter={StaticResource BoolToVisibilityConverter}}"/>
@@ -590,7 +725,7 @@
             <StackPanel Margin="0,4,0,4" HorizontalAlignment="Stretch">
                 <TextBlock Text="{Binding Text}" FontSize="12" Opacity="0.75" TextWrapping="Wrap" Margin="0,0,0,6"/>
                 <Button Content="Try again" Command="{Binding RetryCommand}"
-                        Style="{StaticResource AccentButtonStyle}"
+                        Style="{StaticResource PrimaryButtonStyle}"
                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                         Padding="14,8"/>
             </StackPanel>
@@ -601,6 +736,7 @@
             ThinkingTemplate="{StaticResource ThinkingBlockTemplate}"
             ToolCallTemplate="{StaticResource ToolCallTemplate}"
             PermissionTemplate="{StaticResource PermissionTemplate}"
+            PlanApprovalTemplate="{StaticResource PlanApprovalTemplate}"
             AskUserQuestionTemplate="{StaticResource AskUserQuestionTemplate}"
             ResultTemplate="{StaticResource ResultFooterTemplate}"
             InterruptedTemplate="{StaticResource InterruptedTemplate}"

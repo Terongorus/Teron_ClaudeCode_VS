@@ -82,6 +82,12 @@ namespace TeronClaudeCodeVS.ViewModels
         // Tools the user has chosen to allow for the remainder of the current session.
         private readonly HashSet<string> _sessionPermissions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        // Pending plan-approval cards, keyed by the CLI-written plan file path, so a comment
+        // submitted from that file's native-tab adornment (see Controls/PlanCommentAdornment.cs)
+        // can be routed back to the right chat card via AddPlanComment.
+        private readonly Dictionary<string, PlanApprovalViewModel> _planApprovalsByFilePath =
+            new Dictionary<string, PlanApprovalViewModel>(StringComparer.OrdinalIgnoreCase);
+
         // Session history
         private readonly List<SessionHistoryEntry> _allSessions;
         private string? _pendingSessionTitle;
@@ -113,6 +119,14 @@ namespace TeronClaudeCodeVS.ViewModels
         /// The chat view should force-scroll to the bottom so the user sees the prompt.
         /// </summary>
         public event EventHandler? PermissionRequestAdded;
+
+        /// <summary>
+        /// Raised on the UI thread when a plan is ready for review, carrying the CLI-written plan
+        /// file's path. The chat view opens it as a real native VS document tab (see
+        /// Core/ClaudeCodeChatControl.xaml.cs) - matching the real extension's behavior of
+        /// surfacing the plan as a separate document instead of only inline in the chat.
+        /// </summary>
+        public event EventHandler<string>? PlanFileReadyToOpen;
 
         public IReadOnlyList<ModelOption> Models { get; } = new[]
         {
@@ -252,6 +266,8 @@ namespace TeronClaudeCodeVS.ViewModels
             _allSessions = SessionHistoryStore.Load();
             foreach (var e in _allSessions)
                 SessionHistory.Add(e);
+
+            PlanCommentRegistry.CommentSubmitted += OnPlanCommentSubmitted;
         }
 
         /// <summary>
@@ -624,6 +640,15 @@ namespace TeronClaudeCodeVS.ViewModels
                     return;
                 }
 
+                // ExitPlanMode also flags requires_user_interaction (confirmed live, 2026-08-27)
+                // and has its own distinct approval semantics (auto-accept / manually approve /
+                // keep planning, not Allow/Allow-for-session/Deny) - see docs/Phase 4.
+                if (e.ToolName == "ExitPlanMode")
+                {
+                    OnExitPlanModeRequested(e);
+                    return;
+                }
+
                 // If the user previously chose "Allow for session" for this tool, auto-allow silently.
                 if (_sessionPermissions.Contains(e.ToolName))
                 {
@@ -710,6 +735,94 @@ namespace TeronClaudeCodeVS.ViewModels
             }
 
             await _session.RespondToPermissionAsync(e.RequestId, allow, updatedInput).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Handles the built-in ExitPlanMode tool's can_use_tool request. The real extension does
+        /// not gate this behind a generic Allow/Allow-for-session/Deny card: it opens the CLI-
+        /// written plan file (input.planFilePath - confirmed live, 2026-08-27, the CLI already
+        /// writes the plan to ~/.claude/plans/ before asking) as a native VS tab, and shows a
+        /// distinct approval card (see docs/Phase 4).
+        /// </summary>
+        private void OnExitPlanModeRequested(PermissionRequestEvent e)
+        {
+            try
+            {
+                EnsureAssistantMessage();
+
+                string plan = e.Input["plan"]?.ToString() ?? "";
+                string? planFilePath = e.Input["planFilePath"]?.ToString();
+
+                PlanApprovalViewModel vm = new PlanApprovalViewModel(plan, planFilePath ?? "",
+                    async (allow, autoAccept, denyMessage) =>
+                        await RespondToExitPlanModeAsync(e, allow, autoAccept, denyMessage).ConfigureAwait(false),
+                    () =>
+                    {
+                        if (!string.IsNullOrEmpty(planFilePath))
+                            PlanFileReadyToOpen?.Invoke(this, planFilePath!);
+                    });
+
+                if (!string.IsNullOrEmpty(planFilePath))
+                {
+                    _planApprovalsByFilePath[planFilePath!] = vm;
+                    PlanCommentRegistry.RegisterActivePlan(planFilePath!);
+                    PlanFileReadyToOpen?.Invoke(this, planFilePath!);
+                }
+
+                _currentAssistantMessage!.Blocks.Add(vm);
+                StatusText = "⚠ Plan ready for review — see chat";
+                PermissionRequestAdded?.Invoke(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                RawOutput.Add($"[exit-plan-mode error] {ex.GetType().Name}: {ex.Message}");
+                TrimRawOutput();
+                _ = RespondToPermissionAsync(e, allow: false);
+            }
+        }
+
+        /// <summary>
+        /// Routes a comment submitted from the plan-preview tab's selection adornment (see
+        /// Controls/PlanCommentAdornment.cs) back into the matching PlanApprovalViewModel card.
+        /// </summary>
+        public void AddPlanComment(string planFilePath, string quotedExcerpt, string commentText)
+        {
+            if (_planApprovalsByFilePath.TryGetValue(planFilePath, out PlanApprovalViewModel? vm))
+                vm.AddComment(quotedExcerpt, commentText);
+        }
+
+        /// <summary>
+        /// PlanCommentRegistry.CommentSubmitted fires from the MEF adornment's WPF event handlers,
+        /// already on the UI thread - Post() is used anyway for consistency with every other event
+        /// source this class hooks (BeginInvoke onto an already-current dispatcher is a harmless
+        /// no-op queue, not a bug).
+        /// </summary>
+        private void OnPlanCommentSubmitted(string planFilePath, string quotedExcerpt, string commentText)
+            => Post(() => AddPlanComment(planFilePath, quotedExcerpt, commentText));
+
+        private async Task RespondToExitPlanModeAsync(PermissionRequestEvent e, bool allow, bool autoAccept, string? denyMessage)
+        {
+            if (_session == null) return;
+
+            if (!string.IsNullOrEmpty(e.ToolUseId) && _toolCallsByUseId.TryGetValue(e.ToolUseId!, out var call))
+                call.Status = allow ? ToolCallStatus.Running : ToolCallStatus.Error;
+
+            if (allow && autoAccept)
+            {
+                // Matches the real CLI's `acceptEdits` mode scope (edit-type tools only).
+                // Synthesized entirely client-side, reusing the existing "Allow for session"
+                // mechanism - the can_use_tool wire protocol offers no updatedPermissions/
+                // suggestions field to relay for mode-switching (confirmed live, 2026-08-27) and
+                // there's no way to change --permission-mode without restarting the CLI process
+                // mid-turn.
+                _sessionPermissions.Add("Edit");
+                _sessionPermissions.Add("Write");
+                _sessionPermissions.Add("NotebookEdit");
+                _sessionPermissions.Add("MultiEdit");
+            }
+
+            StatusText = "Working…";
+            await _session.RespondToPermissionAsync(e.RequestId, allow, updatedInput: allow ? e.Input : null, denyMessage: denyMessage).ConfigureAwait(false);
         }
 
         private void OnAskUserQuestionRequested(AskUserQuestionEvent e)
@@ -959,6 +1072,10 @@ namespace TeronClaudeCodeVS.ViewModels
             SessionHistoryStore.Save(_allSessions);
         }
 
-        public void Dispose() => StopSessionCore();
+        public void Dispose()
+        {
+            PlanCommentRegistry.CommentSubmitted -= OnPlanCommentSubmitted;
+            StopSessionCore();
+        }
     }
 }

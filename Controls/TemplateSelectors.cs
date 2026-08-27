@@ -11,6 +11,7 @@ namespace TeronClaudeCodeVS.Controls
         public DataTemplate? ThinkingTemplate { get; set; }
         public DataTemplate? ToolCallTemplate { get; set; }
         public DataTemplate? PermissionTemplate { get; set; }
+        public DataTemplate? PlanApprovalTemplate { get; set; }
         public DataTemplate? AskUserQuestionTemplate { get; set; }
         public DataTemplate? ResultTemplate { get; set; }
         public DataTemplate? InterruptedTemplate { get; set; }
@@ -24,6 +25,7 @@ namespace TeronClaudeCodeVS.Controls
                 ThinkingBlockViewModel => ThinkingTemplate,
                 ToolCallViewModel => ToolCallTemplate,
                 PermissionRequestViewModel => PermissionTemplate,
+                PlanApprovalViewModel => PlanApprovalTemplate,
                 AskUserQuestionViewModel => AskUserQuestionTemplate,
                 ResultFooterViewModel => ResultTemplate,
                 InterruptedBlockViewModel => InterruptedTemplate,
