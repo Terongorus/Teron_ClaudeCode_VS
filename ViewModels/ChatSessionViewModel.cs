@@ -4,8 +4,10 @@ using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
 namespace TeronClaudeCodeVS.ViewModels
@@ -59,6 +61,70 @@ namespace TeronClaudeCodeVS.ViewModels
     }
 
     /// <summary>
+    /// Display-density level for the transcript. Original UI design - not a real-extension feature
+    /// (confirmed via direct research against the installed VS Code extension bundle, 2026-08-27).
+    /// Summary = final text + result footer only, thinking hidden, tool-calls collapsed with no
+    /// expand affordance. Normal = today's default (thinking/tool-calls collapsed but user-
+    /// expandable). Thinking = like Normal but thinking blocks default to expanded. Verbose = like
+    /// Thinking, plus tool-call input/output/diffs also default to expanded.
+    /// </summary>
+    public enum TranscriptViewMode
+    {
+        Summary,
+        Normal,
+        Thinking,
+        Verbose
+    }
+
+    public sealed class TranscriptModeOption
+    {
+        public string DisplayName { get; }
+        public TranscriptViewMode Value { get; }
+
+        public TranscriptModeOption(string displayName, TranscriptViewMode value)
+        {
+            DisplayName = displayName;
+            Value = value;
+        }
+
+        public override string ToString() => DisplayName;
+    }
+
+    /// <summary>A pasted screenshot staged in the input box, waiting to be sent with the next message.</summary>
+    public sealed class PendingImageAttachment
+    {
+        /// <summary>Full-resolution PNG data sent to the CLI as an `image`/`base64` content block.</summary>
+        public string Base64Png { get; }
+
+        /// <summary>Same bitmap, used for the small chip preview above the input box.</summary>
+        public BitmapSource Thumbnail { get; }
+
+        public PendingImageAttachment(string base64Png, BitmapSource thumbnail)
+        {
+            Base64Png = base64Png;
+            Thumbnail = thumbnail;
+        }
+    }
+
+    /// <summary>A dropped file (not an image) staged in the input box, waiting to be sent with the next message.</summary>
+    public sealed class PendingFileAttachment
+    {
+        public string Title { get; }
+
+        /// <summary>True for a PDF (Content is base64 bytes); false for text/code (Content is raw text).</summary>
+        public bool IsPdf { get; }
+
+        public string Content { get; }
+
+        public PendingFileAttachment(string title, bool isPdf, string content)
+        {
+            Title = title;
+            IsPdf = isPdf;
+            Content = content;
+        }
+    }
+
+    /// <summary>
     /// Drives a <see cref="ClaudeCodeSession"/> and projects its NDJSON event stream into
     /// observable view models the chat UI binds to directly.
     /// </summary>
@@ -100,6 +166,60 @@ namespace TeronClaudeCodeVS.ViewModels
         public ObservableCollection<string> SlashCommands { get; } = [];
         public ObservableCollection<string> RawOutput { get; } = [];
         public ObservableCollection<SessionHistoryEntry> SessionHistory { get; } = [];
+
+        /// <summary>Pasted screenshots staged above the input box, sent with the next message.</summary>
+        public ObservableCollection<PendingImageAttachment> PendingImages { get; } = [];
+
+        public bool HasPendingImages => PendingImages.Count > 0;
+
+        public void AddPendingImage(string base64Png, BitmapSource thumbnail) =>
+            PendingImages.Add(new PendingImageAttachment(base64Png, thumbnail));
+
+        public void RemovePendingImage(PendingImageAttachment attachment) =>
+            PendingImages.Remove(attachment);
+
+        /// <summary>Dropped text/code/PDF files staged above the input box, sent with the next message.</summary>
+        public ObservableCollection<PendingFileAttachment> PendingFiles { get; } = [];
+
+        public bool HasPendingFiles => PendingFiles.Count > 0;
+
+        public void AddPendingFile(string title, bool isPdf, string content) =>
+            PendingFiles.Add(new PendingFileAttachment(title, isPdf, content));
+
+        public void RemovePendingFile(PendingFileAttachment attachment) =>
+            PendingFiles.Remove(attachment);
+
+        /// <summary>
+        /// Currently-running tool calls (Task subagents, background Bash shells, or any other
+        /// in-flight tool) - feeds both the status line's running-task count and the background-
+        /// tasks panel. Maintained via <see cref="OnToolCallStatusChanged"/> rather than re-scanning
+        /// <see cref="Messages"/>, since nothing in the CLI's wire protocol itself distinguishes a
+        /// "background task" from any other tool call (confirmed via direct research against the
+        /// installed VS Code extension, 2026-08-27) - this is purely a client-side projection.
+        /// </summary>
+        public ObservableCollection<ToolCallViewModel> RunningToolCalls { get; } = [];
+
+        public int RunningTaskCount => RunningToolCalls.Count;
+        public bool HasRunningTasks => RunningToolCalls.Count > 0;
+
+        private void OnToolCallStatusChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(ToolCallViewModel.Status) || sender is not ToolCallViewModel call)
+                return;
+
+            if (call.Status == ToolCallStatus.Running)
+            {
+                if (!RunningToolCalls.Contains(call))
+                    RunningToolCalls.Add(call);
+            }
+            else
+            {
+                RunningToolCalls.Remove(call);
+            }
+
+            OnPropertyChanged(nameof(RunningTaskCount));
+            OnPropertyChanged(nameof(HasRunningTasks));
+        }
 
         /// <summary>Account info and subscription rate-limit usage, loaded on demand.</summary>
         public AccountUsageViewModel AccountUsage { get; } = new AccountUsageViewModel();
@@ -158,6 +278,48 @@ namespace TeronClaudeCodeVS.ViewModels
             new ThinkingLevelOption("Max", "max"),
         };
 
+        public IReadOnlyList<TranscriptModeOption> TranscriptModes { get; } = new[]
+        {
+            new TranscriptModeOption("Summary", TranscriptViewMode.Summary),
+            new TranscriptModeOption("Normal", TranscriptViewMode.Normal),
+            new TranscriptModeOption("Thinking", TranscriptViewMode.Thinking),
+            new TranscriptModeOption("Verbose", TranscriptViewMode.Verbose),
+        };
+
+        private TranscriptModeOption _currentTranscriptMode;
+        public TranscriptModeOption CurrentTranscriptMode
+        {
+            get => _currentTranscriptMode;
+            set
+            {
+                if (SetField(ref _currentTranscriptMode, value))
+                    ReapplyTranscriptMode();
+            }
+        }
+
+        /// <summary>
+        /// Re-applies the current mode's default expansion to every block already in the
+        /// transcript, so toggling mid-conversation feels consistent rather than only affecting
+        /// blocks streamed in afterward.
+        /// </summary>
+        private void ReapplyTranscriptMode()
+        {
+            TranscriptViewMode mode = CurrentTranscriptMode.Value;
+            bool expandThinking = mode is TranscriptViewMode.Thinking or TranscriptViewMode.Verbose;
+            bool expandToolCalls = mode is TranscriptViewMode.Verbose;
+
+            foreach (ChatMessageViewModel message in Messages)
+            {
+                foreach (ContentBlockViewModel block in message.Blocks)
+                {
+                    if (block is ThinkingBlockViewModel thinking)
+                        thinking.IsExpanded = expandThinking;
+                    else if (block is ToolCallViewModel toolCall)
+                        toolCall.IsExpanded = expandToolCalls;
+                }
+            }
+        }
+
         private ModelOption _selectedModel;
         public ModelOption SelectedModel
         {
@@ -198,8 +360,43 @@ namespace TeronClaudeCodeVS.ViewModels
             private set
             {
                 if (SetField(ref _isBusy, value))
+                {
                     OnPropertyChanged(nameof(CanSend));
+
+                    // No stopwatch exists on the CLI's own wire protocol for an in-flight turn -
+                    // DurationMs only arrives after the turn completes, on ResultMessage - so this
+                    // is a purely client-side ticking clock for the status line's "11m0s" display.
+                    if (value)
+                    {
+                        _busyStartedAtUtc = DateTime.UtcNow;
+                        ElapsedText = "0s";
+                        _elapsedTimer.Start();
+                    }
+                    else
+                    {
+                        _elapsedTimer.Stop();
+                        ElapsedText = "";
+                    }
+                }
             }
+        }
+
+        private readonly DispatcherTimer _elapsedTimer;
+        private DateTime _busyStartedAtUtc;
+
+        private string _elapsedText = "";
+        public string ElapsedText
+        {
+            get => _elapsedText;
+            private set => SetField(ref _elapsedText, value);
+        }
+
+        private void UpdateElapsedText()
+        {
+            TimeSpan elapsed = DateTime.UtcNow - _busyStartedAtUtc;
+            ElapsedText = elapsed.TotalMinutes >= 1
+                ? $"{(int)elapsed.TotalMinutes}m{elapsed.Seconds}s"
+                : $"{elapsed.Seconds}s";
         }
 
         // Deliberately independent of IsBusy: the CLI queues a `user` line written while a turn
@@ -253,19 +450,33 @@ namespace TeronClaudeCodeVS.ViewModels
             }
         }
 
+        /// <summary>Compact "6.2k tokens"-style total, for the status line (SessionUsageText is too long there).</summary>
+        public string SessionTokensShortText => FormatTokenCount(_sessionInputTokens + _sessionOutputTokens) + " tokens";
+
         public ChatSessionViewModel()
         {
             _dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
+            _elapsedTimer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Normal,
+                (s, e) =>
+                {
+                    UpdateElapsedText();
+                    foreach (ToolCallViewModel call in RunningToolCalls)
+                        call.RefreshElapsedText();
+                }, _dispatcher);
             _selectedModel = Models[0];
             // "Accept Edits" is the extension's own startup default (not the CLI's) - selected by
             // value rather than array index so reordering PermissionModes above can't silently
             // change this.
             _selectedPermissionMode = PermissionModes.First(m => m.Value == "acceptEdits");
             _selectedThinkingLevel = ThinkingLevels[0];
+            _currentTranscriptMode = TranscriptModes[1]; // Normal
 
             _allSessions = SessionHistoryStore.Load();
             foreach (var e in _allSessions)
                 SessionHistory.Add(e);
+
+            PendingImages.CollectionChanged += (s, e) => OnPropertyChanged(nameof(HasPendingImages));
+            PendingFiles.CollectionChanged += (s, e) => OnPropertyChanged(nameof(HasPendingFiles));
 
             PlanCommentRegistry.CommentSubmitted += OnPlanCommentSubmitted;
         }
@@ -373,6 +584,7 @@ namespace TeronClaudeCodeVS.ViewModels
             _sessionInputTokens = 0;
             _sessionOutputTokens = 0;
             OnPropertyChanged(nameof(SessionUsageText));
+            OnPropertyChanged(nameof(SessionTokensShortText));
 
             StartSession();
         }
@@ -412,14 +624,21 @@ namespace TeronClaudeCodeVS.ViewModels
         public async Task SendMessageAsync(string text)
         {
             text = text.Trim();
-            if (text.Length == 0 || ClaudeNotFoundMessage != null)
+            bool hasImages = PendingImages.Count > 0;
+            bool hasFiles = PendingFiles.Count > 0;
+            if ((text.Length == 0 && !hasImages && !hasFiles) || ClaudeNotFoundMessage != null)
                 return;
 
             if (_session == null || !_session.IsRunning)
                 StartSession();
 
             ChatMessageViewModel userMessage = new ChatMessageViewModel(ChatRole.User);
-            userMessage.Blocks.Add(new TextBlockViewModel { Text = text });
+            foreach (PendingImageAttachment image in PendingImages)
+                userMessage.Blocks.Add(new ImageAttachmentViewModel(image.Thumbnail));
+            foreach (PendingFileAttachment file in PendingFiles)
+                userMessage.Blocks.Add(new FileAttachmentViewModel(file.Title));
+            if (text.Length > 0)
+                userMessage.Blocks.Add(new TextBlockViewModel { Text = text });
             Messages.Add(userMessage);
 
             // Record the first message as the session title.
@@ -427,6 +646,13 @@ namespace TeronClaudeCodeVS.ViewModels
                 _pendingSessionTitle = text.Length <= 60 ? text : text.Substring(0, 57) + "…";
 
             _lastSentText = text;
+
+            List<string>? imagesBase64Png = hasImages ? PendingImages.Select(p => p.Base64Png).ToList() : null;
+            List<PendingFileContent>? files = hasFiles
+                ? PendingFiles.Select(f => new PendingFileContent(f.Title, f.IsPdf, f.Content)).ToList()
+                : null;
+            PendingImages.Clear();
+            PendingFiles.Clear();
 
             // Deliberately no ResetTurnState() here: the CLI queues additional `user` lines
             // written while a turn is still in flight and runs them sequentially on its own
@@ -437,7 +663,7 @@ namespace TeronClaudeCodeVS.ViewModels
             IsBusy = true;
             StatusText = "Working…";
 
-            await _session!.SendUserMessageAsync(text).ConfigureAwait(false);
+            await _session!.SendUserMessageAsync(text, imagesBase64Png, files).ConfigureAwait(false);
         }
 
         private void StopSessionCore()
@@ -557,16 +783,36 @@ namespace TeronClaudeCodeVS.ViewModels
         {
             EnsureAssistantMessage();
 
+            TranscriptViewMode mode = CurrentTranscriptMode.Value;
+
             ContentBlockViewModel block;
             if (e.BlockType == "thinking")
             {
-                block = new ThinkingBlockViewModel();
+                block = new ThinkingBlockViewModel
+                {
+                    IsExpanded = mode is TranscriptViewMode.Thinking or TranscriptViewMode.Verbose
+                };
             }
             else if (e.BlockType == "tool_use")
             {
-                ToolCallViewModel call = new ToolCallViewModel(e.ToolUseId ?? "", e.ToolName ?? "Tool");
+                ToolCallViewModel call = new ToolCallViewModel(e.ToolUseId ?? "", e.ToolName ?? "Tool")
+                {
+                    IsExpanded = mode is TranscriptViewMode.Verbose,
+                    OwnerMessage = _currentAssistantMessage
+                };
                 if (!string.IsNullOrEmpty(e.ToolUseId))
                     _toolCallsByUseId[e.ToolUseId!] = call;
+
+                // Tracks currently-running tool calls for the status line's running-task count and
+                // the background-tasks panel (both just render this one collection - no duplicate
+                // tracking) - starts Running (the constructor's own default), so add it immediately
+                // rather than relying solely on the PropertyChanged hook below to catch a later
+                // transition that already happened.
+                call.PropertyChanged += OnToolCallStatusChanged;
+                RunningToolCalls.Add(call);
+                OnPropertyChanged(nameof(RunningTaskCount));
+                OnPropertyChanged(nameof(HasRunningTasks));
+
                 block = call;
             }
             else
@@ -911,6 +1157,7 @@ namespace TeronClaudeCodeVS.ViewModels
             _sessionInputTokens += result.InputTokens ?? 0;
             _sessionOutputTokens += result.OutputTokens ?? 0;
             OnPropertyChanged(nameof(SessionUsageText));
+            OnPropertyChanged(nameof(SessionTokensShortText));
 
             ResetTurnState();
 
@@ -1041,6 +1288,7 @@ namespace TeronClaudeCodeVS.ViewModels
             _sessionInputTokens = 0;
             _sessionOutputTokens = 0;
             OnPropertyChanged(nameof(SessionUsageText));
+            OnPropertyChanged(nameof(SessionTokensShortText));
 
             // The live wire never replays history on --resume (confirmed live against the real
             // CLI) - hydrate the visible transcript from the CLI's own on-disk record instead,
@@ -1074,6 +1322,7 @@ namespace TeronClaudeCodeVS.ViewModels
 
         public void Dispose()
         {
+            _elapsedTimer.Stop();
             PlanCommentRegistry.CommentSubmitted -= OnPlanCommentSubmitted;
             StopSessionCore();
         }

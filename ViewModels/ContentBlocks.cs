@@ -8,6 +8,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Media;
 
 namespace TeronClaudeCodeVS.ViewModels
 {
@@ -39,6 +40,22 @@ namespace TeronClaudeCodeVS.ViewModels
         public FlowDocument Document => MarkdownRenderer.Render(_text);
 
         public void Append(string delta) => Text += delta;
+    }
+
+    /// <summary>A pasted screenshot attached to a sent user message - shown as a thumbnail.</summary>
+    public sealed class ImageAttachmentViewModel : ContentBlockViewModel
+    {
+        public ImageSource Thumbnail { get; }
+
+        public ImageAttachmentViewModel(ImageSource thumbnail) => Thumbnail = thumbnail;
+    }
+
+    /// <summary>A dropped text/code/PDF file attached to a sent user message - shown as a filename chip.</summary>
+    public sealed class FileAttachmentViewModel : ContentBlockViewModel
+    {
+        public string Title { get; }
+
+        public FileAttachmentViewModel(string title) => Title = title;
     }
 
     /// <summary>A streamed "thinking" block - collapsed by default, shown in a muted style.</summary>
@@ -183,6 +200,24 @@ namespace TeronClaudeCodeVS.ViewModels
         {
             get => _isExpanded;
             set => SetField(ref _isExpanded, value);
+        }
+
+        /// <summary>The message this call's card lives in - lets the running-tasks panel scroll to it.</summary>
+        public ChatMessageViewModel? OwnerMessage { get; set; }
+
+        public DateTime StartedAtUtc { get; } = DateTime.UtcNow;
+
+        private string _elapsedText = "0s";
+        public string ElapsedText => _elapsedText;
+
+        /// <summary>Refreshed on the session's existing 1s status-line tick - no separate per-task timer.</summary>
+        public void RefreshElapsedText()
+        {
+            TimeSpan elapsed = DateTime.UtcNow - StartedAtUtc;
+            string text = elapsed.TotalMinutes >= 1
+                ? $"{(int)elapsed.TotalMinutes}m{elapsed.Seconds}s"
+                : $"{elapsed.Seconds}s";
+            SetField(ref _elapsedText, text, nameof(ElapsedText));
         }
 
         public ToolCallViewModel(string toolUseId, string toolName)

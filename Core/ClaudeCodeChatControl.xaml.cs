@@ -14,6 +14,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Threading;
 
@@ -326,10 +327,57 @@ namespace TeronClaudeCodeVS.Core
             await _vm.StopSessionAsync();
         }
 
-        private void OnCommandMenuClicked(object sender, RoutedEventArgs e)
+        // The four menu buttons (palette/model/permission/effort) share one mutual-exclusion rule
+        // with Account & Usage - only one of the five popups is ever open at a time, same behavior
+        // as the single combined menu they replaced.
+        private void CloseAllMenuPopups()
         {
+            PalettePopup.IsOpen = false;
+            ModelPopup.IsOpen = false;
+            PermissionPopup.IsOpen = false;
+            EffortPopup.IsOpen = false;
             AccountUsagePopup.IsOpen = false;
-            CommandMenuPopup.IsOpen = !CommandMenuPopup.IsOpen;
+        }
+
+        private void OnPaletteMenuClicked(object sender, RoutedEventArgs e)
+        {
+            bool willOpen = !PalettePopup.IsOpen;
+            CloseAllMenuPopups();
+            PalettePopup.IsOpen = willOpen;
+        }
+
+        private void OnModelMenuClicked(object sender, RoutedEventArgs e)
+        {
+            bool willOpen = !ModelPopup.IsOpen;
+            CloseAllMenuPopups();
+            ModelPopup.IsOpen = willOpen;
+        }
+
+        private void OnPermissionMenuClicked(object sender, RoutedEventArgs e)
+        {
+            bool willOpen = !PermissionPopup.IsOpen;
+            CloseAllMenuPopups();
+            PermissionPopup.IsOpen = willOpen;
+        }
+
+        private void OnEffortMenuClicked(object sender, RoutedEventArgs e)
+        {
+            bool willOpen = !EffortPopup.IsOpen;
+            CloseAllMenuPopups();
+            EffortPopup.IsOpen = willOpen;
+        }
+
+        private void OnTranscriptModeClicked(object sender, RoutedEventArgs e)
+        {
+            TranscriptModePopup.IsOpen = !TranscriptModePopup.IsOpen;
+        }
+
+        private void OnTranscriptModeOptionClicked(object sender, RoutedEventArgs e)
+        {
+            if (((FrameworkElement)sender).DataContext is TranscriptModeOption option)
+                _vm.CurrentTranscriptMode = option;
+
+            TranscriptModePopup.IsOpen = false;
         }
 
 #pragma warning disable VSTHRD100
@@ -341,7 +389,7 @@ namespace TeronClaudeCodeVS.Core
 
         private async Task OpenAccountUsagePopupAsync()
         {
-            CommandMenuPopup.IsOpen = false;
+            CloseAllMenuPopups();
             AccountUsagePopup.IsOpen = true;
 
             if (!string.IsNullOrEmpty(_vm.ClaudePath))
@@ -378,7 +426,7 @@ namespace TeronClaudeCodeVS.Core
             if (((FrameworkElement)sender).DataContext is ModelOption option)
                 _vm.SelectedModel = option;
 
-            CommandMenuPopup.IsOpen = false;
+            ModelPopup.IsOpen = false;
         }
 
         private void OnPermissionOptionClicked(object sender, RoutedEventArgs e)
@@ -386,7 +434,7 @@ namespace TeronClaudeCodeVS.Core
             if (((FrameworkElement)sender).DataContext is PermissionModeOption option)
                 _vm.SelectedPermissionMode = option;
 
-            CommandMenuPopup.IsOpen = false;
+            PermissionPopup.IsOpen = false;
         }
 
         private void OnThinkingOptionClicked(object sender, RoutedEventArgs e)
@@ -394,14 +442,14 @@ namespace TeronClaudeCodeVS.Core
             if (((FrameworkElement)sender).DataContext is ThinkingLevelOption option)
                 _vm.SelectedThinkingLevel = option;
 
-            CommandMenuPopup.IsOpen = false;
+            EffortPopup.IsOpen = false;
         }
 
 #pragma warning disable VSTHRD100
         private async void OnSlashCommandMenuItemClicked(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100
         {
-            CommandMenuPopup.IsOpen = false;
+            PalettePopup.IsOpen = false;
 
             if (((FrameworkElement)sender).DataContext is string command)
             {
@@ -425,7 +473,7 @@ namespace TeronClaudeCodeVS.Core
         private async Task SendCurrentInputAsync()
         {
             string text = InputBox.Text;
-            if (string.IsNullOrWhiteSpace(text) || !_vm.CanSend)
+            if ((string.IsNullOrWhiteSpace(text) && !_vm.HasPendingImages && !_vm.HasPendingFiles) || !_vm.CanSend)
                 return;
 
             // /usage never reaches the model in the real CLI either - confirmed live (2026-08-26)
@@ -647,6 +695,156 @@ namespace TeronClaudeCodeVS.Core
 
             SlashCommandPopup.IsOpen = false;
             Keyboard.Focus(InputBox);
+        }
+
+        // Real Anthropic Messages API image content-block shape confirmed by reading the official
+        // VS Code extension's webview bundle directly (2026-08-27) - it reads pasted clipboard
+        // files the same way, via DataTransfer items rather than the WPF-specific event used here.
+        private void OnInputBoxPasting(object sender, DataObjectPastingEventArgs e)
+        {
+            if (!e.DataObject.GetDataPresent(DataFormats.Bitmap))
+                return;
+
+            if (e.DataObject.GetData(DataFormats.Bitmap) is not BitmapSource bitmap)
+                return;
+
+            _vm.AddPendingImage(EncodeBitmapToPngBase64(bitmap), bitmap);
+            e.CancelCommand();
+        }
+
+        private static string EncodeBitmapToPngBase64(BitmapSource bitmap)
+        {
+            PngBitmapEncoder encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using MemoryStream ms = new MemoryStream();
+            encoder.Save(ms);
+            return Convert.ToBase64String(ms.ToArray());
+        }
+
+        private void OnRemovePendingImageClicked(object sender, RoutedEventArgs e)
+        {
+            if (((Button)sender).Tag is PendingImageAttachment attachment)
+                _vm.RemovePendingImage(attachment);
+        }
+
+        private void OnRemovePendingFileClicked(object sender, RoutedEventArgs e)
+        {
+            if (((Button)sender).Tag is PendingFileAttachment attachment)
+                _vm.RemovePendingFile(attachment);
+        }
+
+        // Extension allowlists ported verbatim from the real VS Code extension's own webview
+        // bundle (its EK1/kX0 sets and file-type classifier), confirmed by reading the installed
+        // bundle directly (2026-08-27) - not guessed. Local drops only give us a file path (no
+        // browser-style MIME type), so classification here is by extension/bare-filename instead.
+        private static readonly HashSet<string> s_imageExtensions =
+            new(StringComparer.OrdinalIgnoreCase) { "png", "jpg", "jpeg", "gif", "webp" };
+
+        private static readonly HashSet<string> s_textExtensions = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "json","yaml","yml","toml","ini","cfg","conf","config","env","properties","js","jsx","ts","tsx",
+            "mjs","cjs","mts","cts","py","pyw","rb","go","rs","java","kt","kts","scala","c","h","cpp","hpp",
+            "cc","cxx","cs","fs","fsx","swift","php","pl","pm","lua","r","jl","ex","exs","erl","hrl","clj",
+            "cljs","cljc","elm","hs","ml","mli","v","sv","vhd","vhdl","asm","s","html","htm","xhtml","xml",
+            "svg","css","scss","sass","less","vue","svelte","astro","sh","bash","zsh","fish","ps1","psm1",
+            "psd1","bat","cmd","csv","tsv","sql","graphql","gql","prisma","md","mdx","markdown","rst","txt",
+            "text","rtf","tex","latex","org","adoc","asciidoc","makefile","cmake","gradle","dockerfile",
+            "containerfile","vagrantfile","rakefile","gemfile","podfile","fastfile","brewfile","procfile",
+            "lock","sum","log","diff","patch","gitignore","gitattributes","editorconfig","prettierrc",
+            "eslintrc","babelrc","npmrc","nvmrc","yarnrc"
+        };
+
+        private static readonly HashSet<string> s_textFilenamesWithoutExtension =
+            new(StringComparer.OrdinalIgnoreCase) { "license", "readme", "changelog", "authors", "contributors", "copying", "makefile", "dockerfile" };
+
+        private static bool HasDroppableData(IDataObject data) =>
+            data.GetDataPresent(DataFormats.FileDrop) || data.GetDataPresent(DataFormats.Bitmap);
+
+        private void OnInputAreaDragEnter(object sender, DragEventArgs e)
+        {
+            if (HasDroppableData(e.Data))
+                InputAreaBorder.BorderBrush = (Brush)FindResource("ClaudeAccentBrush");
+        }
+
+        private void OnInputAreaDragOver(object sender, DragEventArgs e)
+        {
+            e.Effects = HasDroppableData(e.Data) ? DragDropEffects.Copy : DragDropEffects.None;
+            e.Handled = true;
+        }
+
+        private void OnInputAreaDragLeave(object sender, DragEventArgs e)
+        {
+            InputAreaBorder.ClearValue(Border.BorderBrushProperty);
+        }
+
+#pragma warning disable VSTHRD100
+        private async void OnInputAreaDrop(object sender, DragEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            InputAreaBorder.ClearValue(Border.BorderBrushProperty);
+
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                foreach (string path in (string[])e.Data.GetData(DataFormats.FileDrop))
+                    await ImportDroppedFileAsync(path);
+            }
+            else if (e.Data.GetDataPresent(DataFormats.Bitmap) && e.Data.GetData(DataFormats.Bitmap) is BitmapSource bitmap)
+            {
+                _vm.AddPendingImage(EncodeBitmapToPngBase64(bitmap), bitmap);
+            }
+        }
+
+        private async Task ImportDroppedFileAsync(string path)
+        {
+            try
+            {
+                if (!File.Exists(path)) return;
+
+                string fileName = Path.GetFileName(path);
+                string ext = Path.GetExtension(path).TrimStart('.');
+
+                if (s_imageExtensions.Contains(ext))
+                {
+                    byte[] bytes = await Task.Run(() => File.ReadAllBytes(path));
+                    BitmapImage thumbnail = new BitmapImage();
+                    using (MemoryStream ms = new MemoryStream(bytes))
+                    {
+                        thumbnail.BeginInit();
+                        thumbnail.CacheOption = BitmapCacheOption.OnLoad;
+                        thumbnail.StreamSource = ms;
+                        thumbnail.EndInit();
+                    }
+                    thumbnail.Freeze();
+                    _vm.AddPendingImage(Convert.ToBase64String(bytes), thumbnail);
+                }
+                else if (string.Equals(ext, "pdf", StringComparison.OrdinalIgnoreCase))
+                {
+                    byte[] bytes = await Task.Run(() => File.ReadAllBytes(path));
+                    _vm.AddPendingFile(fileName, isPdf: true, Convert.ToBase64String(bytes));
+                }
+                else if (s_textExtensions.Contains(ext) || s_textFilenamesWithoutExtension.Contains(fileName))
+                {
+                    string text = await Task.Run(() => File.ReadAllText(path));
+                    _vm.AddPendingFile(fileName, isPdf: false, text);
+                }
+                // else: unsupported type - matches the real extension's own silent skip-and-log.
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debugger.Log(0, "TeronClaudeCodeVS", $"[TeronClaudeCodeVS] Failed to import dropped file '{path}': {ex.Message}\n");
+            }
+        }
+
+        // Scrolls to the owning message rather than the exact block - MessageList only generates
+        // containers per ChatMessageViewModel (see MessageTemplateSelector), the tool-call card
+        // itself is a nested ItemsControl item with no separately-generated container to target.
+        private void OnJumpToRunningTaskClicked(object sender, RoutedEventArgs e)
+        {
+            if (((Button)sender).Tag is not ToolCallViewModel call || call.OwnerMessage == null)
+                return;
+
+            if (MessageList.ItemContainerGenerator.ContainerFromItem(call.OwnerMessage) is FrameworkElement container)
+                container.BringIntoView();
         }
 
 #pragma warning disable VSTHRD100

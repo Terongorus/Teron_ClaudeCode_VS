@@ -53,6 +53,64 @@ namespace TeronClaudeCodeVS.Controls
             => throw new NotSupportedException();
     }
 
+    /// <summary>TranscriptViewMode -> Visibility, Collapsed only for Summary - hides thinking blocks entirely in Summary mode (as opposed to Normal, where they're merely collapsed but still present).</summary>
+    public sealed class HiddenInSummaryModeConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value is TranscriptViewMode.Summary ? Visibility.Collapsed : Visibility.Visible;
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>(bool HasDetail, TranscriptViewMode mode) -> bool. A tool-call card's expand affordance is disabled entirely in Summary mode, even if it has detail to show.</summary>
+    public sealed class ToolCallExpandableConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            bool hasDetail = values.Length > 0 && values[0] is true;
+            bool isSummaryMode = values.Length > 1 && values[1] is TranscriptViewMode.Summary;
+            return hasDetail && !isSummaryMode;
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// Composes the live status strip: while busy, "11m0s · 6.2k tokens · 2 running tasks · Working…";
+    /// idle, just the plain status text. No such persistent status line exists in the real VS Code
+    /// extension (confirmed via direct research against the installed bundle, 2026-08-27) - this is
+    /// an original design, not parity work. Values: [0]=IsBusy, [1]=ElapsedText, [2]=SessionTokensShortText,
+    /// [3]=RunningTaskCount, [4]=StatusText.
+    /// </summary>
+    public sealed class StatusLineConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (values.Length < 5 || values[4] is not string statusText)
+                return "";
+
+            bool isBusy = values[0] is true;
+            if (!isBusy)
+                return statusText;
+
+            string elapsed = values[1] as string ?? "";
+            string tokens = values[2] as string ?? "";
+            int runningTasks = values[3] is int n ? n : 0;
+
+            var parts = new System.Collections.Generic.List<string> { elapsed, tokens };
+            if (runningTasks > 0)
+                parts.Add(runningTasks == 1 ? "1 running task" : $"{runningTasks} running tasks");
+            parts.Add(statusText);
+
+            return string.Join(" · ", parts);
+        }
+
+        public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
     /// <summary>Returns just the file name part of a relative path string (for the @ file picker).</summary>
     public sealed class FilePathToNameConverter : IValueConverter
     {

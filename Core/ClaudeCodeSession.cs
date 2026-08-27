@@ -40,6 +40,24 @@ namespace TeronClaudeCodeVS.Core
         public bool StrictMcpConfig { get; set; }
     }
 
+    /// <summary>A dropped text/code file (raw text content) or PDF (base64) attached to an outgoing user message.</summary>
+    public readonly struct PendingFileContent
+    {
+        public string Title { get; }
+
+        /// <summary>True for a PDF (Content is base64 bytes); false for text/code (Content is raw text).</summary>
+        public bool IsPdf { get; }
+
+        public string Content { get; }
+
+        public PendingFileContent(string title, bool isPdf, string content)
+        {
+            Title = title;
+            IsPdf = isPdf;
+            Content = content;
+        }
+    }
+
     /// <summary>
     /// Hosts a single `claude -p --input-format stream-json --output-format stream-json
     /// --include-partial-messages --verbose` process and exposes its NDJSON protocol as
@@ -332,16 +350,61 @@ namespace TeronClaudeCodeVS.Core
             return -1;
         }
 
-        /// <summary>Sends a plain-text user turn.</summary>
-        public Task SendUserMessageAsync(string text)
+        /// <summary>
+        /// Sends a user turn, optionally with one or more pasted screenshots and/or dropped files
+        /// attached first - real Anthropic Messages API content-block shapes confirmed by reading
+        /// the official VS Code extension's own webview bundle (2026-08-27), not guessed:
+        /// image: {"type":"image","source":{"type":"base64","media_type":"image/png","data":"..."}}
+        /// text doc: {"type":"document","source":{"type":"text","media_type":"text/plain","data":"&lt;raw text, not base64&gt;"},"title":"..."}
+        /// pdf doc: {"type":"document","source":{"type":"base64","media_type":"application/pdf","data":"..."},"title":"..."}
+        /// </summary>
+        public Task SendUserMessageAsync(string text, System.Collections.Generic.IReadOnlyList<string>? imagesBase64Png = null,
+            System.Collections.Generic.IReadOnlyList<PendingFileContent>? files = null)
         {
+            JArray content = new JArray();
+
+            if (imagesBase64Png != null)
+            {
+                foreach (string base64Png in imagesBase64Png)
+                {
+                    content.Add(new JObject
+                    {
+                        ["type"] = "image",
+                        ["source"] = new JObject
+                        {
+                            ["type"] = "base64",
+                            ["media_type"] = "image/png",
+                            ["data"] = base64Png
+                        }
+                    });
+                }
+            }
+
+            if (files != null)
+            {
+                foreach (PendingFileContent file in files)
+                {
+                    content.Add(new JObject
+                    {
+                        ["type"] = "document",
+                        ["source"] = file.IsPdf
+                            ? new JObject { ["type"] = "base64", ["media_type"] = "application/pdf", ["data"] = file.Content }
+                            : new JObject { ["type"] = "text", ["media_type"] = "text/plain", ["data"] = file.Content },
+                        ["title"] = file.Title
+                    });
+                }
+            }
+
+            if (!string.IsNullOrEmpty(text))
+                content.Add(new JObject { ["type"] = "text", ["text"] = text });
+
             JObject payload = new JObject
             {
                 ["type"] = "user",
                 ["message"] = new JObject
                 {
                     ["role"] = "user",
-                    ["content"] = new JArray { new JObject { ["type"] = "text", ["text"] = text } }
+                    ["content"] = content
                 }
             };
             return WriteLineAsync(payload);

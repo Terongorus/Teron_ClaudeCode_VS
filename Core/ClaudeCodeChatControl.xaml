@@ -26,6 +26,9 @@
         <controls:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
         <controls:ToolStatusToBrushConverter x:Key="ToolStatusToBrushConverter"/>
         <controls:EqualityToVisibilityConverter x:Key="EqualityToVisibilityConverter"/>
+        <controls:HiddenInSummaryModeConverter x:Key="HiddenInSummaryModeConverter"/>
+        <controls:ToolCallExpandableConverter x:Key="ToolCallExpandableConverter"/>
+        <controls:StatusLineConverter x:Key="StatusLineConverter"/>
         <controls:FilePathToNameConverter x:Key="FilePathToNameConverter"/>
         <controls:FilePathToDirConverter x:Key="FilePathToDirConverter"/>
 
@@ -417,6 +420,27 @@
             </Button>
         </DataTemplate>
 
+        <DataTemplate x:Key="TranscriptModeMenuItemTemplate">
+            <Button Style="{StaticResource MenuRowButtonStyle}" Click="OnTranscriptModeOptionClicked">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Binding DisplayName}"/>
+                    <TextBlock Grid.Column="1" Text="✓" FontWeight="Bold" Margin="10,0,0,0"
+                               Foreground="{StaticResource ClaudeAccentBrush}">
+                        <TextBlock.Visibility>
+                            <MultiBinding Converter="{StaticResource EqualityToVisibilityConverter}">
+                                <Binding/>
+                                <Binding Path="DataContext.CurrentTranscriptMode" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
+                            </MultiBinding>
+                        </TextBlock.Visibility>
+                    </TextBlock>
+                </Grid>
+            </Button>
+        </DataTemplate>
+
         <DataTemplate x:Key="SlashCommandMenuItemTemplate">
             <Button Style="{StaticResource MenuRowButtonStyle}" Click="OnSlashCommandMenuItemClicked">
                 <TextBlock Text="{Binding StringFormat=/{0}}" FontFamily="Consolas" FontSize="11"/>
@@ -429,9 +453,27 @@
             <controls:MarkdownViewer/>
         </DataTemplate>
 
+        <DataTemplate x:Key="ImageAttachmentTemplate" DataType="{x:Type vm:ImageAttachmentViewModel}">
+            <Border CornerRadius="6" Margin="0,0,0,6" MaxWidth="260" ClipToBounds="True">
+                <Image Source="{Binding Thumbnail}" Stretch="Uniform" MaxHeight="200"/>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="FileAttachmentTemplate" DataType="{x:Type vm:FileAttachmentViewModel}">
+            <Border CornerRadius="4" Margin="0,0,0,6" Padding="6,3" Background="#22FFFFFF">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="📄" Margin="0,0,5,0"/>
+                    <TextBlock Text="{Binding Title}" FontSize="11.5"/>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
         <DataTemplate x:Key="ThinkingBlockTemplate" DataType="{x:Type vm:ThinkingBlockViewModel}">
             <Expander IsExpanded="{Binding IsExpanded}" Margin="0,2,0,2" Opacity="0.75"
-                      Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
+                      Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                      Visibility="{Binding DataContext.CurrentTranscriptMode.Value,
+                                   RelativeSource={RelativeSource AncestorType=ItemsControl, AncestorLevel=2},
+                                   Converter={StaticResource HiddenInSummaryModeConverter}}">
                 <Expander.Header>
                     <TextBlock Text="Thinking" FontStyle="Italic" FontSize="11.5"
                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
@@ -444,8 +486,15 @@
             <Border Background="{StaticResource CardBackgroundBrush}"
                     BorderBrush="{StaticResource HairlineBrush}"
                     BorderThickness="1" CornerRadius="4" Margin="0,3,0,3">
-                <Expander IsExpanded="{Binding IsExpanded}" IsEnabled="{Binding HasDetail}" Padding="2"
+                <Expander IsExpanded="{Binding IsExpanded}" Padding="2"
                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
+                    <Expander.IsEnabled>
+                        <MultiBinding Converter="{StaticResource ToolCallExpandableConverter}">
+                            <Binding Path="HasDetail"/>
+                            <Binding Path="DataContext.CurrentTranscriptMode.Value"
+                                     RelativeSource="{RelativeSource AncestorType=ItemsControl, AncestorLevel=2}"/>
+                        </MultiBinding>
+                    </Expander.IsEnabled>
                     <Expander.Header>
                         <Grid Margin="4,2">
                             <Grid.ColumnDefinitions>
@@ -733,6 +782,8 @@
 
         <controls:ContentBlockTemplateSelector x:Key="BlockTemplateSelector"
             TextTemplate="{StaticResource TextBlockTemplate}"
+            ImageAttachmentTemplate="{StaticResource ImageAttachmentTemplate}"
+            FileAttachmentTemplate="{StaticResource FileAttachmentTemplate}"
             ThinkingTemplate="{StaticResource ThinkingBlockTemplate}"
             ToolCallTemplate="{StaticResource ToolCallTemplate}"
             PermissionTemplate="{StaticResource PermissionTemplate}"
@@ -774,6 +825,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -785,6 +837,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
@@ -817,7 +870,29 @@
                                Margin="2,0" VerticalAlignment="Center"
                                ToolTip="Show raw CLI output"/>
 
-                <Button Grid.Column="5" Style="{StaticResource IconButtonStyle}"
+                <Button Grid.Column="5" x:Name="TranscriptModeButton" Style="{StaticResource ChipButtonStyle}"
+                        Click="OnTranscriptModeClicked" Margin="2,0" VerticalAlignment="Center"
+                        Padding="7,2" FontSize="11"
+                        ToolTip="Transcript detail level: how much of each turn is shown">
+                    <TextBlock Text="{Binding CurrentTranscriptMode.DisplayName}"/>
+                </Button>
+
+                <Popup x:Name="TranscriptModePopup" PlacementTarget="{Binding ElementName=TranscriptModeButton}"
+                       Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                    <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
+                            TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                            BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="6"
+                            MinWidth="150" Margin="0,4,0,0">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="16" Opacity="0.3" ShadowDepth="2" Color="Black"/>
+                        </Border.Effect>
+                        <StackPanel Margin="2,4">
+                            <ItemsControl ItemsSource="{Binding TranscriptModes}" ItemTemplate="{StaticResource TranscriptModeMenuItemTemplate}"/>
+                        </StackPanel>
+                    </Border>
+                </Popup>
+
+                <Button Grid.Column="6" Style="{StaticResource IconButtonStyle}"
                         Click="OnSettingsClicked" Margin="2,0,0,0" VerticalAlignment="Center"
                         ToolTip="Claude Code settings">
                     <TextBlock Text="⚙"/>
@@ -827,11 +902,64 @@
 
         <!-- ===================== Status strip ===================== -->
         <Border Grid.Row="1" Padding="10,2">
-            <TextBlock Text="{Binding StatusText}" FontSize="11" Opacity="0.65"/>
+            <TextBlock FontSize="11" Opacity="0.65">
+                <TextBlock.Text>
+                    <MultiBinding Converter="{StaticResource StatusLineConverter}">
+                        <Binding Path="IsBusy"/>
+                        <Binding Path="ElapsedText"/>
+                        <Binding Path="SessionTokensShortText"/>
+                        <Binding Path="RunningTaskCount"/>
+                        <Binding Path="StatusText"/>
+                    </MultiBinding>
+                </TextBlock.Text>
+            </TextBlock>
         </Border>
 
         <!-- ===================== Main content ===================== -->
-        <Grid Grid.Row="2">
+        <!-- ===================== Running tasks panel ===================== -->
+        <!-- Original design - the real VS Code extension has no equivalent UI at all, only an
+             internal backgroundTasks/stopTask protocol handshake with nothing user-facing
+             (confirmed via direct research against the installed bundle, 2026-08-27). Auto-shows
+             whenever at least one tool call is Running rather than needing a manual toggle, since
+             the point is visibility into work already happening in the background. -->
+        <Border Grid.Row="2" BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1"
+                Padding="10,4" Visibility="{Binding HasRunningTasks, Converter={StaticResource BoolToVisibilityConverter}}">
+            <StackPanel>
+                <TextBlock Text="{Binding RunningTaskCount, StringFormat='Running tasks ({0})'}"
+                           FontSize="10" Opacity="0.55" Margin="0,0,0,3"
+                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                <ItemsControl ItemsSource="{Binding RunningToolCalls}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:ToolCallViewModel}">
+                            <Button Click="OnJumpToRunningTaskClicked" Tag="{Binding}"
+                                    Style="{StaticResource MenuRowButtonStyle}" Padding="4,2">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Icon}" Margin="0,0,6,0"
+                                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontSize="11"
+                                               Margin="0,0,6,0"
+                                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding Summary}" FontSize="11" Opacity="0.6"
+                                               TextTrimming="CharacterEllipsis"
+                                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding ElapsedText}" FontSize="10.5" Opacity="0.6"
+                                               Margin="6,0,0,0"
+                                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                </Grid>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <Grid Grid.Row="3">
             <ScrollViewer x:Name="ChatScrollViewer"
                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                           Padding="10,4" ScrollChanged="OnChatScrollChanged"
@@ -1005,7 +1133,7 @@
         </Grid>
 
         <!-- ===================== Raw output panel ===================== -->
-        <Border Grid.Row="3" MaxHeight="160" BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,1,0,0"
+        <Border Grid.Row="4" MaxHeight="160" BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,1,0,0"
                 Visibility="{Binding IsRawOutputVisible, Converter={StaticResource BoolToVisibilityConverter}}">
             <Grid>
                 <Grid.RowDefinitions>
@@ -1035,8 +1163,10 @@
         </Border>
 
         <!-- ===================== Input area ===================== -->
-        <Border Grid.Row="4" Margin="10,6,10,10" Background="{StaticResource CardBackgroundBrush}"
-                BorderThickness="1" CornerRadius="8">
+        <Border x:Name="InputAreaBorder" Grid.Row="5" Margin="10,6,10,10" Background="{StaticResource CardBackgroundBrush}"
+                BorderThickness="1" CornerRadius="8"
+                AllowDrop="True" DragEnter="OnInputAreaDragEnter" DragLeave="OnInputAreaDragLeave"
+                PreviewDragOver="OnInputAreaDragOver" Drop="OnInputAreaDrop">
             <Border.Style>
                 <Style TargetType="Border">
                     <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}"/>
@@ -1053,6 +1183,7 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
@@ -1064,7 +1195,58 @@
                             ToolTip="Insert a reference to the current selection"/>
                 </StackPanel>
 
-                <TextBox Grid.Row="1" x:Name="InputBox"
+                <StackPanel Grid.Row="1">
+                    <ItemsControl ItemsSource="{Binding PendingImages}"
+                                  Visibility="{Binding HasPendingImages, Converter={StaticResource BoolToVisibilityConverter}}"
+                                  Margin="0,0,0,6">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:PendingImageAttachment}">
+                                <Border CornerRadius="4" Margin="0,0,6,0"
+                                        BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1">
+                                    <Grid>
+                                        <Image Source="{Binding Thumbnail}" Width="44" Height="44" Stretch="UniformToFill"/>
+                                        <Button Content="✕" Click="OnRemovePendingImageClicked" Tag="{Binding}"
+                                                Style="{StaticResource IconButtonStyle}" Width="16" Height="16" FontSize="9"
+                                                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-8,-8,0"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <ItemsControl ItemsSource="{Binding PendingFiles}"
+                                  Visibility="{Binding HasPendingFiles, Converter={StaticResource BoolToVisibilityConverter}}"
+                                  Margin="0,0,0,6">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:PendingFileAttachment}">
+                                <Border CornerRadius="4" Margin="0,0,6,0" Padding="6,3"
+                                        BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="📄" Margin="0,0,5,0"
+                                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                        <TextBlock Text="{Binding Title}" FontSize="11"
+                                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                        <Button Content="✕" Click="OnRemovePendingFileClicked" Tag="{Binding}"
+                                                Style="{StaticResource IconButtonStyle}" Width="16" Height="16" FontSize="9"
+                                                Margin="5,0,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <TextBox Grid.Row="2" x:Name="InputBox"
                          AcceptsReturn="True" TextWrapping="Wrap"
                          MinHeight="28" MaxHeight="160"
                          VerticalScrollBarVisibility="Auto"
@@ -1073,7 +1255,8 @@
                          CaretBrush="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                          Padding="2,2" FontSize="12.5"
                          PreviewKeyDown="OnInputPreviewKeyDown"
-                         TextChanged="OnInputTextChanged"/>
+                         TextChanged="OnInputTextChanged"
+                         DataObject.Pasting="OnInputBoxPasting"/>
 
                 <Popup x:Name="SlashCommandPopup" PlacementTarget="{Binding ElementName=InputBox}"
                        Placement="Top" StaysOpen="False" AllowsTransparency="True">
@@ -1119,24 +1302,42 @@
                     </Border>
                 </Popup>
 
-                <Grid Grid.Row="2" Margin="0,6,0,0">
+                <Grid Grid.Row="3" Margin="0,6,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <Button Grid.Column="0" x:Name="CommandMenuButton" Style="{StaticResource ChipButtonStyle}"
-                            Click="OnCommandMenuClicked" HorizontalAlignment="Left"
-                            ToolTip="Model, permission mode, thinking budget, usage &amp; commands">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="/" FontWeight="Bold" Margin="0,0,5,0"/>
-                            <TextBlock Text="{Binding SelectedModel.DisplayName}"/>
-                            <TextBlock Text=" · " Opacity="0.5"/>
-                            <TextBlock Text="{Binding SelectedPermissionMode.DisplayName}"/>
-                        </StackPanel>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Left">
+
+                    <!-- Command palette: usage summary + Account & Usage + slash commands -->
+                    <Button x:Name="PaletteButton" Style="{StaticResource ChipButtonStyle}"
+                            Click="OnPaletteMenuClicked" Margin="0,0,4,0"
+                            ToolTip="Usage, account &amp; commands">
+                        <TextBlock Text="/"/>
                     </Button>
 
-                    <Popup x:Name="CommandMenuPopup" PlacementTarget="{Binding ElementName=CommandMenuButton}"
+                    <!-- Model -->
+                    <Button x:Name="ModelButton" Style="{StaticResource ChipButtonStyle}"
+                            Click="OnModelMenuClicked" Margin="0,0,4,0" ToolTip="Model">
+                        <TextBlock Text="{Binding SelectedModel.DisplayName}"/>
+                    </Button>
+
+                    <!-- Permission mode -->
+                    <Button x:Name="PermissionButton" Style="{StaticResource ChipButtonStyle}"
+                            Click="OnPermissionMenuClicked" Margin="0,0,4,0" ToolTip="Permission mode">
+                        <TextBlock Text="{Binding SelectedPermissionMode.DisplayName}"/>
+                    </Button>
+
+                    <!-- Effort -->
+                    <Button x:Name="EffortButton" Style="{StaticResource ChipButtonStyle}"
+                            Click="OnEffortMenuClicked" ToolTip="Thinking effort">
+                        <TextBlock Text="{Binding SelectedThinkingLevel.DisplayName}"/>
+                    </Button>
+
+                    </StackPanel>
+
+                    <Popup x:Name="PalettePopup" PlacementTarget="{Binding ElementName=PaletteButton}"
                            Placement="Top" StaysOpen="False" AllowsTransparency="True">
                         <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
                                 TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
@@ -1147,17 +1348,6 @@
                             </Border.Effect>
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                                 <StackPanel Margin="2,4">
-                                    <TextBlock Text="MODEL" Style="{StaticResource MenuSectionHeaderStyle}"/>
-                                    <ItemsControl ItemsSource="{Binding Models}" ItemTemplate="{StaticResource ModelMenuItemTemplate}"/>
-
-                                    <TextBlock Text="PERMISSION MODE" Style="{StaticResource MenuSectionHeaderStyle}"/>
-                                    <ItemsControl ItemsSource="{Binding PermissionModes}" ItemTemplate="{StaticResource PermissionMenuItemTemplate}"/>
-
-                                    <TextBlock Text="EFFORT" Style="{StaticResource MenuSectionHeaderStyle}"/>
-                                    <ItemsControl ItemsSource="{Binding ThinkingLevels}" ItemTemplate="{StaticResource ThinkingMenuItemTemplate}"/>
-
-                                    <Border Height="1" Background="{StaticResource HairlineBrush}" Margin="6,6"/>
-
                                     <TextBlock Text="THIS SESSION" Style="{StaticResource MenuSectionHeaderStyle}"/>
                                     <TextBlock Text="{Binding SessionUsageText}" FontSize="11" Opacity="0.75"
                                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
@@ -1176,7 +1366,52 @@
                         </Border>
                     </Popup>
 
-                    <Popup x:Name="AccountUsagePopup" PlacementTarget="{Binding ElementName=CommandMenuButton}"
+                    <Popup x:Name="ModelPopup" PlacementTarget="{Binding ElementName=ModelButton}"
+                           Placement="Top" StaysOpen="False" AllowsTransparency="True">
+                        <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
+                                TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="6"
+                                MinWidth="180" Margin="0,0,0,6">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="16" Opacity="0.3" ShadowDepth="2" Color="Black"/>
+                            </Border.Effect>
+                            <StackPanel Margin="2,4">
+                                <ItemsControl ItemsSource="{Binding Models}" ItemTemplate="{StaticResource ModelMenuItemTemplate}"/>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+
+                    <Popup x:Name="PermissionPopup" PlacementTarget="{Binding ElementName=PermissionButton}"
+                           Placement="Top" StaysOpen="False" AllowsTransparency="True">
+                        <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
+                                TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="6"
+                                MinWidth="230" Margin="0,0,0,6">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="16" Opacity="0.3" ShadowDepth="2" Color="Black"/>
+                            </Border.Effect>
+                            <StackPanel Margin="2,4">
+                                <ItemsControl ItemsSource="{Binding PermissionModes}" ItemTemplate="{StaticResource PermissionMenuItemTemplate}"/>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+
+                    <Popup x:Name="EffortPopup" PlacementTarget="{Binding ElementName=EffortButton}"
+                           Placement="Top" StaysOpen="False" AllowsTransparency="True">
+                        <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
+                                TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="6"
+                                MinWidth="180" Margin="0,0,0,6">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="16" Opacity="0.3" ShadowDepth="2" Color="Black"/>
+                            </Border.Effect>
+                            <StackPanel Margin="2,4">
+                                <ItemsControl ItemsSource="{Binding ThinkingLevels}" ItemTemplate="{StaticResource ThinkingMenuItemTemplate}"/>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+
+                    <Popup x:Name="AccountUsagePopup" PlacementTarget="{Binding ElementName=PaletteButton}"
                            Placement="Top" StaysOpen="False" AllowsTransparency="True">
                         <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
                                 TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"

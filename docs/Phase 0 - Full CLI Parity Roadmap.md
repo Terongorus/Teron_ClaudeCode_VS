@@ -51,7 +51,9 @@ and is being executed as dated `/docs` phases from here on. Summary:
   inline editor diff apply/accept/reject.
 - **Session & protocol depth** - MCP server management UI (wrapping `claude mcp`), a
   [Plan Mode document view](Phase%204%20-%20Plan%20Mode%20Review%20UI.md), checkpoints/rewind,
-  richer subagent/background-agent visibility.
+  richer subagent/background-agent visibility. Paste/drag-and-drop image and file import,
+  transcript view modes, a live session status line, and a running-tasks panel landed as a
+  [Chat UX batch](Phase%205%20-%20Chat%20UX%20Batch.md).
 - **Editor & VS-native integration** - Solution Explorer/editor context actions, keybindings,
   multi-session tabs, `@`-mention enhancements, an accessibility audit pass.
 - **Long-tail parity** - worktrees, remote control/cloud sessions, plugins/marketplace (wrapping

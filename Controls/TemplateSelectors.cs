@@ -8,6 +8,8 @@ namespace TeronClaudeCodeVS.Controls
     public sealed class ContentBlockTemplateSelector : DataTemplateSelector
     {
         public DataTemplate? TextTemplate { get; set; }
+        public DataTemplate? ImageAttachmentTemplate { get; set; }
+        public DataTemplate? FileAttachmentTemplate { get; set; }
         public DataTemplate? ThinkingTemplate { get; set; }
         public DataTemplate? ToolCallTemplate { get; set; }
         public DataTemplate? PermissionTemplate { get; set; }
@@ -22,6 +24,8 @@ namespace TeronClaudeCodeVS.Controls
             return item switch
             {
                 TextBlockViewModel => TextTemplate,
+                ImageAttachmentViewModel => ImageAttachmentTemplate,
+                FileAttachmentViewModel => FileAttachmentTemplate,
                 ThinkingBlockViewModel => ThinkingTemplate,
                 ToolCallViewModel => ToolCallTemplate,
                 PermissionRequestViewModel => PermissionTemplate,
