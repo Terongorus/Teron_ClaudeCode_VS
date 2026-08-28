@@ -1,0 +1,1079 @@
+<title>Baseline Parity Backlog</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;600&display=swap">
+
+<style>
+  /* ---- tokens: complete light palette on bare :root ---- */
+  :root {
+    --ground:      #F4F6F8;
+    --surface:     #FFFFFF;
+    --surface-2:   #EDF1F5;
+    --ink:         #161B22;
+    --ink-2:       #414D5C;
+    --ink-3:       #6B7889;
+    --rule:        #D3DBE4;
+    --rule-soft:   #E4EAF0;
+
+    --accent:      #2F5F8F;
+    --accent-ink:  #FFFFFF;
+    --accent-soft: #E3ECF5;
+
+    --t0:          #A8322A;   /* defect */
+    --t0-soft:     #F8E5E3;
+    --t1:          #2F5F8F;   /* foundations */
+    --t1-soft:     #E3ECF5;
+    --t2:          #47607A;   /* polish */
+    --t2-soft:     #E6EBF1;
+    --t3:          #2C6A50;   /* cheap gap-closers */
+    --t3-soft:     #E1EFE8;
+    --t4:          #8A5A12;   /* real features */
+    --t4-soft:     #F6EBDA;
+    --t5:          #5B6270;   /* test debt */
+    --t5-soft:     #E8EAEE;
+
+    --shadow:      0 1px 2px rgba(22,27,34,.06), 0 4px 14px rgba(22,27,34,.05);
+    --focus:       #2F5F8F;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:      #0F1319;
+      --surface:     #161B23;
+      --surface-2:   #1D242E;
+      --ink:         #E4EAF1;
+      --ink-2:       #B3BECC;
+      --ink-3:       #808C9C;
+      --rule:        #2A323D;
+      --rule-soft:   #212832;
+
+      --accent:      #7BA7D4;
+      --accent-ink:  #0F1319;
+      --accent-soft: #1B2836;
+
+      --t0:          #E0837A;  --t0-soft: #2E1D1C;
+      --t1:          #7BA7D4;  --t1-soft: #1B2836;
+      --t2:          #9DB2C8;  --t2-soft: #1C232C;
+      --t3:          #74C09B;  --t3-soft: #16261F;
+      --t4:          #D9A45E;  --t4-soft: #2A2115;
+      --t5:          #9AA3B2;  --t5-soft: #1E222A;
+
+      --shadow:      0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.28);
+      --focus:       #7BA7D4;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:      #0F1319;
+    --surface:     #161B23;
+    --surface-2:   #1D242E;
+    --ink:         #E4EAF1;
+    --ink-2:       #B3BECC;
+    --ink-3:       #808C9C;
+    --rule:        #2A323D;
+    --rule-soft:   #212832;
+
+    --accent:      #7BA7D4;
+    --accent-ink:  #0F1319;
+    --accent-soft: #1B2836;
+
+    --t0:          #E0837A;  --t0-soft: #2E1D1C;
+    --t1:          #7BA7D4;  --t1-soft: #1B2836;
+    --t2:          #9DB2C8;  --t2-soft: #1C232C;
+    --t3:          #74C09B;  --t3-soft: #16261F;
+    --t4:          #D9A45E;  --t4-soft: #2A2115;
+    --t5:          #9AA3B2;  --t5-soft: #1E222A;
+
+    --shadow:      0 1px 2px rgba(0,0,0,.4), 0 6px 18px rgba(0,0,0,.28);
+    --focus:       #7BA7D4;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0 24px 96px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1080px; margin: 0 auto; }
+
+  /* ---------- masthead ---------- */
+  .masthead {
+    padding: 56px 0 28px;
+    border-bottom: 2px solid var(--ink);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin: 0;
+  }
+  h1 {
+    font-family: Archivo, "IBM Plex Sans", sans-serif;
+    font-weight: 700;
+    font-size: clamp(34px, 5.2vw, 52px);
+    line-height: 1.03;
+    letter-spacing: -.022em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .standfirst {
+    max-width: 64ch;
+    color: var(--ink-2);
+    font-size: 16.5px;
+    margin: 0;
+  }
+  .standfirst strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- readout strip ---------- */
+  .readout {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    gap: 0;
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    background: var(--surface);
+    overflow: hidden;
+    margin: 28px 0 0;
+  }
+  .readout div {
+    padding: 14px 16px;
+    border-right: 1px solid var(--rule-soft);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .readout div:last-child { border-right: 0; }
+  .readout .n {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 24px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.02em;
+    line-height: 1;
+  }
+  .readout .k {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+
+  /* ---------- notes ---------- */
+  .note {
+    margin: 30px 0 0;
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: 5px;
+    color: var(--ink-2);
+    font-size: 14.5px;
+  }
+  .note strong { color: var(--ink); font-weight: 600; }
+  code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .875em;
+    background: var(--surface-2);
+    padding: .1em .38em;
+    border-radius: 3px;
+    color: var(--ink);
+  }
+
+  /* ---------- controls ---------- */
+  .controls {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: var(--ground);
+    padding: 18px 0 14px;
+    margin: 36px 0 0;
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .filter {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    padding: 6px 11px;
+    border-radius: 5px;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    color: var(--ink-2);
+    cursor: pointer;
+    transition: background .12s, border-color .12s, color .12s;
+  }
+  .filter:hover { border-color: var(--ink-3); color: var(--ink); }
+  .filter[aria-pressed="true"] {
+    background: var(--ink);
+    border-color: var(--ink);
+    color: var(--ground);
+  }
+  .filter:focus-visible,
+  .search:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .search {
+    flex: 1 1 190px;
+    min-width: 160px;
+    padding: 6px 11px;
+    border-radius: 5px;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", sans-serif;
+    font-size: 13.5px;
+  }
+  .search::placeholder { color: var(--ink-3); }
+  .count {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* ---------- tiers ---------- */
+  .tier { margin: 44px 0 0; }
+  .tier-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .tier-tag {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+  .tier-head h2 {
+    font-family: Archivo, sans-serif;
+    font-size: 21px;
+    font-weight: 600;
+    letter-spacing: -.012em;
+    margin: 0;
+  }
+  .tier-note {
+    color: var(--ink-2);
+    font-size: 14.5px;
+    margin: 14px 0 0;
+    max-width: 74ch;
+  }
+
+  .items { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+
+  .item {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--bar);
+    border-radius: 6px;
+    padding: 15px 17px;
+    box-shadow: var(--shadow);
+    display: grid;
+    grid-template-columns: 84px 1fr;
+    gap: 4px 16px;
+  }
+  .item.hide { display: none; }
+  .item-id {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--bar);
+    letter-spacing: .02em;
+    padding-top: 1px;
+  }
+  .item-body { min-width: 0; }
+  .item-title {
+    font-weight: 600;
+    font-size: 15.5px;
+    letter-spacing: -.006em;
+    margin: 0 0 5px;
+    color: var(--ink);
+  }
+  .item-desc { margin: 0; color: var(--ink-2); font-size: 14.5px; }
+  .item-desc em { color: var(--ink); font-style: normal; font-weight: 600; }
+
+  .meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+  .chip {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    padding: 2.5px 7px;
+    border-radius: 4px;
+    border: 1px solid var(--rule);
+    color: var(--ink-3);
+    background: var(--surface-2);
+    white-space: nowrap;
+  }
+  .chip.size { color: var(--ink); border-color: var(--ink-3); font-weight: 600; }
+
+  .done {
+    margin-top: 11px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--rule);
+    font-size: 14px;
+    color: var(--ink-2);
+  }
+  .done b {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    display: block;
+    margin-bottom: 3px;
+    font-weight: 500;
+  }
+
+  .caveat {
+    margin-top: 11px;
+    padding: 10px 12px;
+    background: var(--t4-soft);
+    border-radius: 5px;
+    font-size: 14px;
+    color: var(--ink-2);
+  }
+  .caveat b { color: var(--ink); }
+
+  /* ---------- sequencing ---------- */
+  .seq { margin: 52px 0 0; }
+  .seq ol {
+    counter-reset: step;
+    list-style: none;
+    padding: 0;
+    margin: 18px 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .seq li {
+    counter-increment: step;
+    display: grid;
+    grid-template-columns: 32px 1fr;
+    gap: 14px;
+    align-items: start;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 12px 15px;
+    color: var(--ink-2);
+    font-size: 14.5px;
+  }
+  .seq li::before {
+    content: counter(step);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent-ink);
+    background: var(--accent);
+    border-radius: 4px;
+    width: 24px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+  }
+  .seq li strong { color: var(--ink); font-weight: 600; }
+
+  .excluded {
+    margin: 40px 0 0;
+    padding: 18px 20px;
+    border: 1px dashed var(--rule);
+    border-radius: 6px;
+    color: var(--ink-2);
+    font-size: 14.5px;
+    background: transparent;
+  }
+  .excluded h3 {
+    font-family: Archivo, sans-serif;
+    font-size: 14px;
+    letter-spacing: .02em;
+    margin: 0 0 7px;
+    color: var(--ink);
+  }
+
+  footer {
+    margin-top: 56px;
+    padding-top: 20px;
+    border-top: 1px solid var(--rule);
+    color: var(--ink-3);
+    font-size: 13px;
+    font-family: "IBM Plex Mono", monospace;
+  }
+
+  @media (max-width: 620px) {
+    .item { grid-template-columns: 1fr; gap: 8px; }
+    .item-id { padding-top: 0; }
+    body { padding: 0 16px 72px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">Teron_ClaudeCode_VS · Phase 6 audit output</p>
+    <h1>Baseline Parity Backlog</h1>
+    <p class="standfirst">
+      Work items derived from driving the official <strong>anthropic.claude-code</strong> extension
+      live and measuring our Visual Studio extension against it. Every acceptance criterion below is
+      a <strong>value read off the running baseline</strong> — not a preference.
+    </p>
+  </header>
+
+  <div class="readout">
+    <div><span class="n">33</span><span class="k">work items</span></div>
+    <div><span class="n">1</span><span class="k">real defect</span></div>
+    <div><span class="n">17</span><span class="k">S or XS</span></div>
+    <div><span class="n">5</span><span class="k">gaps closed by 1 pattern</span></div>
+    <div><span class="n">22</span><span class="k">baseline screenshots</span></div>
+  </div>
+
+  <p class="note">
+    <strong>This is a menu to plan from, not committed work.</strong> Sizes are relative —
+    <code>XS/S</code> ≈ hours, <code>M</code> ≈ a day, <code>L</code> ≈ multi-day,
+    <code>XL</code> ≈ a phase of its own. Evidence chips reference
+    <code>screenshots/real-extension/</code> in the audit folder.
+  </p>
+
+  <div class="controls">
+    <button class="filter" data-tier="all" aria-pressed="true">All tiers</button>
+    <button class="filter" data-tier="0" aria-pressed="false">Defect</button>
+    <button class="filter" data-tier="1" aria-pressed="false">Style</button>
+    <button class="filter" data-tier="2" aria-pressed="false">Polish</button>
+    <button class="filter" data-tier="3" aria-pressed="false">Gap-closers</button>
+    <button class="filter" data-tier="4" aria-pressed="false">Features</button>
+    <button class="filter" data-tier="5" aria-pressed="false">Test debt</button>
+    <button class="filter" data-quick="cheap" aria-pressed="false">Quick wins only</button>
+    <input class="search" type="search" placeholder="Filter by keyword…" aria-label="Filter items by keyword">
+    <span class="count" id="count"></span>
+  </div>
+
+  <!-- TIER 0 -->
+  <section class="tier" data-tier="0">
+    <div class="tier-head">
+      <span class="tier-tag" style="background:var(--t0-soft);color:var(--t0)">Tier 0</span>
+      <h2>Correctness</h2>
+    </div>
+    <p class="tier-note">A real defect, independent of everything else. Do it first.</p>
+    <div class="items">
+      <article class="item" style="--bar:var(--t0)" data-size="S–M">
+        <span class="item-id">BUG-1</span>
+        <div class="item-body">
+          <p class="item-title">“Active File” chip silently fails on Markdown Preview tabs</p>
+          <p class="item-desc">
+            Inserts nothing, Claude receives <em>zero context</em>, and no error surfaces. Root-caused
+            by switching the active tab to a normal code file, where it works correctly. Almost
+            certainly VS’s active-document resolution not treating a Preview tab as a normal document.
+          </p>
+          <div class="meta">
+            <span class="chip size">Size S–M</span>
+            <span class="chip">our:16 / our:17</span>
+          </div>
+          <p class="done"><b>Done when</b>The chip either inserts the correct underlying file for a Preview tab, <em>or</em> says clearly that it can’t. The silent no-op is the actual bug — a visible message is an acceptable fix.</p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- TIER 1 -->
+  <section class="tier" data-tier="1">
+    <div class="tier-head">
+      <span class="tier-tag" style="background:var(--t1-soft);color:var(--t1)">Tier 1</span>
+      <h2>Style foundations</h2>
+    </div>
+    <p class="tier-note">
+      Cheap, compounding, no backend work. Grouped deliberately: they all touch the same XAML
+      resources, so doing them together is far cheaper than one at a time.
+    </p>
+    <div class="items">
+
+      <article class="item" style="--bar:var(--t1)" data-size="S" data-cheap="1">
+        <span class="item-id">ST-1</span>
+        <div class="item-body">
+          <p class="item-title">Define a design-token resource dictionary</p>
+          <p class="item-desc">Prerequisite for ST-2 through ST-5 — one place for the type scale, radii, surfaces and accent.</p>
+          <div class="meta"><span class="chip size">Size S</span><span class="chip">§7</span><span class="chip">blocks ST-2…ST-5</span></div>
+          <p class="done"><b>Done when</b>A single <code>ResourceDictionary</code> holds the scale, and the chat control references tokens rather than literals.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t1)" data-size="S" data-cheap="1">
+        <span class="item-id">ST-2</span>
+        <div class="item-body">
+          <p class="item-title">Collapse the type scale from nine sizes to two</p>
+          <p class="item-desc">
+            Baseline uses exactly <em>13px body</em> (line-height 19.5px ≈ 1.5) and <em>11px chrome</em>.
+            We currently use nine: 9, 10, 10.5, 11, 11.5, 12, 12.5, 13, 14.
+          </p>
+          <div class="meta"><span class="chip size">Size S</span><span class="chip">§7 measured</span></div>
+          <p class="done"><b>Done when</b>No more than two or three <code>FontSize</code> values remain in <code>ClaudeCodeChatControl.xaml</code>.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t1)" data-size="S" data-cheap="1">
+        <span class="item-id">ST-3</span>
+        <div class="item-body">
+          <p class="item-title">Normalise corner radii to 5–6px</p>
+          <p class="item-desc">
+            Baseline: 5–6px for controls and cards, 8px only on banner top corners. Ours: eight
+            different values — 3, 4, 5, 6, 8, 10, 11, 15.
+          </p>
+          <div class="meta"><span class="chip size">Size S</span><span class="chip">§7 measured</span></div>
+          <p class="done"><b>Done when</b>Radii come from tokens and the long tail (10, 11, 15) is gone.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t1)" data-size="S" data-cheap="1">
+        <span class="item-id">ST-4</span>
+        <div class="item-body">
+          <p class="item-title">Adopt the “one theme-invariant accent” rule</p>
+          <p class="item-desc">
+            Measured in <em>both</em> themes: baseline re-derives every surface and text colour from the
+            host theme and keeps exactly one constant brand colour — <code>#C6613F</code>, on the send
+            button alone. Verified by flipping the isolated profile to light: body text
+            <code>#BBBEBF → rgb(59,59,59)</code>, header <code>#191A1B → #F8F8F8</code>,
+            <em>accent unchanged</em>.
+          </p>
+          <div class="meta"><span class="chip size">Size S</span><span class="chip">§7 · real:20</span></div>
+          <p class="done"><b>Done when</b>Every surface/text brush derives from a VS theme key, and exactly one hardcoded brand colour remains.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t1)" data-size="M">
+        <span class="item-id">ST-5</span>
+        <div class="item-body">
+          <p class="item-title">Reconsider the solid terracotta user-message bubble</p>
+          <p class="item-desc">
+            <em>The single largest visual divergence.</em> Baseline user messages have <em>no bubble</em>:
+            <code>background: transparent</code>, <code>border-radius: 0</code>, full column width,
+            <code>padding: 14px 0 12px</code>. Ours is <code>Background=#D97757</code>, white text,
+            <code>CornerRadius="10,10,2,10"</code>, right-aligned, <code>MaxWidth=460</code>. Baseline
+            reads as a <em>document</em>; ours reads as a <em>messenger app</em>. This is the concrete
+            instance of ST-4 — we spend the brand colour on the most-repeated element in the panel.
+          </p>
+          <div class="meta"><span class="chip size">Size M</span><span class="chip">§7 measured</span><span class="chip">depends on ST-1</span></div>
+          <p class="caveat">
+            <b>This is the one item where “match the baseline” may be the wrong call.</b> A VS extension
+            has different visual conventions to a VS Code webview. The audit’s job was to make the
+            divergence measured and visible — the design decision is yours.
+          </p>
+          <p class="done"><b>Done when</b>A deliberate decision is made. Full parity is <em>not</em> required — but if the bubble stays, it should be a considered choice rather than an inherited default.</p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- TIER 2 -->
+  <section class="tier" data-tier="2">
+    <div class="tier-head">
+      <span class="tier-tag" style="background:var(--t2-soft);color:var(--t2)">Tier 2</span>
+      <h2>High-value UX polish</h2>
+    </div>
+    <p class="tier-note">Small items, immediately felt. Most become trivial once ST-1 exists.</p>
+    <div class="items">
+
+      <article class="item" style="--bar:var(--t2)" data-size="S" data-cheap="1">
+        <span class="item-id">UX-1</span>
+        <div class="item-body">
+          <p class="item-title">Model-picker descriptions</p>
+          <p class="item-desc">
+            Baseline gives each model a decision-support subtitle: Opus <em>“~2× usage vs Sonnet”</em>,
+            Fable <em>“Requires usage credits”</em>, Haiku <em>“Fastest for quick answers”</em>, Default
+            <em>“(recommended)”</em>. Ours is a bare name list — the user cannot see the cost implication
+            of switching.
+          </p>
+          <div class="meta"><span class="chip size">Size S</span><span class="chip">real:09</span></div>
+          <p class="done"><b>Done when</b>Each of our five models shows a one-line subtitle, with cost/credit implications visible.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t2)" data-size="S–M">
+        <span class="item-id">UX-2</span>
+        <div class="item-body">
+          <p class="item-title">Permission-picker descriptions + <code>⇧+Tab</code> cycling</p>
+          <p class="item-desc">
+            Baseline shows a “Modes” header, a one-line description per mode, and a
+            <code>⇧ + tab to switch</code> hint — and the cycle is <em>confirmed working</em>:
+            Manual → Edit automatically → Plan → Manual. We expose <em>more</em> modes (5 vs 3) but
+            explain none, which makes the extras harder to use, not easier. Shift+Tab is absent from
+            our source, verified by search.
+          </p>
+          <div class="meta"><span class="chip size">Size S–M</span><span class="chip">real:10 · §6c</span></div>
+          <p class="done"><b>Done when</b>All five modes carry a description, Shift+Tab cycles them, and the hint is visible in the UI.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t2)" data-size="M">
+        <span class="item-id">UX-3</span>
+        <div class="item-body">
+          <p class="item-title">Numbered permission cards + inline redirect box</p>
+          <p class="item-desc">
+            Baseline: <code>1 Yes</code> / <code>2 Yes, allow all edits this session</code> /
+            <code>3 No</code>, keyboard-selectable, stating the <em>full absolute path</em>, with an
+            <code>Esc to cancel</code> hint and an inline <em>“Tell Claude what to do instead”</em> field.
+            Ours: unnumbered Allow / Allow for Session / Deny, no redirect box, no keyboard selection.
+          </p>
+          <div class="meta"><span class="chip size">Size M</span><span class="chip">real:02 · real:12</span></div>
+          <p class="done"><b>Done when</b>Options are number-keyed, the full path is shown, and the user can redirect Claude without leaving the card.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t2)" data-size="S" data-cheap="1">
+        <span class="item-id">UX-4</span>
+        <div class="item-body">
+          <p class="item-title">Palette “Filter actions…” search box</p>
+          <p class="item-desc">Baseline’s menu opens with a filter field. Ours lists ~50 commands with no filter.</p>
+          <div class="meta"><span class="chip size">Size S</span><span class="chip">real:08</span></div>
+          <p class="done"><b>Done when</b>Typing filters the palette live.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t2)" data-size="XS" data-cheap="1">
+        <span class="item-id">UX-5</span>
+        <div class="item-body">
+          <p class="item-title">Sort the slash-command list alphabetically</p>
+          <p class="item-desc">Baseline is A→Z across 52 commands. Ours is in skill/source order, which reads as arbitrary.</p>
+          <div class="meta"><span class="chip size">Size XS</span><span class="chip">real:08</span></div>
+          <p class="done"><b>Done when</b>The list is sorted.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t2)" data-size="S" data-cheap="1">
+        <span class="item-id">UX-6</span>
+        <div class="item-body">
+          <p class="item-title">Keyboard-affordance footers</p>
+          <p class="item-desc">
+            Baseline puts <code>↑↓ to navigate · Enter to select · Esc to close</code> in its pickers,
+            <code>ctrl esc to focus or unfocus Claude</code> in the input placeholder, and
+            <code>Tap or hold to record · Ctrl+D</code> on the mic. Ours advertises no shortcuts anywhere.
+          </p>
+          <div class="meta"><span class="chip size">Size S</span><span class="chip">real:16 · §6b</span></div>
+          <p class="done"><b>Done when</b>Pickers show their key hints and the input placeholder names its focus shortcut.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t2)" data-size="S" data-cheap="1">
+        <span class="item-id">UX-7</span>
+        <div class="item-body">
+          <p class="item-title">Annotate collapsed tool calls with count + failure state</p>
+          <p class="item-desc">
+            Baseline’s collapsed line reads <code>1 tool call ⌄</code> / <code>1 tool call · 1 failed ⌄</code>.
+            <em>We already collapse by default</em> — this was mis-recorded as a gap in an earlier pass.
+            Only the annotation is missing.
+          </p>
+          <div class="meta"><span class="chip size">Size S</span><span class="chip">§7</span></div>
+          <p class="done"><b>Done when</b>Collapsed rows show a grouped count and surface failures without needing to expand.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t2)" data-size="S" data-cheap="1">
+        <span class="item-id">UX-8</span>
+        <div class="item-body">
+          <p class="item-title">Per-code-block “Copy code” button</p>
+          <p class="item-desc">Baseline puts copy on each block; we only have a global Copy Raw Output.</p>
+          <div class="meta"><span class="chip size">Size S</span><span class="chip">§6b</span></div>
+          <p class="done"><b>Done when</b>Each rendered code block has its own copy affordance.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t2)" data-size="S" data-cheap="1">
+        <span class="item-id">UX-9</span>
+        <div class="item-body">
+          <p class="item-title">Type-aware attachment chips</p>
+          <p class="item-desc">
+            Baseline’s pending chips show a thumbnail + pixel dimensions for images
+            (<code>test-paste.png 1×1</code>) and a file icon for text/code. We already stage
+            attachments — this is presentation only.
+          </p>
+          <div class="meta"><span class="chip size">Size S</span><span class="chip">real:19 · real:22</span></div>
+          <p class="done"><b>Done when</b>Chips differentiate images from files and show dimensions for images.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t2)" data-size="XS" data-cheap="1">
+        <span class="item-id">UX-10</span>
+        <div class="item-body">
+          <p class="item-title">Show the extension version in the menu footer</p>
+          <p class="item-desc">Baseline prints <code>v2.1.250</code>. Useful for bug reports, trivial to add.</p>
+          <div class="meta"><span class="chip size">Size XS</span><span class="chip">real:08</span></div>
+          <p class="done"><b>Done when</b>A version string is visible in the palette footer.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t2)" data-size="S–M">
+        <span class="item-id">UX-11</span>
+        <div class="item-body">
+          <p class="item-title">Design an empty state</p>
+          <p class="item-desc">
+            Baseline’s new-session view has a wordmark, a terracotta pixel-art robot mascot, a rotating
+            tip, and a dismissible <em>“Prefer the Terminal experience?”</em> hint. Ours starts blank.
+          </p>
+          <div class="meta"><span class="chip size">Size S–M</span><span class="chip">real:20</span></div>
+          <p class="done"><b>Done when</b>New sessions render a designed empty state rather than an empty list.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t2)" data-size="M">
+        <span class="item-id">UX-12</span>
+        <div class="item-body">
+          <p class="item-title">Modal-card visual language</p>
+          <p class="item-desc">
+            Baseline’s Plugins and Rewind cards use a dimmed backdrop, title + close X, centred
+            empty-state text, and a tab strip where relevant — they read as deliberate modals rather
+            than bare dropdowns.
+          </p>
+          <div class="meta"><span class="chip size">Size M</span><span class="chip">real:15 · real:16</span><span class="chip">depends on ST-1</span></div>
+          <p class="done"><b>Done when</b>Our popups share one modal style consistent with ST-1’s tokens.</p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- TIER 3 -->
+  <section class="tier" data-tier="3">
+    <div class="tier-head">
+      <span class="tier-tag" style="background:var(--t3-soft);color:var(--t3)">Tier 3</span>
+      <h2>Cheap gap-closers</h2>
+    </div>
+    <p class="tier-note">
+      The audit’s most useful structural finding: <strong>five of baseline’s seven “Customize” items
+      are not GUIs at all.</strong> Memory, Agents, Hooks, Output styles and Permissions each render an
+      in-chat hand-off card — <em>“Continue in Terminal to …?”</em> with
+      <code>1 Continue in Terminal</code> / <code>2 Never mind</code>, plus one sentence explaining that
+      the setting syncs back to the IDE. Five checklist gaps, one small pattern, no GUI.
+    </p>
+    <div class="items">
+
+      <article class="item" style="--bar:var(--t3)" data-size="S–M" data-cheap="1">
+        <span class="item-id">GAP-1</span>
+        <div class="item-body">
+          <p class="item-title">Terminal hand-off cards ×5</p>
+          <p class="item-desc">For Memory, Agents, Hooks, Output styles and Permissions — this is how baseline itself “supports” them.</p>
+          <div class="meta"><span class="chip size">Size S–M total</span><span class="chip">real:13</span><span class="chip">depends on GAP-2</span></div>
+          <p class="done"><b>Done when</b>Each of the five entries offers to open the CLI in a VS terminal, using baseline’s explanatory wording.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t3)" data-size="S" data-cheap="1">
+        <span class="item-id">GAP-2</span>
+        <div class="item-body">
+          <p class="item-title">Open Claude in Terminal</p>
+          <p class="item-desc">Prerequisite for GAP-1, and useful on its own.</p>
+          <div class="meta"><span class="chip size">Size S</span><span class="chip">real:08</span></div>
+          <p class="done"><b>Done when</b>It launches the CLI in a VS terminal in the correct working directory.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t3)" data-size="S" data-cheap="1">
+        <span class="item-id">GAP-3</span>
+        <div class="item-body">
+          <p class="item-title">Three missing slash commands</p>
+          <p class="item-desc">
+            <code>/btw</code>, <code>/feedback</code> and <code>/remote-control</code> are the
+            <em>only</em> three of baseline’s 52 we lack. Every other command matches.
+          </p>
+          <div class="meta"><span class="chip size">Size S</span><span class="chip">real:08</span></div>
+          <p class="done"><b>Done when</b>It’s established whether these are CLI-provided (a passthrough issue) or extension-injected (implement them).</p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- TIER 4 -->
+  <section class="tier" data-tier="4">
+    <div class="tier-head">
+      <span class="tier-tag" style="background:var(--t4-soft);color:var(--t4)">Tier 4</span>
+      <h2>Real features</h2>
+    </div>
+    <p class="tier-note">Genuine build work. Sized honestly rather than optimistically.</p>
+    <div class="items">
+
+      <article class="item" style="--bar:var(--t4)" data-size="XL">
+        <span class="item-id">FEAT-1</span>
+        <div class="item-body">
+          <p class="item-title">Rewind &amp; per-message actions</p>
+          <p class="item-desc">
+            <em>The largest genuine feature gap.</em> Baseline exposes this two ways: a modal
+            “Rewind to…” picker listing prior user messages with relative timestamps, <em>and</em> a
+            per-message <code>…</code> menu offering a three-way choice — <em>Fork conversation from
+            here</em> · <em>Rewind code to here</em> · <em>Fork conversation and rewind code</em>. The
+            design insight: baseline treats <em>conversation forking and code restoration as separate
+            concerns</em>, not one “undo”.
+          </p>
+          <div class="meta"><span class="chip size">Size XL</span><span class="chip">real:16 · real:19</span></div>
+          <p class="done"><b>Done when</b>Restoring code and forking the conversation are independently selectable, from both a picker and a per-message affordance.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t4)" data-size="L">
+        <span class="item-id">FEAT-2</span>
+        <div class="item-body">
+          <p class="item-title">Native side-by-side diff tab</p>
+          <p class="item-desc">
+            Baseline opens a real editor tab titled <code>[Claude Code] &lt;path&gt;</code> with
+            <em>accept / revert / next-change / prev-change / swap-sides</em> toolbar buttons,
+            <em>in addition to</em> the inline chat diff. We open no separate tab. An earlier matrix
+            entry wrongly called this “N/A by design” — retracted.
+          </p>
+          <div class="meta"><span class="chip size">Size L</span><span class="chip">real:12</span></div>
+          <p class="done"><b>Done when</b>An edit opens a real VS diff tab with accept/reject controls alongside the inline card.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t4)" data-size="M">
+        <span class="item-id">FEAT-3</span>
+        <div class="item-body">
+          <p class="item-title">Session-history parity</p>
+          <p class="item-desc">
+            Generated short titles — baseline shows “Watermelon”/“Pineapple”, we show the truncated raw
+            first message — plus <em>per-row rename and delete</em> actions. Search already matches.
+          </p>
+          <div class="meta"><span class="chip size">Size M</span><span class="chip">real:11</span></div>
+          <p class="done"><b>Done when</b>Rows carry generated titles plus inline rename and delete.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t4)" data-size="M">
+        <span class="item-id">FEAT-4</span>
+        <div class="item-body">
+          <p class="item-title">MCP servers panel</p>
+          <p class="item-desc">
+            One of only two real GUI panels in baseline’s Customize section: a titled list with the
+            empty state <em>“No MCP servers configured. Use <code>claude mcp add</code> to add
+            servers.”</em> plus a “Learn more” link.
+          </p>
+          <div class="meta"><span class="chip size">Size M</span><span class="chip">real:14</span></div>
+          <p class="done"><b>Done when</b>A panel lists configured servers with that empty state.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t4)" data-size="M–L">
+        <span class="item-id">FEAT-5</span>
+        <div class="item-body">
+          <p class="item-title">Manage plugins panel</p>
+          <p class="item-desc">
+            The other real GUI panel: a modal with a <em>Plugins / Marketplaces</em> tab strip and the
+            empty state <em>“No plugins available. Add a marketplace to discover plugins.”</em>
+          </p>
+          <div class="meta"><span class="chip size">Size M–L</span><span class="chip">real:15</span></div>
+          <p class="done"><b>Done when</b>A panel exists with both tabs and the empty state.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t4)" data-size="M / L">
+        <span class="item-id">FEAT-6</span>
+        <div class="item-body">
+          <p class="item-title">The <code>+</code> Add menu — including Browse the web</p>
+          <p class="item-desc">
+            <em>Upload from computer</em>, <em>Add context</em>, <em>Browse the web</em>. Web browsing as
+            a first-class context action has no equivalent on our side at all, and deserves its own
+            scoping decision.
+          </p>
+          <div class="meta"><span class="chip size">Size M (menu) / L (web)</span><span class="chip">real:18</span></div>
+          <p class="done"><b>Done when</b>An add-menu exists; web browsing is scoped separately as its own decision.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t4)" data-size="M">
+        <span class="item-id">FEAT-7</span>
+        <div class="item-body">
+          <p class="item-title">Auto model-downgrade on usage limits</p>
+          <p class="item-desc">
+            Baseline was <em>observed doing this live</em>, printing
+            <code>Switched to claude-haiku-4-5-20251001</code> mid-session near the weekly limit, driven
+            by its “Switch models when a message is flagged” toggle.
+          </p>
+          <div class="meta"><span class="chip size">Size M</span><span class="chip">real:07</span></div>
+          <p class="done"><b>Done when</b>A toggle exists and the switch is announced in-transcript.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t4)" data-size="L">
+        <span class="item-id">FEAT-8</span>
+        <div class="item-body">
+          <p class="item-title">Voice dictation</p>
+          <p class="item-desc">Baseline has a mic with a real keybinding — <code>Ctrl+D</code>, “Tap or hold to record”.</p>
+          <div class="meta"><span class="chip size">Size L</span><span class="chip">§6b</span></div>
+          <p class="done"><b>Done when</b>Scoped as its own piece of work — no criteria set yet.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t4)" data-size="XL">
+        <span class="item-id">FEAT-9</span>
+        <div class="item-body">
+          <p class="item-title">Cloud / remote sessions (History → Web)</p>
+          <p class="item-desc">
+            Baseline syncs sessions to the account and lists them by generated machine name
+            (<code>kaloyan-pc-wild-wozniak</code>, …) with relative age, so a session started on a phone
+            or another PC resumes in the IDE. Paired with Remote Control and its persistent banner.
+          </p>
+          <div class="meta"><span class="chip size">Size XL</span><span class="chip">real:21 · real:07</span></div>
+          <p class="done"><b>Done when</b>Out of scope for a near-term plan — recorded so it isn’t “missed”.</p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- TIER 5 -->
+  <section class="tier" data-tier="5">
+    <div class="tier-head">
+      <span class="tier-tag" style="background:var(--t5-soft);color:var(--t5)">Tier 5</span>
+      <h2>Test debt</h2>
+    </div>
+    <p class="tier-note">Not features — holes in this audit that should be closed honestly.</p>
+    <div class="items">
+
+      <article class="item" style="--bar:var(--t5)" data-size="M">
+        <span class="item-id">TEST-1</span>
+        <div class="item-body">
+          <p class="item-title">Drive paste + drag-and-drop on <em>our</em> side</p>
+          <p class="item-desc">
+            The <em>baseline</em> side is now done. Our WPF path genuinely goes through OLE
+            <code>IDropTarget</code>/<code>DoDragDrop</code> and the real clipboard command, which the
+            webview techniques don’t reach. Next attempt: the <code>WM_DROPFILES</code> /
+            clipboard-format equivalent of the existing <code>Send-WmChar</code>/<code>Send-WmClick</code>
+            helpers.
+          </p>
+          <div class="meta"><span class="chip size">Size M</span><span class="chip">§6c</span></div>
+          <p class="done"><b>Done when</b>Both are driven live on our side — or proven genuinely unreachable.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t5)" data-size="M">
+        <span class="item-id">TEST-2</span>
+        <div class="item-body">
+          <p class="item-title">IDE MCP tools beyond <code>getDiagnostics</code></p>
+          <p class="item-desc">Open editors, selection, dirty-state and save remain transport-tested only, never driven against real VS SDK objects.</p>
+          <div class="meta"><span class="chip size">Size M</span><span class="chip">matrix §2</span></div>
+          <p class="done"><b>Done when</b>Each is exercised against a live VS instance.</p>
+        </div>
+      </article>
+
+      <article class="item" style="--bar:var(--t5)" data-size="S" data-cheap="1">
+        <span class="item-id">TEST-3</span>
+        <div class="item-body">
+          <p class="item-title">Fold the real-hover technique into the scripts</p>
+          <p class="item-desc">
+            The Message actions menu is hover-gated and only opened under a real
+            <code>Input.dispatchMouseEvent</code> — worth making reusable.
+          </p>
+          <div class="meta"><span class="chip size">Size S</span><span class="chip">§6c</span></div>
+          <p class="done"><b>Done when</b><code>cdp-lib.ps1</code> gains a real-hover helper.</p>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section class="seq">
+    <div class="tier-head">
+      <span class="tier-tag" style="background:var(--accent-soft);color:var(--accent)">Order</span>
+      <h2>Suggested sequencing</h2>
+    </div>
+    <p class="tier-note">
+      This list is genuinely ordered — each step either unblocks the next or is cheapest-first within
+      a batch.
+    </p>
+    <ol>
+      <li><strong>BUG-1 alone.</strong> A real defect, independent of everything else.</li>
+      <li><strong>ST-1 → ST-2 → ST-3 → ST-4 as one batch.</strong> ST-1 is the prerequisite; done together they’re a single pass over the XAML resources rather than four.</li>
+      <li><strong>Tier 2 UX items, cheapest first.</strong> UX-5, UX-10, UX-1 and UX-7 are all trivial once ST-1 exists.</li>
+      <li><strong>GAP-2 → GAP-1.</strong> One small pattern closes five checklist gaps.</li>
+      <li><strong>ST-5 as a deliberate design decision</strong>, once the token work makes the alternative easy to try.</li>
+      <li><strong>FEAT-2 before FEAT-1.</strong> The diff tab is smaller, and both touch edit history.</li>
+      <li><strong>Everything else</strong> as its own scoped phase.</li>
+    </ol>
+  </section>
+
+  <section class="excluded">
+    <h3>Deliberately excluded</h3>
+    Already triaged as out of scope in Phase 0/5 — recorded here so they read as decisions rather than
+    oversights: multiple simultaneous sessions · session groups · side-question panel · response rating ·
+    onboarding walkthrough · git worktree UI · browser, debugger and Jupyter MCP integrations.
+  </section>
+
+  <footer>
+    Source of truth: <code>comparison-audit/implementation-backlog.md</code> ·
+    Evidence: <code>comparison-audit/screenshots/</code> ·
+    Narrative: <code>docs/Phase 6 - Live Comparison Audit.md</code>
+  </footer>
+</div>
+
+<script>
+  (function () {
+    var items = Array.prototype.slice.call(document.querySelectorAll(".item"));
+    var sections = Array.prototype.slice.call(document.querySelectorAll(".tier"));
+    var tierBtns = Array.prototype.slice.call(document.querySelectorAll(".filter[data-tier]"));
+    var quickBtn = document.querySelector(".filter[data-quick]");
+    var search = document.querySelector(".search");
+    var count = document.getElementById("count");
+
+    var tier = "all";
+    var quick = false;
+
+    function apply() {
+      var q = (search.value || "").trim().toLowerCase();
+      var shown = 0;
+
+      items.forEach(function (el) {
+        var sec = el.closest(".tier");
+        var secTier = sec ? sec.getAttribute("data-tier") : "";
+        var okTier = (tier === "all") || (secTier === tier);
+        var okQuick = !quick || el.hasAttribute("data-cheap");
+        var okText = !q || (el.textContent || "").toLowerCase().indexOf(q) !== -1;
+        var show = okTier && okQuick && okText;
+        el.classList.toggle("hide", !show);
+        if (show) shown++;
+      });
+
+      sections.forEach(function (sec) {
+        var any = sec.querySelectorAll(".item:not(.hide)").length > 0;
+        sec.style.display = any ? "" : "none";
+      });
+
+      count.textContent = shown + " / " + items.length + " shown";
+    }
+
+    tierBtns.forEach(function (b) {
+      b.addEventListener("click", function () {
+        tier = b.getAttribute("data-tier");
+        tierBtns.forEach(function (o) {
+          o.setAttribute("aria-pressed", String(o === b));
+        });
+        apply();
+      });
+    });
+
+    quickBtn.addEventListener("click", function () {
+      quick = !quick;
+      quickBtn.setAttribute("aria-pressed", String(quick));
+      apply();
+    });
+
+    search.addEventListener("input", apply);
+    apply();
+  })();
+</script>

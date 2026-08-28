@@ -855,30 +855,35 @@
 
                 <Button Grid.Column="2" Style="{StaticResource IconButtonStyle}"
                         Click="OnNewSessionClicked" Margin="2,0" VerticalAlignment="Center"
-                        ToolTip="Start a new Claude Code session">
+                        ToolTip="Start a new Claude Code session"
+                        AutomationProperties.AutomationId="NewSessionButton">
                     <TextBlock Text="✚"/>
                 </Button>
 
                 <Button Grid.Column="3" x:Name="HistoryButton" Style="{StaticResource IconButtonStyle}"
                         Click="OnHistoryClicked" Margin="2,0" VerticalAlignment="Center"
-                        ToolTip="Session history">
+                        ToolTip="Session history"
+                        AutomationProperties.AutomationId="HistoryButton">
                     <TextBlock Text="☰"/>
                 </Button>
 
                 <ToggleButton Grid.Column="4" Content="Raw" Style="{StaticResource PillToggleStyle}"
                                IsChecked="{Binding IsRawOutputVisible}"
                                Margin="2,0" VerticalAlignment="Center"
-                               ToolTip="Show raw CLI output"/>
+                               ToolTip="Show raw CLI output"
+                               AutomationProperties.AutomationId="RawToggleButton"/>
 
                 <Button Grid.Column="5" x:Name="TranscriptModeButton" Style="{StaticResource ChipButtonStyle}"
                         Click="OnTranscriptModeClicked" Margin="2,0" VerticalAlignment="Center"
                         Padding="7,2" FontSize="11"
-                        ToolTip="Transcript detail level: how much of each turn is shown">
+                        ToolTip="Transcript detail level: how much of each turn is shown"
+                        AutomationProperties.AutomationId="TranscriptModeButton">
                     <TextBlock Text="{Binding CurrentTranscriptMode.DisplayName}"/>
                 </Button>
 
                 <Popup x:Name="TranscriptModePopup" PlacementTarget="{Binding ElementName=TranscriptModeButton}"
-                       Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                       Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
+                       AutomationProperties.AutomationId="TranscriptModePopup">
                     <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
                             TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                             BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="6"
@@ -894,7 +899,8 @@
 
                 <Button Grid.Column="6" Style="{StaticResource IconButtonStyle}"
                         Click="OnSettingsClicked" Margin="2,0,0,0" VerticalAlignment="Center"
-                        ToolTip="Claude Code settings">
+                        ToolTip="Claude Code settings"
+                        AutomationProperties.AutomationId="SettingsButton">
                     <TextBlock Text="⚙"/>
                 </Button>
             </Grid>
@@ -922,8 +928,9 @@
              (confirmed via direct research against the installed bundle, 2026-08-27). Auto-shows
              whenever at least one tool call is Running rather than needing a manual toggle, since
              the point is visibility into work already happening in the background. -->
-        <Border Grid.Row="2" BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1"
-                Padding="10,4" Visibility="{Binding HasRunningTasks, Converter={StaticResource BoolToVisibilityConverter}}">
+        <Border Grid.Row="2" x:Name="RunningTasksPanel" BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1"
+                Padding="10,4" Visibility="{Binding HasRunningTasks, Converter={StaticResource BoolToVisibilityConverter}}"
+                AutomationProperties.AutomationId="RunningTasksPanel">
             <StackPanel>
                 <TextBlock Text="{Binding RunningTaskCount, StringFormat='Running tasks ({0})'}"
                            FontSize="10" Opacity="0.55" Margin="0,0,0,3"
@@ -964,7 +971,8 @@
                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                           Padding="10,4" ScrollChanged="OnChatScrollChanged"
                           Visibility="{Binding ClaudeNotFoundMessage, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=Invert}">
-                <ItemsControl x:Name="MessageList" ItemsSource="{Binding Messages}" ItemTemplateSelector="{StaticResource MessageTemplateSelector}"/>
+                <ItemsControl x:Name="MessageList" ItemsSource="{Binding Messages}" ItemTemplateSelector="{StaticResource MessageTemplateSelector}"
+                              AutomationProperties.AutomationId="MessageList"/>
             </ScrollViewer>
 
             <Border Padding="24" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="380"
@@ -997,7 +1005,8 @@
                                    VerticalAlignment="Center"
                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                         <Button Grid.Column="1" Content="✕" Style="{StaticResource IconButtonStyle}"
-                                Click="OnCloseHistoryClicked" Width="22" Height="22" FontSize="10"/>
+                                Click="OnCloseHistoryClicked" Width="22" Height="22" FontSize="10"
+                                AutomationProperties.AutomationId="CloseHistoryButton"/>
                     </Grid>
 
                     <Border Grid.Row="1" Margin="10,0,10,8"
@@ -1016,7 +1025,8 @@
                                          Padding="2,5" FontSize="12"
                                          Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                          CaretBrush="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                                         TextChanged="OnSessionSearchChanged"/>
+                                         TextChanged="OnSessionSearchChanged"
+                                         AutomationProperties.AutomationId="SessionSearchBox"/>
                                 <TextBlock IsHitTestVisible="False" Text="Search sessions…" Opacity="0.4"
                                            Margin="2,5,2,5" FontSize="12" VerticalAlignment="Center"
                                            Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
@@ -1040,7 +1050,8 @@
                              BorderThickness="0" Background="Transparent"
                              Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                             ItemContainerStyle="{StaticResource SessionListItemStyle}">
+                             ItemContainerStyle="{StaticResource SessionListItemStyle}"
+                             AutomationProperties.AutomationId="SessionListBox">
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type vm:SessionHistoryEntry}">
                                 <Grid VerticalAlignment="Center">
@@ -1148,7 +1159,8 @@
                     <TextBlock Text="Raw CLI Output" FontSize="10" Opacity="0.55" VerticalAlignment="Center"
                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                     <Button Grid.Column="1" Content="Copy All" Style="{StaticResource ChipButtonStyle}"
-                            Click="OnCopyRawOutputClicked" Padding="7,2" FontSize="10"/>
+                            Click="OnCopyRawOutputClicked" Padding="7,2" FontSize="10"
+                            AutomationProperties.AutomationId="CopyRawOutputButton"/>
                 </Grid>
                 <ScrollViewer Grid.Row="1" x:Name="RawOutputScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding RawOutput}" Margin="6,2">
@@ -1166,7 +1178,8 @@
         <Border x:Name="InputAreaBorder" Grid.Row="5" Margin="10,6,10,10" Background="{StaticResource CardBackgroundBrush}"
                 BorderThickness="1" CornerRadius="8"
                 AllowDrop="True" DragEnter="OnInputAreaDragEnter" DragLeave="OnInputAreaDragLeave"
-                PreviewDragOver="OnInputAreaDragOver" Drop="OnInputAreaDrop">
+                PreviewDragOver="OnInputAreaDragOver" Drop="OnInputAreaDrop"
+                AutomationProperties.AutomationId="InputAreaBorder">
             <Border.Style>
                 <Style TargetType="Border">
                     <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}"/>
@@ -1189,10 +1202,12 @@
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
                     <Button Content="Active File" Click="OnAddActiveFileClicked"
                             Style="{StaticResource ChipButtonStyle}" Margin="0,0,6,0"
-                            ToolTip="Insert a reference to the active file"/>
+                            ToolTip="Insert a reference to the active file"
+                            AutomationProperties.AutomationId="ActiveFileChipButton"/>
                     <Button Content="Selection" Click="OnAddSelectionClicked"
                             Style="{StaticResource ChipButtonStyle}"
-                            ToolTip="Insert a reference to the current selection"/>
+                            ToolTip="Insert a reference to the current selection"
+                            AutomationProperties.AutomationId="SelectionChipButton"/>
                 </StackPanel>
 
                 <StackPanel Grid.Row="1">
@@ -1256,10 +1271,12 @@
                          Padding="2,2" FontSize="12.5"
                          PreviewKeyDown="OnInputPreviewKeyDown"
                          TextChanged="OnInputTextChanged"
-                         DataObject.Pasting="OnInputBoxPasting"/>
+                         DataObject.Pasting="OnInputBoxPasting"
+                         AutomationProperties.AutomationId="InputBox"/>
 
                 <Popup x:Name="SlashCommandPopup" PlacementTarget="{Binding ElementName=InputBox}"
-                       Placement="Top" StaysOpen="False" AllowsTransparency="True">
+                       Placement="Top" StaysOpen="False" AllowsTransparency="True"
+                       AutomationProperties.AutomationId="SlashCommandPopup">
                     <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
                             TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                             BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="4"
@@ -1267,12 +1284,14 @@
                         <ListBox x:Name="SlashCommandList" BorderThickness="0" Background="Transparent"
                                  Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                  ItemContainerStyle="{StaticResource PopupListItemStyle}"
-                                 PreviewMouseLeftButtonUp="OnSlashCommandChosen"/>
+                                 PreviewMouseLeftButtonUp="OnSlashCommandChosen"
+                                 AutomationProperties.AutomationId="SlashCommandList"/>
                     </Border>
                 </Popup>
 
                 <Popup x:Name="FilePickerPopup" PlacementTarget="{Binding ElementName=InputBox}"
-                       Placement="Top" StaysOpen="False" AllowsTransparency="True">
+                       Placement="Top" StaysOpen="False" AllowsTransparency="True"
+                       AutomationProperties.AutomationId="FilePickerPopup">
                     <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
                             TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                             BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="4"
@@ -1280,7 +1299,8 @@
                         <ListBox x:Name="FilePickerList" BorderThickness="0" Background="Transparent"
                                  Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                  ItemContainerStyle="{StaticResource PopupListItemStyle}"
-                                 PreviewMouseLeftButtonUp="OnFilePickerChosen">
+                                 PreviewMouseLeftButtonUp="OnFilePickerChosen"
+                                 AutomationProperties.AutomationId="FilePickerList">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <Grid>
@@ -1313,32 +1333,37 @@
                     <!-- Command palette: usage summary + Account & Usage + slash commands -->
                     <Button x:Name="PaletteButton" Style="{StaticResource ChipButtonStyle}"
                             Click="OnPaletteMenuClicked" Margin="0,0,4,0"
-                            ToolTip="Usage, account &amp; commands">
+                            ToolTip="Usage, account &amp; commands"
+                            AutomationProperties.AutomationId="PaletteButton">
                         <TextBlock Text="/"/>
                     </Button>
 
                     <!-- Model -->
                     <Button x:Name="ModelButton" Style="{StaticResource ChipButtonStyle}"
-                            Click="OnModelMenuClicked" Margin="0,0,4,0" ToolTip="Model">
+                            Click="OnModelMenuClicked" Margin="0,0,4,0" ToolTip="Model"
+                            AutomationProperties.AutomationId="ModelButton">
                         <TextBlock Text="{Binding SelectedModel.DisplayName}"/>
                     </Button>
 
                     <!-- Permission mode -->
                     <Button x:Name="PermissionButton" Style="{StaticResource ChipButtonStyle}"
-                            Click="OnPermissionMenuClicked" Margin="0,0,4,0" ToolTip="Permission mode">
+                            Click="OnPermissionMenuClicked" Margin="0,0,4,0" ToolTip="Permission mode"
+                            AutomationProperties.AutomationId="PermissionButton">
                         <TextBlock Text="{Binding SelectedPermissionMode.DisplayName}"/>
                     </Button>
 
                     <!-- Effort -->
                     <Button x:Name="EffortButton" Style="{StaticResource ChipButtonStyle}"
-                            Click="OnEffortMenuClicked" ToolTip="Thinking effort">
+                            Click="OnEffortMenuClicked" ToolTip="Thinking effort"
+                            AutomationProperties.AutomationId="EffortButton">
                         <TextBlock Text="{Binding SelectedThinkingLevel.DisplayName}"/>
                     </Button>
 
                     </StackPanel>
 
                     <Popup x:Name="PalettePopup" PlacementTarget="{Binding ElementName=PaletteButton}"
-                           Placement="Top" StaysOpen="False" AllowsTransparency="True">
+                           Placement="Top" StaysOpen="False" AllowsTransparency="True"
+                           AutomationProperties.AutomationId="PalettePopup">
                         <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
                                 TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="6"
@@ -1367,7 +1392,8 @@
                     </Popup>
 
                     <Popup x:Name="ModelPopup" PlacementTarget="{Binding ElementName=ModelButton}"
-                           Placement="Top" StaysOpen="False" AllowsTransparency="True">
+                           Placement="Top" StaysOpen="False" AllowsTransparency="True"
+                           AutomationProperties.AutomationId="ModelPopup">
                         <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
                                 TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="6"
@@ -1382,7 +1408,8 @@
                     </Popup>
 
                     <Popup x:Name="PermissionPopup" PlacementTarget="{Binding ElementName=PermissionButton}"
-                           Placement="Top" StaysOpen="False" AllowsTransparency="True">
+                           Placement="Top" StaysOpen="False" AllowsTransparency="True"
+                           AutomationProperties.AutomationId="PermissionPopup">
                         <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
                                 TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="6"
@@ -1397,7 +1424,8 @@
                     </Popup>
 
                     <Popup x:Name="EffortPopup" PlacementTarget="{Binding ElementName=EffortButton}"
-                           Placement="Top" StaysOpen="False" AllowsTransparency="True">
+                           Placement="Top" StaysOpen="False" AllowsTransparency="True"
+                           AutomationProperties.AutomationId="EffortPopup">
                         <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
                                 TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="6"
@@ -1412,7 +1440,8 @@
                     </Popup>
 
                     <Popup x:Name="AccountUsagePopup" PlacementTarget="{Binding ElementName=PaletteButton}"
-                           Placement="Top" StaysOpen="False" AllowsTransparency="True">
+                           Placement="Top" StaysOpen="False" AllowsTransparency="True"
+                           AutomationProperties.AutomationId="AccountUsagePopup">
                         <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
                                 TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="6"
@@ -1432,7 +1461,8 @@
                                         <TextBlock Text="Account &amp; Usage" FontWeight="SemiBold" FontSize="13"
                                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                                         <Button Grid.Column="1" Content="✕" Style="{StaticResource IconButtonStyle}"
-                                                Click="OnCloseAccountUsageClicked" Width="20" Height="20" FontSize="10"/>
+                                                Click="OnCloseAccountUsageClicked" Width="20" Height="20" FontSize="10"
+                                                AutomationProperties.AutomationId="CloseAccountUsageButton"/>
                                     </Grid>
 
                                     <!-- Loading -->
@@ -1566,11 +1596,13 @@
                     </Popup>
 
                     <Button Grid.Column="1" x:Name="SendButton" Style="{StaticResource AccentButtonStyle}"
-                            Click="OnSendClicked" Margin="6,0,0,0" ToolTip="Send (Enter)">
+                            Click="OnSendClicked" Margin="6,0,0,0" ToolTip="Send (Enter)"
+                            AutomationProperties.AutomationId="SendButton">
                         <TextBlock Text="➤" FontSize="13"/>
                     </Button>
                     <Button Grid.Column="1" x:Name="StopButton" Style="{StaticResource StopButtonStyle}"
-                            Click="OnStopClicked" Margin="6,0,0,0" Visibility="Collapsed" ToolTip="Stop">
+                            Click="OnStopClicked" Margin="6,0,0,0" Visibility="Collapsed" ToolTip="Stop"
+                            AutomationProperties.AutomationId="StopButton">
                         <TextBlock Text="■" FontSize="11"/>
                     </Button>
                 </Grid>
