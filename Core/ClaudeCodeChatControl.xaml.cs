@@ -1,5 +1,8 @@
 using TeronClaudeCodeVS.ViewModels;
 using Community.VisualStudio.Toolkit;
+using Microsoft.VisualStudio;
+using Microsoft.VisualStudio.Shell;
+using Microsoft.VisualStudio.Shell.Interop;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using System;
@@ -847,14 +850,82 @@ namespace TeronClaudeCodeVS.Core
                 container.BringIntoView();
         }
 
+        /// <summary>
+        /// Resolves the file behind the active document tab.
+        ///
+        /// The shell's <c>SEID_DocumentFrame</c> is the authoritative answer and is deliberately
+        /// tried first. Two things rule out the more obvious
+        /// <see cref="VS.Documents.GetActiveDocumentViewAsync"/> as the primary source:
+        ///
+        /// 1. It only resolves tabs backed by a real text view. On a Markdown Preview tab it does
+        ///    not return that tab's file - it returns whichever *text* document was last active,
+        ///    or null if there is none. Live verification on 2026-08-28 found the "Active File"
+        ///    chip inserting nothing at all in that case (backlog BUG-1); re-testing the first fix
+        ///    on 2026-08-29 found the worse variant, where it silently inserted a *different*
+        ///    open file than the one on screen.
+        /// 2. <c>SEID_WindowFrame</c> would have the opposite problem - clicking the chip focuses
+        ///    the Claude Code tool window, so the active *window* frame is often not a document at
+        ///    all. <c>SEID_DocumentFrame</c> tracks the active document specifically and is
+        ///    unaffected by tool-window focus.
+        /// </summary>
+        private static async Task<string?> TryResolveActiveFilePathAsync()
+        {
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                if (Package.GetGlobalService(typeof(SVsShellMonitorSelection)) is IVsMonitorSelection monitor &&
+                    monitor.GetCurrentElementValue((uint)VSConstants.VSSELELEMID.SEID_DocumentFrame, out object frameObj) == VSConstants.S_OK &&
+                    frameObj is IVsWindowFrame frame &&
+                    frame.GetProperty((int)__VSFPROPID.VSFPROPID_pszMkDocument, out object moniker) == VSConstants.S_OK &&
+                    moniker is string monikerPath &&
+                    !string.IsNullOrEmpty(monikerPath) &&
+                    File.Exists(monikerPath))
+                {
+                    return monikerPath;
+                }
+            }
+            catch (Exception)
+            {
+                // Fall through - a failure to resolve is not a failure to reference.
+            }
+
+            try
+            {
+                var docView = await VS.Documents.GetActiveDocumentViewAsync();
+                if (!string.IsNullOrEmpty(docView?.FilePath))
+                    return docView!.FilePath;
+            }
+            catch (Exception)
+            {
+            }
+
+            try
+            {
+                await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+                // ActiveDocument throws rather than returning null when nothing is open.
+                string? full = (Package.GetGlobalService(typeof(SDTE)) as EnvDTE80.DTE2)?.ActiveDocument?.FullName;
+                if (!string.IsNullOrEmpty(full))
+                    return full;
+            }
+            catch (Exception)
+            {
+            }
+
+            return null;
+        }
+
 #pragma warning disable VSTHRD100
         private async void OnAddActiveFileClicked(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100
         {
-            var docView = await VS.Documents.GetActiveDocumentViewAsync();
-            string? path = docView?.FilePath;
+            string? path = await TryResolveActiveFilePathAsync();
             if (string.IsNullOrEmpty(path))
+            {
+                _vm.AddSystemNotice("No active file to reference - open a document tab first.", isError: true);
                 return;
+            }
 
             InsertContextReference(path!, null, null);
         }
@@ -863,13 +934,35 @@ namespace TeronClaudeCodeVS.Core
         private async void OnAddSelectionClicked(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100
         {
-            var docView = await VS.Documents.GetActiveDocumentViewAsync();
-            string? path = docView?.FilePath;
-            var textView = docView?.TextView;
-            if (string.IsNullOrEmpty(path) || textView == null)
+            string? activePath = await TryResolveActiveFilePathAsync();
+            if (string.IsNullOrEmpty(activePath))
+            {
+                _vm.AddSystemNotice("No active file to reference - open a document tab first.", isError: true);
                 return;
+            }
 
-            ITextSelection selection = textView.Selection;
+            var docView = await VS.Documents.GetActiveDocumentViewAsync();
+            var textView = docView?.TextView;
+
+            // The text view is only usable when it actually belongs to the tab on screen. On a
+            // Markdown Preview (or any non-text) tab it belongs to some *other* open document, and
+            // reading a selection out of it would quote a file the user is not looking at.
+            bool textViewMatchesActiveTab =
+                textView != null &&
+                !string.IsNullOrEmpty(docView?.FilePath) &&
+                string.Equals(docView!.FilePath, activePath, StringComparison.OrdinalIgnoreCase);
+
+            if (!textViewMatchesActiveTab)
+            {
+                // No selection to read, but the file itself is still referenceable - degrade to a
+                // whole-file reference and say so, rather than doing nothing at all.
+                _vm.AddSystemNotice("This tab has no text selection - referencing the whole file instead.", isError: false);
+                InsertContextReference(activePath!, null, null);
+                return;
+            }
+
+            string path = activePath!;
+            ITextSelection selection = textView!.Selection;
             if (selection.IsEmpty)
             {
                 InsertContextReference(path!, null, null);

@@ -750,7 +750,11 @@ namespace TeronClaudeCodeVS.ViewModels
             AddSystemNotice($"Compacted chat · {e.Trigger} · {freed} tokens freed", isError: false);
         }
 
-        private void AddSystemNotice(string text, bool isError)
+        /// <summary>
+        /// Appends a one-line system notice to the transcript. Internal rather than private so the
+        /// chat control can report a failure the user would otherwise never see (see BUG-1).
+        /// </summary>
+        internal void AddSystemNotice(string text, bool isError)
         {
             var notice = new ChatMessageViewModel(ChatRole.System);
             notice.Blocks.Add(new ResultFooterViewModel(text, isError));
