@@ -240,7 +240,7 @@ namespace TeronClaudeCodeVS.Core
             else
             {
                 SessionSearchBox.Text = "";
-                _vm.IsSessionHistoryVisible = true;
+                _vm.OpenSessionHistory();
             }
         }
 

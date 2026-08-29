@@ -564,6 +564,7 @@ namespace TeronClaudeCodeVS.ViewModels
             _allSessions = SessionHistoryStore.Load();
             foreach (var e in _allSessions)
                 SessionHistory.Add(e);
+            BeginRefreshSessionTitles();
 
             PendingImages.CollectionChanged += (s, e) => OnPropertyChanged(nameof(HasPendingImages));
             PendingFiles.CollectionChanged += (s, e) => OnPropertyChanged(nameof(HasPendingFiles));
@@ -1746,6 +1747,66 @@ namespace TeronClaudeCodeVS.ViewModels
             StartSession();
         }
 
+        /// <summary>
+        /// FEAT-3: shows the history overlay and re-reads generated titles first. Opening is the
+        /// right moment for it - a session's title is written by the CLI some turns after the
+        /// session starts, so the entry created at first message ("Untitled", or the truncated
+        /// first line) is routinely older than what is on disk by the time it is looked at.
+        /// </summary>
+        public void OpenSessionHistory()
+        {
+            IsSessionHistoryVisible = true;
+            BeginRefreshSessionTitles();
+        }
+
+        private bool _titleRefreshRunning;
+
+        /// <summary>
+        /// Re-reads titles off the UI thread and applies the result back on it. Off-thread because
+        /// the answer lives at the end of transcripts that run to tens of megabytes; the reader
+        /// only touches a window at the end of each and skips files that have not been written to
+        /// since the last look, but neither of those belongs on the thread drawing the overlay.
+        /// </summary>
+        private void BeginRefreshSessionTitles()
+        {
+            if (_titleRefreshRunning) return;
+            _titleRefreshRunning = true;
+
+            // Snapshot on the UI thread: _allSessions is mutated here (new sessions, deletes) and
+            // must not be enumerated from the background read.
+            SessionHistoryEntry[] snapshot = _allSessions.ToArray();
+
+            _ = Task.Run(() =>
+            {
+                List<SessionHistoryStore.TitleUpdate> updates;
+                try { updates = SessionHistoryStore.ComputeTitleUpdates(snapshot); }
+                catch { updates = new List<SessionHistoryStore.TitleUpdate>(); }
+                Post(() => ApplySessionTitleUpdates(updates));
+            });
+        }
+
+        private void ApplySessionTitleUpdates(List<SessionHistoryStore.TitleUpdate> updates)
+        {
+            _titleRefreshRunning = false;
+
+            bool changed = false;
+            foreach (SessionHistoryStore.TitleUpdate update in updates)
+            {
+                SessionHistoryEntry? entry = _allSessions.FirstOrDefault(e => e.SessionId == update.SessionId);
+
+                // Deleted, or renamed by hand, while the read was in flight - the user's action wins.
+                if (entry == null || entry.HasUserTitle) continue;
+
+                entry.TitleStamp = update.Stamp;
+                if (update.Title != null)
+                    entry.Title = update.Title;
+                changed = true;
+            }
+
+            if (changed)
+                SessionHistoryStore.Save(_allSessions);
+        }
+
         public void DeleteSessionEntry(SessionHistoryEntry entry)
         {
             _allSessions.Remove(entry);
@@ -1757,6 +1818,8 @@ namespace TeronClaudeCodeVS.ViewModels
         {
             entry.Title = string.IsNullOrWhiteSpace(newTitle) ? "Untitled" : newTitle.Trim();
             entry.IsEditing = false;
+            // FEAT-3: from here on the generated title never overwrites this row again.
+            entry.HasUserTitle = true;
             SessionHistoryStore.Save(_allSessions);
         }
 

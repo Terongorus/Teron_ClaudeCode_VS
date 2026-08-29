@@ -331,6 +331,64 @@ reflection**, not through a copy of the logic pasted into a test project, and ch
 re-serialising the notebook and diffing our guess at the CLI's output. It is refused with a
 sentence rather than silently ignored, and that refusal is asserted.
 
+### Phase F notes (2026-08-30)
+
+**FEAT-3 is a read, not a generation problem.** The CLI already names its own sessions and writes
+the result into the transcript, as `{"type":"ai-title","aiTitle":…}` and, when the user renames a
+session themselves, `{"type":"custom-title","customTitle":…}`. So the work was to read that
+correctly, and `ViewModels/SessionTitleReader.cs` was written against 99 real transcripts on this
+machine rather than against a fixture matching an assumption. Three facts the reading depends on,
+each measured:
+
+1. **Neither record appears once.** They are re-emitted as the session runs — one transcript holds
+   236 — and the generated title is genuinely revised along the way ("Teronserver services
+   consolidation" later became "Consolidate projects into common solution"). The last record of a
+   kind is current; the first is stale.
+2. **The last title record in the file is not the answer.** In several transcripts a `custom-title`
+   the user typed ("11.08.26 - Import and review previous session history") is followed by a later
+   `ai-title` carrying the generated text — and the real client still shows the custom one. This is
+   not last-wins: the last `custom-title` wins outright, and `ai-title` answers only when no custom
+   title was ever set. A test fixture is chosen specifically because a last-wins rule gives a
+   different answer on it.
+3. **Field order varies** between `sessionId` and the title field, so records are parsed as JSON,
+   not pattern-matched. Every title record across all 99 files named its own file's session, so the
+   file itself is treated as the identifying fact.
+
+**Cost, which shaped the design.** Transcripts here reach 45 MB and the history list holds up to
+100 sessions, so a naive full scan per row would be seconds of file I/O on the thread drawing the
+overlay. The reader takes a 1 MB window off the end of the file and falls back to a full scan only
+when that window holds no title at all — 9 ms versus 202 ms on the 45 MB transcript, measured. On
+top of that each row records the transcript's size and write time, so an unchanged file is not read
+a second time, and the whole refresh runs on a background thread and is applied back on the
+dispatcher.
+
+**A rename typed here always wins.** `SessionHistoryEntry.HasUserTitle` is set by
+`CommitSessionEntryTitle` and persisted, so the generated title never overwrites a name the user
+typed — including when the rename happens while a refresh is already in flight, which is checked
+rather than argued.
+
+**What it is worth.** On the real history file on this machine, **24 of 26 rows** would get a better
+title on the next history open, replacing truncated first messages like *"Use the Edit tool to
+replace the word ALPHA with BRAVO in…"*.
+
+**Verification.** Two scripts, 52 checks, all passing, **neither needing Visual Studio**.
+
+| Script | What it establishes |
+|---|---|
+| `scripts/phase-f-unit.ps1` (36) | The reader against real transcripts in every shape that occurs (custom-beats-later-ai, revised generated titles, small files, no titles at all), the tail window and its full-scan fallback, decoy content lines, a seek landing mid-character, and `ComputeTitleUpdates`' skip/stamp/no-change branches. Also that the existing pre-Phase-F `sessions.json` still deserializes with the two new fields defaulted. |
+| `scripts/phase-f-vm.ps1` (16) | The view-model path: the constructor's refresh, nothing applied before the dispatcher runs, persistence, and the rename-during-a-refresh race — deterministic, because the apply cannot run until the script pumps a frame. The history store's path is redirected into TEMP first and the real `%APPDATA%` file is asserted untouched. |
+
+Phase E's third script existed because a live run could not reach certain branches. Phase F needed
+no live run at all: the view model constructs on any STA thread and its dispatcher can be pumped
+in-process, which reaches more than an IDE session would and takes no focus.
+
+**Harness lessons, both of which first presented as product failures.**
+
+| Symptom | Cause |
+|---|---|
+| Two decoy checks failing against a reader that was behaving correctly | Inside `@(...)`, `'a' + ('x' * 400), 'b', 'c'` binds the `+` across the whole comma list, so the array collapsed to one string and the fixture file was written with a single line. Build long strings on their own line, then assert the array's length. |
+| "No update computed", and two *passing* checks that proved nothing | `MethodInfo.Invoke` on a **void** method returns `$null`, and PowerShell emits that `$null` into the enclosing function's output — inflating every result array. Because `$null.Count` is 0 in PowerShell, the "expected no update" checks passed for entirely the wrong reason. `[void]` the call, and keep arrays intact across `return` with a leading comma. |
+
 ## Tier 0 — Correctness (do first; this is a real defect)
 
 | ID | Item | Size | Evidence | Done when |
