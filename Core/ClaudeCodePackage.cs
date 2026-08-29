@@ -11,7 +11,11 @@ namespace TeronClaudeCodeVS.Core
     [InstalledProductRegistration("Claude Code for Visual Studio", "Chat with Claude Code without leaving the editor.", "1.0")]
     [ProvideToolWindow(typeof(ClaudeCodeToolWindow))]
     [ProvideOptionPage(typeof(ClaudeCodeOptionsPage), "Claude Code", "General", 0, 0, true)]
-    [ProvideMenuResource("Menus.ctmenu", 1)]
+    // The second argument is the command-table VERSION, and Visual Studio caches the merged
+    // command table against it: a changed Menus.vsct is ignored until this number goes up. Bumped
+    // to 2 for the UX-6 global key binding, which silently did not register until this changed.
+    // Bump it again whenever Menus.vsct changes.
+    [ProvideMenuResource("Menus.ctmenu", 3)]
     [Guid(GuidList.guidClaudeCodePackageString)]
     public sealed class ClaudeCodePackage : AsyncPackage
     {

@@ -19,10 +19,19 @@ namespace TeronClaudeCodeVS.ViewModels
         /// <summary>Value passed to `--model`, or null to let the CLI pick its default.</summary>
         public string? Value { get; }
 
-        public ModelOption(string displayName, string? value)
+        /// <summary>
+        /// UX-1: one-line decision-support subtitle shown under the name in the model picker.
+        /// The wording is lifted from the CLI's own model table (read out of the shipped binary)
+        /// rather than invented here, so the cost and credit implications a user sees in this
+        /// window are the same ones the CLI itself states. Null hides the line.
+        /// </summary>
+        public string? Description { get; }
+
+        public ModelOption(string displayName, string? value, string? description = null)
         {
             DisplayName = displayName;
             Value = value;
+            Description = description;
         }
 
         public override string ToString() => DisplayName;
@@ -35,10 +44,19 @@ namespace TeronClaudeCodeVS.ViewModels
         /// <summary>Value passed to `--permission-mode`, or null to omit the flag (CLI default).</summary>
         public string? Value { get; }
 
-        public PermissionModeOption(string displayName, string? value)
+        /// <summary>
+        /// UX-2: one-line explanation of what the mode actually does, taken from the CLI's own
+        /// documented permission-mode semantics rather than inferred from the mode's name. That
+        /// distinction matters most for "Don't Ask", whose name reads like auto-approve but whose
+        /// real behaviour is to deny anything not already pre-approved. Null hides the line.
+        /// </summary>
+        public string? Description { get; }
+
+        public PermissionModeOption(string displayName, string? value, string? description = null)
         {
             DisplayName = displayName;
             Value = value;
+            Description = description;
         }
 
         public override string ToString() => DisplayName;
@@ -99,10 +117,22 @@ namespace TeronClaudeCodeVS.ViewModels
         /// <summary>Same bitmap, used for the small chip preview above the input box.</summary>
         public BitmapSource Thumbnail { get; }
 
-        public PendingImageAttachment(string base64Png, BitmapSource thumbnail)
+        /// <summary>UX-9: file name for a dropped image, or a stand-in label for a clipboard paste.</summary>
+        public string Name { get; }
+
+        /// <summary>
+        /// UX-9: pixel size of the image as staged, e.g. "1920\u00D71080". Read off the bitmap
+        /// rather than stored separately - the "thumbnail" is the full-resolution decode in both
+        /// the paste and the drop path, so these are the true dimensions of what will be sent,
+        /// not the display size of the chip.
+        /// </summary>
+        public string DimensionsText => $"{Thumbnail.PixelWidth}\u00D7{Thumbnail.PixelHeight}";
+
+        public PendingImageAttachment(string base64Png, BitmapSource thumbnail, string name)
         {
             Base64Png = base64Png;
             Thumbnail = thumbnail;
+            Name = name;
         }
     }
 
@@ -115,6 +145,9 @@ namespace TeronClaudeCodeVS.ViewModels
         public bool IsPdf { get; }
 
         public string Content { get; }
+
+        /// <summary>UX-9: glyph distinguishing a PDF from a text/code file at a glance.</summary>
+        public string Icon => IsPdf ? "\U0001F4D5" : "\U0001F4C4";
 
         public PendingFileAttachment(string title, bool isPdf, string content)
         {
@@ -172,8 +205,8 @@ namespace TeronClaudeCodeVS.ViewModels
 
         public bool HasPendingImages => PendingImages.Count > 0;
 
-        public void AddPendingImage(string base64Png, BitmapSource thumbnail) =>
-            PendingImages.Add(new PendingImageAttachment(base64Png, thumbnail));
+        public void AddPendingImage(string base64Png, BitmapSource thumbnail, string name = "Pasted image") =>
+            PendingImages.Add(new PendingImageAttachment(base64Png, thumbnail, name));
 
         public void RemovePendingImage(PendingImageAttachment attachment) =>
             PendingImages.Remove(attachment);
@@ -227,6 +260,21 @@ namespace TeronClaudeCodeVS.ViewModels
         /// <summary>Resolved path to the claude executable; empty until <see cref="Initialize"/> succeeds.</summary>
         public string ClaudePath => _claudePath;
 
+        /// <summary>UX-10: "v0.3.0" for the palette footer, so a bug report can name a version.</summary>
+        public string ExtensionVersionText => "v" + ExtensionVersion.Current;
+
+        /// <summary>
+        /// UX-3: the permission card currently awaiting an answer, or null. Tracked as a field
+        /// rather than searched for on each keystroke, so the input box's number-key handler stays
+        /// O(1) however long the transcript grows.
+        /// </summary>
+        private PermissionRequestViewModel? _pendingPermissionRequest;
+        public PermissionRequestViewModel? PendingPermissionRequest
+        {
+            get => _pendingPermissionRequest;
+            private set => SetField(ref _pendingPermissionRequest, value);
+        }
+
         private bool _isSessionHistoryVisible;
         public bool IsSessionHistoryVisible
         {
@@ -248,24 +296,44 @@ namespace TeronClaudeCodeVS.ViewModels
         /// </summary>
         public event EventHandler<string>? PlanFileReadyToOpen;
 
+        // UX-1: these subtitles are the CLI's own strings, read out of the shipped binary. The
+        // "~2\u00D7 usage vs Sonnet" and "Requires usage credits" notes are shown unconditionally
+        // because the account's plan is not visible from here, whereas the CLI shows them
+        // plan-conditionally. Over-warning about cost is the safe direction to be wrong in.
         public IReadOnlyList<ModelOption> Models { get; } = new[]
         {
-            new ModelOption("Default", null),
-            new ModelOption("Sonnet", "sonnet"),
-            new ModelOption("Opus", "opus"),
-            new ModelOption("Haiku", "haiku"),
-            new ModelOption("Fable", "fable"),
+            new ModelOption("Default", null,
+                "Use the model your CLI is already configured for"),
+            new ModelOption("Sonnet", "sonnet",
+                "Sonnet 5 \u00B7 Efficient for routine tasks"),
+            new ModelOption("Opus", "opus",
+                "Opus 5 \u00B7 Best for everyday, complex tasks \u00B7 ~2\u00D7 usage vs Sonnet"),
+            new ModelOption("Haiku", "haiku",
+                "Haiku 4.5 \u00B7 Fastest for quick answers"),
+            new ModelOption("Fable", "fable",
+                "Fable 5 \u00B7 Most capable for your hardest and longest-running tasks \u00B7 Requires usage credits"),
         };
 
+        // UX-2: descriptions for all seven modes. The five baseline also exposes use baseline's
+        // exact wording; "CLI Default" and "Don't Ask" are ours, written from the CLI's own
+        // documented semantics - "dontAsk" means do not prompt and deny anything not already
+        // pre-approved - because baseline ships no picker entry for either.
         public IReadOnlyList<PermissionModeOption> PermissionModes { get; } = new[]
         {
-            new PermissionModeOption("CLI Default", null),
-            new PermissionModeOption("Accept Edits", "acceptEdits"),
-            new PermissionModeOption("Manual", "manual"),
-            new PermissionModeOption("Don't Ask", "dontAsk"),
-            new PermissionModeOption("Plan Mode", "plan"),
-            new PermissionModeOption("Auto (background safety checks)", "auto"),
-            new PermissionModeOption("Bypass Permissions", "bypassPermissions"),
+            new PermissionModeOption("CLI Default", null,
+                "Standard behaviour \u2014 prompts before dangerous operations"),
+            new PermissionModeOption("Accept Edits", "acceptEdits",
+                "Claude will edit your selected text or the whole file"),
+            new PermissionModeOption("Manual", "manual",
+                "Claude will ask for approval before making each edit"),
+            new PermissionModeOption("Don't Ask", "dontAsk",
+                "Never prompts \u2014 denies anything not already pre-approved"),
+            new PermissionModeOption("Plan Mode", "plan",
+                "Claude will explore the code and present a plan before editing"),
+            new PermissionModeOption("Auto (background safety checks)", "auto",
+                "Claude will approve actions that pass a safety check and pause for anything risky"),
+            new PermissionModeOption("Bypass Permissions", "bypassPermissions",
+                "Claude will not ask for approval before running potentially dangerous commands"),
         };
 
         public IReadOnlyList<ThinkingLevelOption> ThinkingLevels { get; } = new[]
@@ -340,6 +408,25 @@ namespace TeronClaudeCodeVS.ViewModels
                 if (SetField(ref _selectedPermissionMode, value))
                     RestartIfIdle();
             }
+        }
+
+        /// <summary>
+        /// UX-2: advances to the next permission mode, wrapping at the end. Baseline cycles its
+        /// three modes with Shift+Tab; we cycle all seven of ours through the same chord. Setting
+        /// the property restarts an idle session exactly as picking from the menu does, so the two
+        /// entry points cannot drift apart.
+        /// </summary>
+        public void CycleToNextPermissionMode()
+        {
+            // IReadOnlyList has no IndexOf, and a seven-item scan is cheaper than materialising a
+            // list on every keypress.
+            int index = -1;
+            for (int i = 0; i < PermissionModes.Count; i++)
+            {
+                if (ReferenceEquals(PermissionModes[i], SelectedPermissionMode)) { index = i; break; }
+            }
+
+            SelectedPermissionMode = PermissionModes[(index + 1) % PermissionModes.Count];
         }
 
         private ThinkingLevelOption _selectedThinkingLevel;
@@ -715,8 +802,11 @@ namespace TeronClaudeCodeVS.ViewModels
 
         private void OnSessionInitialized(InitMessage init)
         {
+            // UX-5: the CLI emits commands in skill/source order, which reads as arbitrary in a
+            // ~50-entry list. Sorting here rather than in the view keeps the palette and the "/"
+            // autocomplete - which both bind this one collection - in the same order.
             SlashCommands.Clear();
-            foreach (var cmd in init.SlashCommands)
+            foreach (var cmd in init.SlashCommands.OrderBy(c => c, StringComparer.OrdinalIgnoreCase))
                 SlashCommands.Add(cmd);
 
             StatusText = "Ready";
@@ -909,16 +999,20 @@ namespace TeronClaudeCodeVS.ViewModels
 
                 string title = e.Title ?? $"Allow {ToolPresentation.GetDisplayName(e.ToolName)}?";
                 PermissionRequestViewModel request = new PermissionRequestViewModel(e.ToolName, title, e.Input,
-                    (allow, forSession) =>
+                    (allow, forSession, denyMessage) =>
                     {
                         if (allow && forSession)
                             _sessionPermissions.Add(e.ToolName);
-                        return RespondToPermissionAsync(e, allow);
+
+                        // UX-3: a resolved card is no longer the keyboard target.
+                        PendingPermissionRequest = null;
+                        return RespondToPermissionAsync(e, allow, denyMessage);
                     });
 
                 if (_currentAssistantMessage == null)
                     EnsureAssistantMessage();
                 _currentAssistantMessage!.Blocks.Add(request);
+                PendingPermissionRequest = request;
 
                 StatusText = "⚠ Approval required — see chat";
                 PermissionRequestAdded?.Invoke(this, EventArgs.Empty);
@@ -1100,7 +1194,7 @@ namespace TeronClaudeCodeVS.ViewModels
             }
         }
 
-        private async Task RespondToPermissionAsync(PermissionRequestEvent e, bool allow)
+        private async Task RespondToPermissionAsync(PermissionRequestEvent e, bool allow, string? denyMessage = null)
         {
             if (_session == null) return;
 
@@ -1108,7 +1202,8 @@ namespace TeronClaudeCodeVS.ViewModels
                 call.Status = allow ? ToolCallStatus.Running : ToolCallStatus.Error;
 
             StatusText = "Working…";
-            await _session.RespondToPermissionAsync(e.RequestId, allow, allow ? e.Input : null).ConfigureAwait(false);
+            await _session.RespondToPermissionAsync(e.RequestId, allow, allow ? e.Input : null, denyMessage)
+                .ConfigureAwait(false);
         }
 
         private void OnTurnCompleted(ResultMessage result)

@@ -39,6 +39,18 @@ Updated as each phase of the Phase 7 parity build lands on `dev`. Commit SHAs ar
 | **ST-3** | ✅ done | B | 8 radii → 2 (`RadiusControl` 5, `RadiusCard` 6), plus 2 shape radii (circle/pill). |
 | **ST-4** | ✅ done | B | Verified by pixel sampling in both themes - see below. |
 | **ST-5** | ✅ decided | B | **Bubble kept**, deliberately. Rationale recorded at the template in `ClaudeCodeChatControl.xaml`. |
+| **UX-1** | ✅ done | C | Descriptions on all 5 models, taken from the CLI binary's own model table. |
+| **UX-2** | ✅ done | C | Descriptions on all 7 modes + `⇧ + tab to switch` hint + Shift+Tab cycling. |
+| **UX-3** | ✅ done | C | Numbered actions, full absolute path, `Esc to cancel`, inline redirect box. |
+| **UX-4** | ✅ done | C | Filter box; measured 50 → 8 rows on the filter `co`. |
+| **UX-5** | ✅ done | C | Sorted at populate; verified A–Z over all 50 live commands. |
+| **UX-6** | ✅ done | C | Picker footers, permission-card key hints, and a placeholder naming the real focus chord. |
+| **UX-7** | ✅ done | C | Per-turn grouped annotation; observed rendering `2 tool calls · 1 failed`. |
+| **UX-8** | ✅ done | C | Copy button per fenced block, as a FlowDocument `Floater`. |
+| **UX-9** | ⚠ built, unverified | C | Chips show name + pixel dimensions + a type glyph. Rendering not yet driven — needs the paste/drop harness from **TEST-1**. |
+| **UX-10** | ✅ done | C | `v0.3.0` in the palette footer, read from the shipped VSIX manifest. |
+| **UX-11** | ✅ done | C | Designed empty state on a new session. |
+| **UX-12** | ✅ done | C | One `PopupCardStyle` behind every popup, plus shared hint/footer styles. |
 
 **ST-4 measurement (Phase B, VS 18 Experimental instance, 2026-08-29).** Sampled from
 `PrintWindow` captures, not judged by eye:
@@ -61,6 +73,81 @@ byte-identical across them - which is what ST-4 asks for. Evidence:
 > They are kept as separately-named tokens (`GlyphSize`, `GlyphSizeSmall`, `RadiusCircle`,
 > `RadiusPill`) rather than folded into the scale, so that the two-value rule stays a real
 > constraint on the type and corner scales instead of being quietly widened to four.
+
+### Phase C notes (2026-08-29)
+
+**Where the wording came from.** UX-1 and UX-2 descriptions are not invented. The permission-mode
+strings were read out of the official extension's own `webview/index.js`, and the model subtitles
+out of the CLI binary's model table, so the five modes and four models we share with baseline use
+baseline's exact words. Only two entries are ours, because baseline ships no picker row for
+either: `CLI Default`, and `Don't Ask` — whose real behaviour is the opposite of what its name
+suggests. The CLI documents it as *"Don't prompt for permissions, deny if not pre-approved"*, so
+the description says it denies rather than auto-approves. That was worth writing down: the name
+alone actively misleads.
+
+**Two judgement calls that diverge from a literal reading of the criteria.**
+
+* **UX-7** asks for a *collapsed row* annotated with a grouped count. Baseline collapses a whole
+  run of tool calls into one row; our transcript keeps each call as its own already-collapsed card,
+  which is more informative when calls succeed. Rather than restructure the card list, the count
+  and failure state are rendered once per assistant turn above the run. It is deliberately silent
+  for a single successful call, where it would only restate the card beneath it.
+* **UX-6** asks the input placeholder to name its focus shortcut. Baseline uses `ctrl esc`, which
+  is unusable on Windows — the OS claims it for the Start menu. We bind `Ctrl+Alt+Y`, chosen by
+  querying the live VS command table for a chord free in every scope and not a chord prefix. The
+  placeholder does not hard-code it: it asks VS at runtime what the command is actually bound to,
+  so it cannot advertise a chord the user has rebound.
+
+**Three things this phase learned the hard way, all recorded in code comments:**
+
+1. **A changed `.vsct` does nothing until `ProvideMenuResource`'s version is bumped.** VS caches the
+   merged command table against that number. The key binding silently did not exist until it went
+   from 1 to 2, with no build or load error of any kind.
+2. **VS silently drops a VSIX default key binding that collides with an existing one.** The first
+   attempt used `Ctrl+Alt+C`, which VS already gives to `Debug.CallStack`. The only symptom was
+   `Commands.Item(...).Bindings` coming back empty at runtime.
+3. **`PrintWindow` cannot capture the VS 18 frame while it is occluded**, and reports success
+   anyway. All four flag values return an essentially blank bitmap. WPF Popups are unaffected
+   because they are their own top-level windows, which is why the picker screenshots below exist
+   and the in-frame ones do not. See `scripts/screenshot-toolwindow.ps1` for the full negative
+   result, and use UIA text assertions for anything inside the frame.
+
+**Phase C verification.** `scripts/phase-c-verify.ps1` — 19/19 checks pass against the running
+control in the VS 18 Experimental instance, plus three driven turns covering the surfaces that
+only exist mid-conversation. Highlights, all read back from the live visual tree rather than
+inferred from a clean build:
+
+| Check | Result |
+|---|---|
+| Chat control instantiates; 301 elements in the tree | every token and the 3 new styles resolve |
+| Model picker | Opus row reads `… · ~2× usage vs Sonnet` |
+| Permission picker | all 7 descriptions + `⇧ + tab to switch` |
+| Permission card | `1 Allow` / `2 Allow for Session` / `3 Deny`, `Esc to cancel` |
+| Permission card path | `D:\…\Test_Project_Claude\PhaseCProbe.txt` (rooted, not the shortened summary) |
+| Redirect box | denies with a reason; card resolves to `Redirected: …`, and **no file was written** |
+| Slash commands | 50 commands, A–Z under `OrdinalIgnoreCase` |
+| Palette filter | `co` narrows 50 → 8 |
+| Tool-call annotation | `2 tool calls · 1 failed` |
+| Code blocks | 2 per-block `Copy` buttons rendered |
+| Placeholder | `Ask Claude anything…  (Ctrl+Alt+Y to focus)` |
+| Palette footer | `v0.3.0` |
+
+Evidence: `screenshots/our-extension/31-PhaseC-model-descriptions.png`,
+`32-PhaseC-permission-descriptions.png`, `33-PhaseC-palette-filter.png`.
+
+**Not verified by driving, and why.** Two items are implemented and compile but were not exercised
+end to end:
+
+* **UX-2's Shift+Tab cycle.** WPF reads `Keyboard.Modifiers` from real keyboard state, so a
+  synthetic `PostMessage` carries no Shift. Driving it needs `SendInput`, which steals focus and
+  mutates real modifier state — both ruled out by this harness's background-safety constraint. The
+  hint renders and the handler is in `OnInputPreviewKeyDown`; the cycle itself is unproven.
+* **UX-9's attachment chips.** Requires a real paste or drop. That is exactly what **TEST-1**
+  exists to build, so it is deferred there rather than faked.
+
+**Also fixed in Phase C:** five `FontSize` literals that Phase B's sweep missed because they were
+written as `<Setter Property="FontSize" Value="11"/>` rather than as attributes. ST-2's two-value
+rule now genuinely holds across the file.
 
 ---
 

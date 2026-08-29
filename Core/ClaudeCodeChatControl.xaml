@@ -19,9 +19,57 @@
                 <ResourceDictionary Source="pack://application:,,,/TeronClaudeCodeVS;component/Core/ChatTheme.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
+        <!--
+            UX-12 - one modal visual language.
+
+            Every popup in this file previously repeated the same eight attributes by hand, which
+            is how they drifted apart (different radii, one without a shadow). They are now one
+            style; a popup Border sets only its own size constraints. The audit's finding was that
+            baseline's Plugins/Rewind surfaces "read as deliberate modals rather than bare
+            dropdowns" - that difference is the shadow, the consistent radius, and the hairline.
+        -->
+        <Style x:Key="PopupCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"/>
+            <Setter Property="TextElement.Foreground" Value="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="16" Opacity="0.3" ShadowDepth="2" Color="Black"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!--
+            UX-6 - keyboard-affordance hints.
+
+            The audit found baseline advertises its shortcuts in the surface that uses them
+            ("↑↓ to navigate · Enter to select · Esc to close") while we advertised none anywhere,
+            so ours were effectively undiscoverable. Chrome-sized and dimmed: a hint that competes
+            with the list it describes is worse than no hint.
+        -->
+        <Style x:Key="KeyHintStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+            <Setter Property="FontSize" Value="{StaticResource FontSizeChrome}"/>
+            <Setter Property="Opacity" Value="0.5"/>
+            <Setter Property="Margin" Value="8,0,8,0"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+
+        <!-- UX-6: the hairline that separates a picker's list from its hint footer. -->
+        <Style x:Key="PopupFooterStyle" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}"/>
+            <Setter Property="BorderThickness" Value="0,1,0,0"/>
+            <Setter Property="Padding" Value="0,5,0,5"/>
+            <Setter Property="Margin" Value="0,4,0,0"/>
+        </Style>
+
         <!-- Converters -->
         <controls:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
         <controls:NullToVisibilityConverter x:Key="NullToVisibilityConverter"/>
+        <controls:CountToVisibilityConverter x:Key="CountToVisibilityConverter"/>
         <controls:ToolStatusToBrushConverter x:Key="ToolStatusToBrushConverter"/>
         <controls:EqualityToVisibilityConverter x:Key="EqualityToVisibilityConverter"/>
         <controls:HiddenInSummaryModeConverter x:Key="HiddenInSummaryModeConverter"/>
@@ -147,7 +195,7 @@
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Width" Value="26"/>
             <Setter Property="Height" Value="26"/>
-            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontSize" Value="{StaticResource GlyphSize}"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -175,7 +223,7 @@
             <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="9,3"/>
-            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontSize" Value="{StaticResource FontSizeChrome}"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -206,7 +254,7 @@
             <Setter Property="BorderBrush" Value="{StaticResource HairlineBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="9,3"/>
-            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontSize" Value="{StaticResource FontSizeChrome}"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -236,7 +284,7 @@
             <Setter Property="Foreground" Value="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="8,5"/>
-            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
@@ -258,7 +306,7 @@
         <!-- Small-caps section header inside the command menu -->
         <Style x:Key="MenuSectionHeaderStyle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
-            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontSize" Value="{StaticResource FontSizeChrome}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Opacity" Value="0.55"/>
             <Setter Property="Margin" Value="8,8,8,2"/>
@@ -354,7 +402,14 @@
             </Setter>
         </Style>
 
-        <!-- Reusable menu-row item: option DisplayName + checkmark when selected -->
+        <!--
+            Reusable menu-row item: option DisplayName + checkmark when selected.
+
+            UX-1/UX-2: rows are now two lines. Without the subtitle the picker was a bare name
+            list, so a user could not see from it that switching to Opus roughly doubles usage, or
+            what "Don't Ask" actually does. The subtitle wraps rather than truncates - a cost
+            warning cut off mid-sentence is worse than a taller row.
+        -->
         <DataTemplate x:Key="ModelMenuItemTemplate">
             <Button Style="{StaticResource MenuRowButtonStyle}" Click="OnModelOptionClicked">
                 <Grid>
@@ -362,8 +417,14 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="{Binding DisplayName}"/>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="{Binding DisplayName}"/>
+                        <TextBlock Text="{Binding Description}" FontSize="{StaticResource FontSizeChrome}"
+                                   Opacity="0.6" TextWrapping="Wrap" Margin="0,1,0,0"
+                                   Visibility="{Binding Description, Converter={StaticResource NullToVisibilityConverter}}"/>
+                    </StackPanel>
                     <TextBlock Grid.Column="1" Text="✓" FontWeight="Bold" Margin="10,0,0,0"
+                               VerticalAlignment="Top"
                                Foreground="{StaticResource ClaudeAccentBrush}">
                         <TextBlock.Visibility>
                             <MultiBinding Converter="{StaticResource EqualityToVisibilityConverter}">
@@ -383,8 +444,14 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="{Binding DisplayName}"/>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="{Binding DisplayName}"/>
+                        <TextBlock Text="{Binding Description}" FontSize="{StaticResource FontSizeChrome}"
+                                   Opacity="0.6" TextWrapping="Wrap" Margin="0,1,0,0"
+                                   Visibility="{Binding Description, Converter={StaticResource NullToVisibilityConverter}}"/>
+                    </StackPanel>
                     <TextBlock Grid.Column="1" Text="✓" FontWeight="Bold" Margin="10,0,0,0"
+                               VerticalAlignment="Top"
                                Foreground="{StaticResource ClaudeAccentBrush}">
                         <TextBlock.Visibility>
                             <MultiBinding Converter="{StaticResource EqualityToVisibilityConverter}">
@@ -620,22 +687,77 @@
                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                     <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" Opacity="0.8" Margin="0,4,0,0"
                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+
+                    <!--
+                        UX-3: the full absolute path. Summary abbreviates for readability, which is
+                        right everywhere except here - the audit found baseline states the whole
+                        path on an approval prompt, and it should: this is the moment the user
+                        decides whether a write lands where they think it does.
+                    -->
+                    <TextBlock Text="{Binding FullPath}" FontFamily="Consolas"
+                               FontSize="{StaticResource FontSizeChrome}" Opacity="0.7"
+                               TextWrapping="Wrap" Margin="0,4,0,0"
+                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                               Visibility="{Binding FullPath, Converter={StaticResource NullToVisibilityConverter}}"/>
+
                     <controls:DiffViewer Margin="0,6,0,0" RawDiff="{Binding RawDiff}"
                                           Visibility="{Binding RawDiff, Converter={StaticResource NullToVisibilityConverter}}"/>
                     <controls:MarkdownViewer Margin="0,6,0,0"
                                               Visibility="{Binding HasMarkdownDetail, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                    <!--
+                        UX-3: numbered actions. The numbers are not decoration - 1/2/3 and Esc are
+                        live while this card is the pending one and the input box is empty (see
+                        OnInputPreviewKeyDown), so the label is what makes the shortcut findable.
+                    -->
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0"
                                 Visibility="{Binding IsResolved, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}">
-                        <Button Content="Allow" Command="{Binding AllowCommand}" Style="{StaticResource PrimaryButtonStyle}"
+                        <Button Content="1  Allow" Command="{Binding AllowCommand}" Style="{StaticResource PrimaryButtonStyle}"
                                 VerticalAlignment="Top"
                                 Padding="14,6" Margin="0,0,8,0" MinWidth="72"/>
-                        <Button Content="Allow for Session" Command="{Binding AllowForSessionCommand}"
+                        <Button Content="2  Allow for Session" Command="{Binding AllowForSessionCommand}"
                                 Style="{StaticResource SecondaryButtonStyle}"
                                 Width="Auto" Height="Auto" VerticalAlignment="Top"
                                 Padding="14,6" Margin="0,0,8,0" MinWidth="120"/>
-                        <Button Content="Deny" Command="{Binding DenyCommand}"
+                        <Button Content="3  Deny" Command="{Binding DenyCommand}"
                                 Style="{StaticResource DenyButtonStyle}"
                                 MinWidth="72" Padding="14,6"/>
+                    </StackPanel>
+
+                    <!-- UX-3: redirect instead of a dead-end deny. -->
+                    <StackPanel Margin="0,8,0,0"
+                                Visibility="{Binding IsResolved, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}">
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Tell Claude what to do instead"
+                                    Command="{Binding ToggleRedirectCommand}"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Padding="8,3" FontSize="{StaticResource FontSizeChrome}"
+                                    HorizontalAlignment="Left"
+                                    AutomationProperties.AutomationId="PermissionRedirectToggle"/>
+                            <TextBlock Text="1 / 2 / 3 to choose · Esc to cancel"
+                                       Style="{StaticResource KeyHintStyle}" VerticalAlignment="Center"/>
+                        </StackPanel>
+
+                        <Grid Margin="0,6,0,0"
+                              Visibility="{Binding IsRedirectVisible, Converter={StaticResource BoolToVisibilityConverter}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
+                                    CornerRadius="{StaticResource RadiusControl}" Padding="6,3" Margin="0,0,6,0">
+                                <TextBox Text="{Binding RedirectText, UpdateSourceTrigger=PropertyChanged}"
+                                         BorderThickness="0" Background="Transparent" TextWrapping="Wrap"
+                                         AcceptsReturn="False" MinHeight="20"
+                                         Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                         CaretBrush="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                         FontSize="{StaticResource FontSizeBody}"
+                                         AutomationProperties.AutomationId="PermissionRedirectBox"/>
+                            </Border>
+                            <Button Grid.Column="1" Content="Send" Command="{Binding SendRedirectCommand}"
+                                    Style="{StaticResource PrimaryButtonStyle}" Padding="12,4"
+                                    AutomationProperties.AutomationId="PermissionRedirectSend"/>
+                        </Grid>
                     </StackPanel>
                     <TextBlock Text="{Binding ResolutionText}" FontStyle="Italic" Opacity="0.7" Margin="0,8,0,0"
                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
@@ -818,8 +940,19 @@
         </DataTemplate>
 
         <DataTemplate x:Key="AssistantMessageTemplate" DataType="{x:Type vm:ChatMessageViewModel}">
-            <ItemsControl ItemsSource="{Binding Blocks}" ItemTemplateSelector="{StaticResource BlockTemplateSelector}"
-                          Margin="2,4,12,4"/>
+            <StackPanel Margin="2,4,12,4">
+                <!--
+                    UX-7: grouped count + failure state for the turn's tool calls, so a failure in
+                    a run of otherwise identical collapsed rows is visible without expanding any of
+                    them. Hidden for a single successful call, where it would only restate the card
+                    directly beneath it - see ChatMessageViewModel.ToolCallSummary.
+                -->
+                <TextBlock Text="{Binding ToolCallSummary}" FontSize="{StaticResource FontSizeChrome}"
+                           Opacity="0.6" Margin="4,0,0,2"
+                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                           Visibility="{Binding ToolCallSummary, Converter={StaticResource NullToVisibilityConverter}}"/>
+                <ItemsControl ItemsSource="{Binding Blocks}" ItemTemplateSelector="{StaticResource BlockTemplateSelector}"/>
+            </StackPanel>
         </DataTemplate>
 
         <DataTemplate x:Key="SystemMessageTemplate" DataType="{x:Type vm:ChatMessageViewModel}">
@@ -898,14 +1031,9 @@
                 <Popup x:Name="TranscriptModePopup" PlacementTarget="{Binding ElementName=TranscriptModeButton}"
                        Placement="Bottom" StaysOpen="False" AllowsTransparency="True"
                        AutomationProperties.AutomationId="TranscriptModePopup">
-                    <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
-                            TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                            BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}"
-                            MinWidth="150" Margin="0,4,0,0">
-                        <Border.Effect>
-                            <DropShadowEffect BlurRadius="16" Opacity="0.3" ShadowDepth="2" Color="Black"/>
-                        </Border.Effect>
+                    <Border Style="{StaticResource PopupCardStyle}" MinWidth="180" Margin="0,4,0,0">
                         <StackPanel Margin="2,4">
+                            <TextBlock Text="TRANSCRIPT" Style="{StaticResource MenuSectionHeaderStyle}"/>
                             <ItemsControl ItemsSource="{Binding TranscriptModes}" ItemTemplate="{StaticResource TranscriptModeMenuItemTemplate}"/>
                         </StackPanel>
                     </Border>
@@ -988,6 +1116,39 @@
                 <ItemsControl x:Name="MessageList" ItemsSource="{Binding Messages}" ItemTemplateSelector="{StaticResource MessageTemplateSelector}"
                               AutomationProperties.AutomationId="MessageList"/>
             </ScrollViewer>
+
+            <!--
+                UX-11: designed empty state.
+
+                A new session opened onto a blank rectangle, which reads as "not loaded" rather
+                than "ready". Baseline fills the same space with a wordmark, a mascot and a tip.
+                We do not ship baseline's pixel-art robot - that is their brand asset, not ours -
+                so this uses the same accent mark the header already carries, plus the one thing a
+                first-time user most needs to know: that @ and / exist.
+            -->
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="320"
+                        Margin="24" IsHitTestVisible="False"
+                        Visibility="{Binding Messages.Count, Converter={StaticResource CountToVisibilityConverter}}">
+                <Border Width="40" Height="40" CornerRadius="{StaticResource RadiusCard}"
+                        Background="{StaticResource ClaudeAccentBrush}" HorizontalAlignment="Center">
+                    <TextBlock Text="✳" FontSize="{StaticResource FontSizeBody}" FontWeight="Bold" Foreground="White"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <!--
+                    The AutomationId sits on this TextBlock rather than on the panel: WPF Panels
+                    are not in the UIA control view, so an id there is invisible to the harness
+                    (found the hard way during Phase C verification).
+                -->
+                <TextBlock Text="Claude Code" FontWeight="SemiBold" FontSize="{StaticResource FontSizeBody}"
+                           HorizontalAlignment="Center" Margin="0,10,0,0"
+                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                           AutomationProperties.AutomationId="EmptyStateTitle"/>
+                <TextBlock Text="Ask about this solution, or describe a change to make."
+                           TextAlignment="Center" TextWrapping="Wrap" Opacity="0.7" Margin="0,4,0,0"
+                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                <TextBlock Text="@ to attach a file · / for a command"
+                           Style="{StaticResource KeyHintStyle}" TextAlignment="Center" Margin="0,10,0,0"/>
+            </StackPanel>
 
             <Border Padding="24" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="380"
                     Visibility="{Binding ClaudeNotFoundMessage, Converter={StaticResource NullToVisibilityConverter}}">
@@ -1234,15 +1395,29 @@
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
+                            <!--
+                                UX-9: a bare 44px square told the user nothing about what they had
+                                staged. Baseline shows name + pixel dimensions, which is what makes
+                                it obvious you pasted a 3840x2160 screenshot rather than the crop
+                                you meant to.
+                            -->
                             <DataTemplate DataType="{x:Type vm:PendingImageAttachment}">
-                                <Border CornerRadius="{StaticResource RadiusControl}" Margin="0,0,6,0"
+                                <Border CornerRadius="{StaticResource RadiusControl}" Margin="0,0,6,6" Padding="3"
                                         BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1">
-                                    <Grid>
-                                        <Image Source="{Binding Thumbnail}" Width="44" Height="44" Stretch="UniformToFill"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Image Source="{Binding Thumbnail}" Width="34" Height="34" Stretch="UniformToFill"/>
+                                        <StackPanel VerticalAlignment="Center" Margin="6,0,4,0" MaxWidth="150">
+                                            <TextBlock Text="{Binding Name}" FontSize="{StaticResource FontSizeChrome}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                            <TextBlock Text="{Binding DimensionsText}" FontSize="{StaticResource FontSizeChrome}"
+                                                       Opacity="0.55"
+                                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                        </StackPanel>
                                         <Button Content="✕" Click="OnRemovePendingImageClicked" Tag="{Binding}"
                                                 Style="{StaticResource IconButtonStyle}" Width="16" Height="16" FontSize="{StaticResource GlyphSizeSmall}"
-                                                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-8,-8,0"/>
-                                    </Grid>
+                                                VerticalAlignment="Top"/>
+                                    </StackPanel>
                                 </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -1261,7 +1436,8 @@
                                 <Border CornerRadius="{StaticResource RadiusControl}" Margin="0,0,6,0" Padding="6,3"
                                         BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="📄" Margin="0,0,5,0"
+                                        <!-- UX-9: PDF and text/code get different glyphs. -->
+                                        <TextBlock Text="{Binding Icon}" Margin="0,0,5,0"
                                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                                         <TextBlock Text="{Binding Title}" FontSize="{StaticResource FontSizeChrome}"
                                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
@@ -1275,18 +1451,45 @@
                     </ItemsControl>
                 </StackPanel>
 
-                <TextBox Grid.Row="2" x:Name="InputBox"
-                         AcceptsReturn="True" TextWrapping="Wrap"
-                         MinHeight="28" MaxHeight="160"
-                         VerticalScrollBarVisibility="Auto"
-                         BorderThickness="0" Background="Transparent"
-                         Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                         CaretBrush="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                         Padding="2,2" FontSize="{StaticResource FontSizeBody}"
-                         PreviewKeyDown="OnInputPreviewKeyDown"
-                         TextChanged="OnInputTextChanged"
-                         DataObject.Pasting="OnInputBoxPasting"
-                         AutomationProperties.AutomationId="InputBox"/>
+                <Grid Grid.Row="2">
+                    <TextBox x:Name="InputBox"
+                             AcceptsReturn="True" TextWrapping="Wrap"
+                             MinHeight="28" MaxHeight="160"
+                             VerticalScrollBarVisibility="Auto"
+                             BorderThickness="0" Background="Transparent"
+                             Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                             CaretBrush="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                             Padding="2,2" FontSize="{StaticResource FontSizeBody}"
+                             PreviewKeyDown="OnInputPreviewKeyDown"
+                             TextChanged="OnInputTextChanged"
+                             DataObject.Pasting="OnInputBoxPasting"
+                             AutomationProperties.AutomationId="InputBox"/>
+
+                    <!--
+                        UX-6: the placeholder names the shortcut that focuses this box. Its text is
+                        written at load time from the binding Visual Studio actually holds for the
+                        tool-window command (see ApplyFocusShortcutHint), rather than hard-coded,
+                        so it cannot advertise a chord the user has rebound or that failed to
+                        register.
+                    -->
+                    <TextBlock x:Name="InputPlaceholder" IsHitTestVisible="False"
+                               Margin="4,2,0,0" VerticalAlignment="Top" Opacity="0.45"
+                               FontSize="{StaticResource FontSizeBody}"
+                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                               Text="Ask Claude anything…"
+                               AutomationProperties.AutomationId="InputPlaceholder">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Text, ElementName=InputBox}" Value="">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
 
                 <Popup x:Name="SlashCommandPopup" PlacementTarget="{Binding ElementName=InputBox}"
                        Placement="Top" StaysOpen="False" AllowsTransparency="True"
@@ -1294,12 +1497,19 @@
                     <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
                             TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                             BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusControl}"
-                            MaxHeight="160" MinWidth="240">
-                        <ListBox x:Name="SlashCommandList" BorderThickness="0" Background="Transparent"
-                                 Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                                 ItemContainerStyle="{StaticResource PopupListItemStyle}"
-                                 PreviewMouseLeftButtonUp="OnSlashCommandChosen"
-                                 AutomationProperties.AutomationId="SlashCommandList"/>
+                            MaxHeight="200" MinWidth="240">
+                        <StackPanel>
+                            <ListBox x:Name="SlashCommandList" BorderThickness="0" Background="Transparent"
+                                     MaxHeight="160"
+                                     Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                     ItemContainerStyle="{StaticResource PopupListItemStyle}"
+                                     PreviewMouseLeftButtonUp="OnSlashCommandChosen"
+                                     AutomationProperties.AutomationId="SlashCommandList"/>
+                            <Border Style="{StaticResource PopupFooterStyle}">
+                                <TextBlock Text="↑↓ to navigate · Enter to select · Esc to close"
+                                           Style="{StaticResource KeyHintStyle}"/>
+                            </Border>
+                        </StackPanel>
                     </Border>
                 </Popup>
 
@@ -1309,8 +1519,10 @@
                     <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
                             TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                             BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusControl}"
-                            MaxHeight="200" MinWidth="300">
+                            MaxHeight="240" MinWidth="300">
+                        <StackPanel>
                         <ListBox x:Name="FilePickerList" BorderThickness="0" Background="Transparent"
+                                 MaxHeight="200"
                                  Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                  ItemContainerStyle="{StaticResource PopupListItemStyle}"
                                  PreviewMouseLeftButtonUp="OnFilePickerChosen"
@@ -1333,6 +1545,11 @@
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
+                            <Border Style="{StaticResource PopupFooterStyle}">
+                                <TextBlock Text="↑↓ to navigate · Enter to select · Esc to close"
+                                           Style="{StaticResource KeyHintStyle}"/>
+                            </Border>
+                        </StackPanel>
                     </Border>
                 </Popup>
 
@@ -1378,13 +1595,52 @@
                     <Popup x:Name="PalettePopup" PlacementTarget="{Binding ElementName=PaletteButton}"
                            Placement="Top" StaysOpen="False" AllowsTransparency="True"
                            AutomationProperties.AutomationId="PalettePopup">
-                        <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
-                                TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}"
-                                MinWidth="230" MaxWidth="320" MaxHeight="380" Margin="0,0,0,6">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="16" Opacity="0.3" ShadowDepth="2" Color="Black"/>
-                            </Border.Effect>
+                        <Border Style="{StaticResource PopupCardStyle}"
+                                MinWidth="260" MaxWidth="340" MaxHeight="420">
+                            <DockPanel>
+                                <!--
+                                    UX-10: the version a bug report should quote. Read from the
+                                    shipped VSIX manifest, not the assembly - see ExtensionVersion.
+                                -->
+                                <Border DockPanel.Dock="Bottom" Style="{StaticResource PopupFooterStyle}">
+                                    <TextBlock Text="{Binding ExtensionVersionText}"
+                                               Style="{StaticResource KeyHintStyle}"
+                                               AutomationProperties.AutomationId="PaletteVersionText"/>
+                                </Border>
+
+                                <!--
+                                    UX-4: filter box. The palette lists every slash command the CLI
+                                    reports - around fifty - and without a filter the only way to
+                                    reach one was to scroll and read. Filters the shared
+                                    SlashCommands view, so the list and its A-Z order stay one
+                                    source of truth (UX-5).
+                                -->
+                                <Border DockPanel.Dock="Top" BorderBrush="{StaticResource HairlineBrush}"
+                                        BorderThickness="0,0,0,1" Padding="8,6" Margin="0,0,0,2">
+                                    <Grid>
+                                        <TextBox x:Name="PaletteFilterBox" BorderThickness="0" Background="Transparent"
+                                                 Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                                 CaretBrush="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                                 FontSize="{StaticResource FontSizeBody}"
+                                                 TextChanged="OnPaletteFilterChanged"
+                                                 AutomationProperties.AutomationId="PaletteFilterBox"/>
+                                        <TextBlock Text="Filter actions…" IsHitTestVisible="False" Opacity="0.45"
+                                                   FontSize="{StaticResource FontSizeBody}"
+                                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Text, ElementName=PaletteFilterBox}" Value="">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Grid>
+                                </Border>
+
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                                 <StackPanel Margin="2,4">
                                     <TextBlock Text="THIS SESSION" Style="{StaticResource MenuSectionHeaderStyle}"/>
@@ -1402,20 +1658,16 @@
                                     <ItemsControl ItemsSource="{Binding SlashCommands}" ItemTemplate="{StaticResource SlashCommandMenuItemTemplate}"/>
                                 </StackPanel>
                             </ScrollViewer>
+                            </DockPanel>
                         </Border>
                     </Popup>
 
                     <Popup x:Name="ModelPopup" PlacementTarget="{Binding ElementName=ModelButton}"
                            Placement="Top" StaysOpen="False" AllowsTransparency="True"
                            AutomationProperties.AutomationId="ModelPopup">
-                        <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
-                                TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}"
-                                MinWidth="180" Margin="0,0,0,6">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="16" Opacity="0.3" ShadowDepth="2" Color="Black"/>
-                            </Border.Effect>
+                        <Border Style="{StaticResource PopupCardStyle}" MinWidth="300" MaxWidth="360">
                             <StackPanel Margin="2,4">
+                                <TextBlock Text="MODELS" Style="{StaticResource MenuSectionHeaderStyle}"/>
                                 <ItemsControl ItemsSource="{Binding Models}" ItemTemplate="{StaticResource ModelMenuItemTemplate}"/>
                             </StackPanel>
                         </Border>
@@ -1424,14 +1676,15 @@
                     <Popup x:Name="PermissionPopup" PlacementTarget="{Binding ElementName=PermissionButton}"
                            Placement="Top" StaysOpen="False" AllowsTransparency="True"
                            AutomationProperties.AutomationId="PermissionPopup">
-                        <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
-                                TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}"
-                                MinWidth="230" Margin="0,0,0,6">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="16" Opacity="0.3" ShadowDepth="2" Color="Black"/>
-                            </Border.Effect>
+                        <Border Style="{StaticResource PopupCardStyle}" MinWidth="320" MaxWidth="380">
                             <StackPanel Margin="2,4">
+                                <Grid>
+                                    <TextBlock Text="MODES" Style="{StaticResource MenuSectionHeaderStyle}"/>
+                                    <!-- UX-2: baseline's own hint wording, for a chord we really do handle. -->
+                                    <TextBlock Text="⇧ + tab to switch" Style="{StaticResource KeyHintStyle}"
+                                               HorizontalAlignment="Right" Margin="0,8,10,2"
+                                               AutomationProperties.AutomationId="PermissionCycleHint"/>
+                                </Grid>
                                 <ItemsControl ItemsSource="{Binding PermissionModes}" ItemTemplate="{StaticResource PermissionMenuItemTemplate}"/>
                             </StackPanel>
                         </Border>
@@ -1440,14 +1693,9 @@
                     <Popup x:Name="EffortPopup" PlacementTarget="{Binding ElementName=EffortButton}"
                            Placement="Top" StaysOpen="False" AllowsTransparency="True"
                            AutomationProperties.AutomationId="EffortPopup">
-                        <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
-                                TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}"
-                                MinWidth="180" Margin="0,0,0,6">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="16" Opacity="0.3" ShadowDepth="2" Color="Black"/>
-                            </Border.Effect>
+                        <Border Style="{StaticResource PopupCardStyle}" MinWidth="200">
                             <StackPanel Margin="2,4">
+                                <TextBlock Text="THINKING EFFORT" Style="{StaticResource MenuSectionHeaderStyle}"/>
                                 <ItemsControl ItemsSource="{Binding ThinkingLevels}" ItemTemplate="{StaticResource ThinkingMenuItemTemplate}"/>
                             </StackPanel>
                         </Border>
@@ -1456,13 +1704,7 @@
                     <Popup x:Name="AccountUsagePopup" PlacementTarget="{Binding ElementName=PaletteButton}"
                            Placement="Top" StaysOpen="False" AllowsTransparency="True"
                            AutomationProperties.AutomationId="AccountUsagePopup">
-                        <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
-                                TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}"
-                                MinWidth="340" MaxWidth="420" Margin="0,0,0,6">
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="16" Opacity="0.3" ShadowDepth="2" Color="Black"/>
-                            </Border.Effect>
+                        <Border Style="{StaticResource PopupCardStyle}" MinWidth="340" MaxWidth="420">
                             <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="480">
                                 <StackPanel Margin="14,10">
 

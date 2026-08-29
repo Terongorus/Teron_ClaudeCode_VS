@@ -38,6 +38,25 @@ namespace TeronClaudeCodeVS.Controls
             => throw new NotSupportedException();
     }
 
+    /// <summary>
+    /// UX-11: zero -> Visible, anything else -> Collapsed. Drives the new-session empty state off
+    /// Messages.Count, which ObservableCollection already raises PropertyChanged for, so no extra
+    /// view-model plumbing is needed to keep it in sync. Pass ConverterParameter="Invert" to flip.
+    /// </summary>
+    public sealed class CountToVisibilityConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            bool isEmpty = value is int count && count == 0;
+            if (string.Equals(parameter as string, "Invert", StringComparison.OrdinalIgnoreCase))
+                isEmpty = !isEmpty;
+            return isEmpty ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
+
     /// <summary>Visible when the two bound values are equal - used to mark the active item in the command menu.</summary>
     public sealed class EqualityToVisibilityConverter : IMultiValueConverter
     {

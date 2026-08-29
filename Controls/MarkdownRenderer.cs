@@ -3,9 +3,11 @@ using System;
 using System.Linq;
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Markup;
 using System.Windows.Media;
+using System.Windows.Threading;
 using System.Xml;
 
 namespace TeronClaudeCodeVS.Controls
@@ -132,6 +134,7 @@ namespace TeronClaudeCodeVS.Controls
             {
                 para.Background = s_codeBg;
                 ApplyDiffColors(para.Inlines);
+                AddCopyAffordance(para);
             }
 
             // Inline `code` spans can come through as a bare Run with its own Background rather
@@ -148,6 +151,89 @@ namespace TeronClaudeCodeVS.Controls
             // Walk inline containers (Span, Hyperlink, etc.) for nested runs.
             foreach (var inline in para.Inlines.OfType<Span>())
                 FixupSpan(inline);
+        }
+
+        /// <summary>
+        /// UX-8: gives each fenced code block its own copy button, as baseline does. The only
+        /// affordance we had was a single global "Copy Raw Output", which copies the entire
+        /// transcript - useless when the user wants one command out of a long answer.
+        /// <para>
+        /// A <see cref="Floater"/> is the FlowDocument-native way to park a control at the right
+        /// edge of a block; an InlineUIContainer would sit in the text flow and push the first
+        /// line of code sideways. The block's text is snapshotted at build time because the
+        /// document is rebuilt from scratch on every streaming update, so a stale closure is not
+        /// possible.
+        /// </para>
+        /// </summary>
+        private static void AddCopyAffordance(Paragraph para)
+        {
+            try
+            {
+                if (para.Inlines.FirstInline == null) return;
+
+                // Snapshot before inserting the floater, so the button's own label is not copied.
+                string code = new TextRange(para.ContentStart, para.ContentEnd).Text;
+                if (string.IsNullOrWhiteSpace(code)) return;
+
+                Button button = new Button
+                {
+                    Content = "Copy",
+                    FontSize = 10,
+                    Padding = new Thickness(5, 0, 5, 0),
+                    Margin = new Thickness(0),
+                    Background = Brushes.Transparent,
+                    BorderThickness = new Thickness(0),
+                    Cursor = System.Windows.Input.Cursors.Hand,
+                    Opacity = 0.55,
+                    ToolTip = "Copy this code block",
+                    Focusable = false,
+                };
+                button.SetResourceReference(Control.ForegroundProperty,
+                    Microsoft.VisualStudio.Shell.VsBrushes.ToolWindowTextKey);
+
+                button.MouseEnter += (_, __) => button.Opacity = 1.0;
+                button.MouseLeave += (_, __) => button.Opacity = 0.55;
+                button.Click += (_, __) => CopyToClipboard(button, code);
+
+                Floater floater = new Floater(new BlockUIContainer(button)
+                {
+                    Margin = new Thickness(0),
+                    Padding = new Thickness(0),
+                })
+                {
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Width = 46,
+                    Margin = new Thickness(0),
+                    Padding = new Thickness(0),
+                    BorderThickness = new Thickness(0),
+                };
+
+                para.Inlines.InsertBefore(para.Inlines.FirstInline, floater);
+            }
+            catch
+            {
+                // A missing copy button must never cost the user the code block itself.
+            }
+        }
+
+        private static void CopyToClipboard(Button button, string code)
+        {
+            try
+            {
+                Clipboard.SetText(code);
+                button.Content = "Copied";
+
+                // Revert the label so the button does not read "Copied" forever on a block the
+                // user copied ten minutes ago.
+                DispatcherTimer timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
+                timer.Tick += (_, __) => { timer.Stop(); button.Content = "Copy"; };
+                timer.Start();
+            }
+            catch
+            {
+                // Another process can hold the clipboard open; say so rather than failing silently.
+                button.Content = "Failed";
+            }
         }
 
         private static void FixupSpan(Span span)

@@ -235,6 +235,14 @@ namespace TeronClaudeCodeVS.ViewModels
         public string Summary { get; }
 
         /// <summary>
+        /// UX-3: the full, unabbreviated path the call would touch, or null for tools that act on
+        /// no single file. <see cref="Summary"/> deliberately abbreviates ("…/Core/Foo.cs") to stay
+        /// readable in a narrow tool window; an approval prompt is the one place where the user
+        /// must be able to see exactly which file on disk is at stake before saying yes.
+        /// </summary>
+        public string? FullPath { get; }
+
+        /// <summary>
         /// Line-level diff for Edit/NotebookEdit calls; null for everything else. Consumed by
         /// DiffViewer, same as ToolCallViewModel.RawDiff - keeps the pending-approval card and the
         /// resolved tool-call card showing an identical diff instead of two different renderers.
@@ -260,19 +268,46 @@ namespace TeronClaudeCodeVS.ViewModels
             private set => SetField(ref _resolutionText, value);
         }
 
+        /// <summary>
+        /// UX-3: free text the user can type instead of a bare Deny - "don't edit that file, add a
+        /// new one instead". Sent as the deny message, which the CLI surfaces to Claude verbatim,
+        /// so the turn continues with the correction rather than dead-ending on a refusal.
+        /// </summary>
+        private string _redirectText = "";
+        public string RedirectText
+        {
+            get => _redirectText;
+            set => SetField(ref _redirectText, value);
+        }
+
+        private bool _isRedirectVisible;
+        public bool IsRedirectVisible
+        {
+            get => _isRedirectVisible;
+            set => SetField(ref _isRedirectVisible, value);
+        }
+
         public ICommand AllowCommand { get; }
         public ICommand AllowForSessionCommand { get; }
         public ICommand DenyCommand { get; }
 
+        /// <summary>Reveals the redirect box; a second invoke hides it again.</summary>
+        public ICommand ToggleRedirectCommand { get; }
+
+        /// <summary>Denies the call, passing <see cref="RedirectText"/> as the reason.</summary>
+        public ICommand SendRedirectCommand { get; }
+
         /// <summary>
-        /// The respond callback receives (allow, forSession). When forSession is true the caller
-        /// should remember the approval so future requests from the same tool are auto-allowed.
+        /// The respond callback receives (allow, forSession, denyMessage). When forSession is true
+        /// the caller should remember the approval so future requests from the same tool are
+        /// auto-allowed. denyMessage is null unless the user redirected instead of plainly denying.
         /// </summary>
-        public PermissionRequestViewModel(string toolName, string title, JObject input, Func<bool, bool, Task> respond)
+        public PermissionRequestViewModel(string toolName, string title, JObject input, Func<bool, bool, string?, Task> respond)
         {
             ToolName = toolName;
             Title = title;
             Summary = ToolPresentation.GetSummary(toolName, input);
+            FullPath = ToolPresentation.GetFullPath(toolName, input);
 
             RawDiff = ToolPresentation.GetRawDiff(toolName, input);
 
@@ -280,17 +315,39 @@ namespace TeronClaudeCodeVS.ViewModels
             string? detail = RawDiff == null ? ToolPresentation.GetDetailMarkdown(toolName, input, null, false) : null;
             DetailDocument = detail != null ? MarkdownRenderer.Render(detail) : null;
 
-            AllowCommand = new RelayCommand(() => Resolve(true, false, respond), () => !IsResolved);
-            AllowForSessionCommand = new RelayCommand(() => Resolve(true, true, respond), () => !IsResolved);
-            DenyCommand = new RelayCommand(() => Resolve(false, false, respond), () => !IsResolved);
+            AllowCommand = new RelayCommand(() => Resolve(true, false, null, respond), () => !IsResolved);
+            AllowForSessionCommand = new RelayCommand(() => Resolve(true, true, null, respond), () => !IsResolved);
+            DenyCommand = new RelayCommand(() => Resolve(false, false, null, respond), () => !IsResolved);
+
+            ToggleRedirectCommand = new RelayCommand(() => IsRedirectVisible = !IsRedirectVisible, () => !IsResolved);
+            SendRedirectCommand = new RelayCommand(
+                () => Resolve(false, false, RedirectText.Trim(), respond),
+                () => !IsResolved && !string.IsNullOrWhiteSpace(RedirectText));
         }
 
-        private void Resolve(bool allow, bool forSession, Func<bool, bool, Task> respond)
+        /// <summary>Number-key and Esc handling for the pending card (UX-3). Returns true if the key was consumed.</summary>
+        public bool TryHandleShortcut(int oneBasedChoice)
+        {
+            if (IsResolved) return false;
+
+            switch (oneBasedChoice)
+            {
+                case 1: AllowCommand.Execute(null); return true;
+                case 2: AllowForSessionCommand.Execute(null); return true;
+                case 3: DenyCommand.Execute(null); return true;
+                default: return false;
+            }
+        }
+
+        private void Resolve(bool allow, bool forSession, string? denyMessage, Func<bool, bool, string?, Task> respond)
         {
             if (IsResolved) return;
             IsResolved = true;
-            ResolutionText = allow ? (forSession ? "Allowed for this session" : "Allowed") : "Denied";
-            _ = respond(allow, forSession);
+            IsRedirectVisible = false;
+            ResolutionText = allow
+                ? (forSession ? "Allowed for this session" : "Allowed")
+                : (denyMessage != null ? $"Redirected: {denyMessage}" : "Denied");
+            _ = respond(allow, forSession, denyMessage);
         }
     }
 

@@ -84,6 +84,14 @@ namespace TeronClaudeCodeVS.Core
                     options.McpConfigPaths, options.StrictMcpConfig);
             }
 
+            // UX-6: resolved before the first await in this handler. The call touches DTE, which
+            // is main-thread-only; WPF raises Loaded on the UI thread and nothing above this point
+            // awaits, so we are on it. The analyzer cannot see that through an async void handler,
+            // hence the local suppression rather than a redundant thread switch.
+#pragma warning disable VSTHRD010
+            ApplyFocusShortcutHint();
+#pragma warning restore VSTHRD010
+
             MessageList.AddHandler(
                 UIElement.MouseWheelEvent,
                 new MouseWheelEventHandler(OnMessageListMouseWheel),
@@ -346,7 +354,63 @@ namespace TeronClaudeCodeVS.Core
         {
             bool willOpen = !PalettePopup.IsOpen;
             CloseAllMenuPopups();
+
+            // UX-4: open on the unfiltered list. Carrying the previous filter forward would show
+            // an apparently empty palette to someone who does not remember typing it.
+            if (willOpen && PaletteFilterBox.Text.Length > 0)
+                PaletteFilterBox.Text = "";
+
             PalettePopup.IsOpen = willOpen;
+        }
+
+        /// <summary>
+        /// UX-4: live-filters the palette's command list. Filters the default view of the
+        /// view model's SlashCommands collection rather than a private copy, so the palette keeps
+        /// the single A-Z ordering established in OnSessionInitialized (UX-5).
+        /// </summary>
+        private void OnPaletteFilterChanged(object sender, TextChangedEventArgs e)
+        {
+            ICollectionView view = CollectionViewSource.GetDefaultView(_vm.SlashCommands);
+            if (view == null) return;
+
+            string filter = PaletteFilterBox.Text.Trim();
+            view.Filter = filter.Length == 0
+                ? null
+                : o => o is string command
+                       && command.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        /// <summary>
+        /// UX-6: writes the input placeholder's focus hint from the binding Visual Studio actually
+        /// holds for the tool-window command, rather than hard-coding the chord declared in
+        /// Menus.vsct. A user who rebinds it, or a binding that failed to register, would otherwise
+        /// leave the UI advertising a shortcut that does nothing.
+        /// </summary>
+        private void ApplyFocusShortcutHint()
+        {
+            try
+            {
+                ThreadHelper.ThrowIfNotOnUIThread();
+
+                EnvDTE.DTE? dte = Package.GetGlobalService(typeof(EnvDTE.DTE)) as EnvDTE.DTE;
+                EnvDTE.Command? command = dte?.Commands?.Item(
+                    TeronClaudeCodeVS.Commands.GuidList.guidClaudeCodeCmdSet.ToString("B"),
+                    (int)TeronClaudeCodeVS.Commands.PkgCmdIDList.cmdidClaudeCodeWindow);
+                if (command?.Bindings is not object[] bindings) return;
+
+                // Bindings look like "Global::Ctrl+Alt+C" or "Text Editor::Ctrl+Alt+C".
+                string? chord = bindings
+                    .OfType<string>()
+                    .Select(b => b.Contains("::") ? b.Substring(b.IndexOf("::", StringComparison.Ordinal) + 2) : b)
+                    .FirstOrDefault(b => !string.IsNullOrWhiteSpace(b));
+
+                if (!string.IsNullOrWhiteSpace(chord))
+                    InputPlaceholder.Text = $"Ask Claude anything\u2026  ({chord} to focus)";
+            }
+            catch
+            {
+                // The plain placeholder set in XAML is a perfectly good fallback.
+            }
         }
 
         private void OnModelMenuClicked(object sender, RoutedEventArgs e)
@@ -543,6 +607,45 @@ namespace TeronClaudeCodeVS.Core
                     e.Handled = true;
                     return;
                 }
+            }
+
+            // UX-3: while an approval card is waiting and the user has not started typing a
+            // message, the number keys answer it and Esc denies it - matching baseline's
+            // `1 Yes / 2 Yes, allow all edits / 3 No` plus `Esc to cancel`. Gating on an empty
+            // input box means a message that legitimately starts with "1" is never swallowed.
+            PermissionRequestViewModel? pending = _vm.PendingPermissionRequest;
+            if (pending != null && !pending.IsResolved && InputBox.Text.Length == 0
+                && Keyboard.Modifiers == ModifierKeys.None)
+            {
+                int choice = e.Key switch
+                {
+                    Key.D1 or Key.NumPad1 => 1,
+                    Key.D2 or Key.NumPad2 => 2,
+                    Key.D3 or Key.NumPad3 => 3,
+                    _ => 0,
+                };
+
+                if (choice != 0 && pending.TryHandleShortcut(choice))
+                {
+                    e.Handled = true;
+                    return;
+                }
+
+                if (e.Key == Key.Escape)
+                {
+                    pending.DenyCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                }
+            }
+
+            // UX-2: Shift+Tab cycles permission modes, as baseline does. Placed after the picker
+            // popups so Tab keeps its existing accept-completion meaning while one is open.
+            if (e.Key == Key.Tab && Keyboard.Modifiers == ModifierKeys.Shift)
+            {
+                _vm.CycleToNextPermissionMode();
+                e.Handled = true;
+                return;
             }
 
             bool isSendChord = _sendOnCtrlEnter
@@ -818,7 +921,8 @@ namespace TeronClaudeCodeVS.Core
                         thumbnail.EndInit();
                     }
                     thumbnail.Freeze();
-                    _vm.AddPendingImage(Convert.ToBase64String(bytes), thumbnail);
+                    // UX-9: the chip shows the real file name for a drop, not "Pasted image".
+                    _vm.AddPendingImage(Convert.ToBase64String(bytes), thumbnail, fileName);
                 }
                 else if (string.Equals(ext, "pdf", StringComparison.OrdinalIgnoreCase))
                 {

@@ -63,6 +63,20 @@ namespace TeronClaudeCodeVS.ViewModels
             return toolName;
         }
 
+        /// <summary>
+        /// UX-3: the unabbreviated path a call would act on, or null when the tool targets no
+        /// single file. Only used by the permission card - everywhere else the shortened form in
+        /// <see cref="GetSummary"/> is the right trade-off, but an approval prompt must not hide
+        /// which file is about to change.
+        /// </summary>
+        public static string? GetFullPath(string toolName, JObject? input)
+        {
+            if (input == null) return null;
+
+            string? path = toolName == "NotebookEdit" ? S(input, "notebook_path") : S(input, "file_path");
+            return string.IsNullOrWhiteSpace(path) ? null : path;
+        }
+
         public static string GetSummary(string toolName, JObject? input)
         {
             input ??= [];
