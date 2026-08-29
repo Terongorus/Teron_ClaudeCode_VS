@@ -1,4 +1,4 @@
-using TeronClaudeCodeVS.Controls;
+﻿using TeronClaudeCodeVS.Controls;
 using TeronClaudeCodeVS.Protocol;
 using Newtonsoft.Json.Linq;
 using System;
@@ -622,5 +622,142 @@ namespace TeronClaudeCodeVS.ViewModels
             Text = text;
             RetryCommand = new RelayCommand(onRetry);
         }
+    }
+    /// <summary>
+    /// A two-choice card with numbered actions, used wherever we need an in-chat yes/no that is
+    /// not a tool-permission prompt: the GAP-1 terminal hand-off cards, and the confirmations in
+    /// front of the two outward-facing GAP-3 commands (`/feedback`, which uploads the transcript
+    /// to Anthropic, and `/remote-control`, which exposes the session at claude.ai/code). Both of
+    /// those leave this machine, so neither fires on the command alone.
+    ///
+    /// Deliberately shares the permission card's visual language and its numbered-shortcut
+    /// convention (UX-3/UX-12) rather than inventing a third card shape.
+    /// </summary>
+    public sealed class ChoiceCardViewModel : ContentBlockViewModel
+    {
+        private readonly Func<bool, Task<string>> _onChoice;
+
+        public string Title { get; }
+        public string Description { get; }
+
+        /// <summary>Optional monospace line under the description - e.g. the command about to run.</summary>
+        public string? Detail { get; }
+
+        public string PrimaryLabel { get; }
+        public string SecondaryLabel { get; }
+
+        public ICommand PrimaryCommand { get; }
+        public ICommand SecondaryCommand { get; }
+
+        /// <summary>Raised once, when either action is taken. Lets the session drop its
+        /// "currently pending" reference without polling the whole message list.</summary>
+        public event EventHandler? Resolved;
+
+        private bool _isResolved;
+        public bool IsResolved
+        {
+            get => _isResolved;
+            private set => SetField(ref _isResolved, value);
+        }
+
+        private string _resolutionText = "";
+        public string ResolutionText
+        {
+            get => _resolutionText;
+            private set => SetField(ref _resolutionText, value);
+        }
+
+        public ChoiceCardViewModel(string title, string description, string? detail,
+            string primaryLabel, string secondaryLabel, Func<bool, Task<string>> onChoice)
+        {
+            Title = title;
+            Description = description;
+            Detail = detail;
+            PrimaryLabel = primaryLabel;
+            SecondaryLabel = secondaryLabel;
+            _onChoice = onChoice;
+            PrimaryCommand = new RelayCommand(() => Choose(true));
+            SecondaryCommand = new RelayCommand(() => Choose(false));
+        }
+
+        /// <summary>Handles the `1`/`2` keys while this card is the pending one. See UX-3.</summary>
+        public bool TryHandleShortcut(int oneBasedChoice)
+        {
+            if (IsResolved)
+                return false;
+
+            if (oneBasedChoice == 1) { Choose(true); return true; }
+            if (oneBasedChoice == 2) { Choose(false); return true; }
+            return false;
+        }
+
+        private void Choose(bool accepted)
+        {
+            if (IsResolved)
+                return;
+
+            // Collapse the buttons immediately - the action may take a round trip (feedback
+            // upload, remote-control bridge handshake) and a still-live button would invite a
+            // second click that sends the whole thing twice.
+            IsResolved = true;
+            // Declining resolves synchronously below, so only the accept path ever shows this.
+            ResolutionText = accepted ? "Working…" : "";
+            Resolved?.Invoke(this, EventArgs.Empty);
+
+            _ = RunAsync(accepted);
+        }
+
+        private async Task RunAsync(bool accepted)
+        {
+            try
+            {
+                ResolutionText = await _onChoice(accepted).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                ResolutionText = ex.Message;
+            }
+        }
+    }
+
+    /// <summary>
+    /// GAP-3 `/btw`: a quick side question answered without disturbing the main conversation.
+    /// Backed by the CLI's own `side_question` control request, so the answer sees the current
+    /// session's context but adds nothing to its transcript.
+    /// </summary>
+    public sealed class SideQuestionViewModel : ContentBlockViewModel, IMarkdownContent
+    {
+        public string Question { get; }
+
+        private string _answer = "";
+        public string Answer
+        {
+            get => _answer;
+            set
+            {
+                if (SetField(ref _answer, value))
+                {
+                    OnPropertyChanged(nameof(Document));
+                    OnPropertyChanged(nameof(HasAnswer));
+                }
+            }
+        }
+
+        public bool HasAnswer => !string.IsNullOrEmpty(_answer);
+
+        public FlowDocument Document => MarkdownRenderer.Render(_answer);
+
+        /// <summary>
+        /// Progress or failure line. Null once a real answer has arrived - the template hides it
+        /// on null, so this must be nulled rather than blanked or the card keeps an empty row.
+        /// </summary>
+        private string? _statusText = "Asking…";
+        public string? StatusText
+        {
+            get => _statusText;
+            set => SetField(ref _statusText, value);
+        }
+
+        public SideQuestionViewModel(string question) => Question = question;
     }
 }

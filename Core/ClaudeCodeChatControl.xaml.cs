@@ -1,4 +1,4 @@
-using TeronClaudeCodeVS.ViewModels;
+﻿using TeronClaudeCodeVS.ViewModels;
 using Community.VisualStudio.Toolkit;
 using Microsoft.VisualStudio;
 using Microsoft.VisualStudio.Shell;
@@ -530,6 +530,26 @@ namespace TeronClaudeCodeVS.Core
             Keyboard.Focus(InputBox);
         }
 
+        /// <summary>GAP-1: one of the five Customize rows was picked - show its hand-off card.</summary>
+        private void OnTerminalHandoffClicked(object sender, RoutedEventArgs e)
+        {
+            PalettePopup.IsOpen = false;
+
+            if (((FrameworkElement)sender).DataContext is TerminalHandoffEntry entry)
+                _vm.ShowTerminalHandoff(entry);
+        }
+
+        /// <summary>
+        /// GAP-2: launch the CLI interactively with no initial command. Reports the outcome in
+        /// the transcript either way - a terminal that silently failed to open would otherwise
+        /// look identical to one that opened behind the IDE window.
+        /// </summary>
+        private void OnOpenInTerminalClicked(object sender, RoutedEventArgs e)
+        {
+            PalettePopup.IsOpen = false;
+            _vm.AddSystemNotice(_vm.OpenInTerminal(null), isError: false);
+        }
+
 #pragma warning disable VSTHRD100
         private async void OnSendClicked(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100
@@ -555,8 +575,60 @@ namespace TeronClaudeCodeVS.Core
                 return;
             }
 
+            if (await TryHandleExtensionCommandAsync(trimmed))
+                return;
+
             InputBox.Clear();
             await _vm.SendMessageAsync(text);
+        }
+
+        /// <summary>
+        /// GAP-3. Runs the three commands baseline injects rather than passes through, so typing
+        /// them does what it does in baseline instead of being sent to the model as prose.
+        ///
+        /// Measured 2026-08-29 against the shipped CLI (v2.1.251): its headless `init` event
+        /// lists 50 slash commands and none of these is among them, which is what settled GAP-3's
+        /// open question - they are extension-injected, and had to be built. All three ride the
+        /// CLI's own control-request channel; see ChatSessionViewModel for the protocol side.
+        /// </summary>
+        private async Task<bool> TryHandleExtensionCommandAsync(string trimmed)
+        {
+            if (trimmed.Length == 0 || trimmed[0] != '/')
+                return false;
+
+            int split = trimmed.IndexOf(' ');
+            string name = (split < 0 ? trimmed.Substring(1) : trimmed.Substring(1, split - 1)).ToLowerInvariant();
+            string rest = split < 0 ? "" : trimmed.Substring(split + 1).Trim();
+
+            switch (name)
+            {
+                case "btw":
+                    if (rest.Length == 0)
+                    {
+                        // Baseline's own argumentHint for this command is "[question]".
+                        _vm.AddSystemNotice("Ask the question after the command, e.g. /btw what does this repo use for logging?", isError: true);
+                        InputBox.Clear();
+                        return true;
+                    }
+                    InputBox.Clear();
+                    await _vm.AskSideQuestionAsync(rest);
+                    return true;
+
+                case "feedback":
+                    InputBox.Clear();
+                    _vm.StartFeedback(rest);
+                    return true;
+
+                // "rc" is baseline's own alias for this command.
+                case "remote-control":
+                case "rc":
+                    InputBox.Clear();
+                    _vm.ToggleRemoteControl();
+                    return true;
+
+                default:
+                    return false;
+            }
         }
 
 #pragma warning disable VSTHRD100
@@ -634,6 +706,33 @@ namespace TeronClaudeCodeVS.Core
                 if (e.Key == Key.Escape)
                 {
                     pending.DenyCommand.Execute(null);
+                    e.Handled = true;
+                    return;
+                }
+            }
+
+            // GAP-1/GAP-3: the same 1/2 convention for the two-choice cards, under the same
+            // empty-input gate. Checked after the permission card so an approval - which is
+            // blocking the agent - always wins the number keys.
+            ChoiceCardViewModel? pendingCard = _vm.PendingChoiceCard;
+            if (pendingCard != null && InputBox.Text.Length == 0 && Keyboard.Modifiers == ModifierKeys.None)
+            {
+                int pick = e.Key switch
+                {
+                    Key.D1 or Key.NumPad1 => 1,
+                    Key.D2 or Key.NumPad2 => 2,
+                    _ => 0,
+                };
+
+                if (pick != 0 && pendingCard.TryHandleShortcut(pick))
+                {
+                    e.Handled = true;
+                    return;
+                }
+
+                if (e.Key == Key.Escape)
+                {
+                    pendingCard.SecondaryCommand.Execute(null);
                     e.Handled = true;
                     return;
                 }

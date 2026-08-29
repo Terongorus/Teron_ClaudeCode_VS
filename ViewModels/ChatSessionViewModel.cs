@@ -1,4 +1,4 @@
-using TeronClaudeCodeVS.Core;
+﻿using TeronClaudeCodeVS.Core;
 using TeronClaudeCodeVS.Protocol;
 using Newtonsoft.Json.Linq;
 using System;
@@ -197,6 +197,9 @@ namespace TeronClaudeCodeVS.ViewModels
 
         public ObservableCollection<ChatMessageViewModel> Messages { get; } = [];
         public ObservableCollection<string> SlashCommands { get; } = [];
+
+        /// <summary>GAP-1: the five "Customize" rows in the palette. Static - never changes.</summary>
+        public IReadOnlyList<TerminalHandoffEntry> TerminalHandoffs => TerminalHandoffCatalog.Entries;
         public ObservableCollection<string> RawOutput { get; } = [];
         public ObservableCollection<SessionHistoryEntry> SessionHistory { get; } = [];
 
@@ -806,7 +809,10 @@ namespace TeronClaudeCodeVS.ViewModels
             // ~50-entry list. Sorting here rather than in the view keeps the palette and the "/"
             // autocomplete - which both bind this one collection - in the same order.
             SlashCommands.Clear();
-            foreach (var cmd in init.SlashCommands.OrderBy(c => c, StringComparer.OrdinalIgnoreCase))
+            foreach (var cmd in init.SlashCommands
+                         .Concat(ExtensionSlashCommands)
+                         .Distinct(StringComparer.OrdinalIgnoreCase)
+                         .OrderBy(c => c, StringComparer.OrdinalIgnoreCase))
                 SlashCommands.Add(cmd);
 
             StatusText = "Ready";
@@ -838,6 +844,268 @@ namespace TeronClaudeCodeVS.ViewModels
         {
             string freed = e.TokensFreed.HasValue ? FormatTokenCount(e.TokensFreed.Value) : "some";
             AddSystemNotice($"Compacted chat · {e.Trigger} · {freed} tokens freed", isError: false);
+        }
+
+        /// <summary>
+        /// GAP-3. The three commands baseline offers that the CLI does not: measured against the
+        /// shipped binary (v2.1.251) on 2026-08-29, its headless `init` event lists 50 slash
+        /// commands and none of these is among them, so they are injected by the *extension*, not
+        /// passed through. That answers GAP-3's open question - they had to be implemented, and
+        /// all three turned out to be backed by real control-request subtypes the CLI itself
+        /// handles (`side_question`, `submit_feedback`, `remote_control`) rather than by anything
+        /// proprietary to VS Code.
+        ///
+        /// `rc` is baseline's own alias for `remote-control` and is intercepted too, but is left
+        /// out of the palette so the list does not carry the same action twice.
+        /// </summary>
+        public static IReadOnlyList<string> ExtensionSlashCommands { get; } =
+            ["btw", "feedback", "remote-control"];
+
+        /// <summary>Descriptions for the injected commands - baseline's own wording.</summary>
+        public static string? DescribeExtensionCommand(string name) => name switch
+        {
+            "btw" => "Ask a quick side question without interrupting the main conversation",
+            "feedback" => "Send feedback to Anthropic or report a bug",
+            "remote-control" => "View and control this session from claude.ai/code",
+            _ => null,
+        };
+
+        /// <summary>True once `/remote-control` has successfully enabled the bridge.</summary>
+        private bool _remoteControlEnabled;
+
+        /// <summary>
+        /// GAP-1. Shows the terminal hand-off card for one catalog entry. Nothing launches until
+        /// the user picks "Continue in Terminal".
+        /// </summary>
+        public void ShowTerminalHandoff(TerminalHandoffEntry entry)
+        {
+            var card = new ChoiceCardViewModel(
+                entry.DialogTitle,
+                entry.DialogDescription,
+                "claude " + entry.SlashCommand,
+                "1  Continue in Terminal",
+                "2  Never mind",
+                accepted => Task.FromResult(accepted
+                    ? OpenInTerminal(entry.SlashCommand)
+                    : "Never mind."));
+
+            AddCard(card);
+        }
+
+        /// <summary>GAP-2. Opens an interactive CLI session, optionally pre-typing a command.</summary>
+        public string OpenInTerminal(string? initialPrompt)
+        {
+            string? error = TerminalLauncher.OpenClaude(_claudePath, _workingDirectory, initialPrompt);
+            if (error != null)
+                return error;
+
+            return initialPrompt == null
+                ? "Opened Claude in a terminal."
+                : "Opened Claude in a terminal running " + initialPrompt + ".";
+        }
+
+        /// <summary>
+        /// GAP-3 `/btw`. Asks a side question over the CLI's own `side_question` control request,
+        /// so the answer sees this session's context without being added to its transcript.
+        /// </summary>
+        public async Task AskSideQuestionAsync(string question)
+        {
+            if (_session == null || !_session.IsRunning)
+            {
+                AddSystemNotice("/btw needs a running session - send a message first.", isError: true);
+                return;
+            }
+
+            var block = new SideQuestionViewModel(question);
+            AddCard(block);
+
+            ControlResponseEvent? response = await _session.SendSideQuestionAsync(question).ConfigureAwait(true);
+
+            if (response == null)
+            {
+                block.StatusText = "No answer came back before the request timed out.";
+                return;
+            }
+
+            if (!response.IsSuccess)
+            {
+                block.StatusText = response.Error ?? "The side question was rejected.";
+                return;
+            }
+
+            string answer = response.Response.Value<string>("response") ?? "";
+            if (string.IsNullOrWhiteSpace(answer))
+            {
+                block.StatusText = "The side question returned an empty answer.";
+                return;
+            }
+
+            block.StatusText = null;
+            block.Answer = answer;
+        }
+
+        /// <summary>
+        /// GAP-3 `/feedback`. Confirms first: the CLI attaches this session's transcript to the
+        /// report and uploads it to Anthropic, which leaves the machine and cannot be undone, so
+        /// it never fires on the command alone.
+        /// </summary>
+        public void StartFeedback(string description)
+        {
+            if (_session == null || !_session.IsRunning)
+            {
+                AddSystemNotice("/feedback needs a running session - send a message first.", isError: true);
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(description))
+            {
+                AddSystemNotice(
+                    "Describe the problem after the command, e.g. /feedback the diff view scrolls to the top on every edit.",
+                    isError: true);
+                return;
+            }
+
+            string report = description.Trim();
+
+            var card = new ChoiceCardViewModel(
+                "Send this feedback to Anthropic?",
+                "Your description is uploaded together with this session's transcript. Do not send anything you would not want shared.",
+                report,
+                "1  Send feedback",
+                "2  Never mind",
+                async accepted =>
+                {
+                    if (!accepted)
+                        return "Never mind.";
+
+                    ControlResponseEvent? response =
+                        await _session.SubmitFeedbackAsync(report).ConfigureAwait(true);
+
+                    if (response == null)
+                        return "No response came back before the request timed out - nothing was sent.";
+                    if (!response.IsSuccess)
+                        return response.Error ?? "The feedback request was rejected.";
+
+                    string? unavailable = response.Response.Value<string>("unavailable_reason");
+                    if (!string.IsNullOrEmpty(unavailable))
+                        return "Feedback is unavailable: " + unavailable;
+
+                    string? id = response.Response.Value<string>("feedback_id");
+                    if (string.IsNullOrEmpty(id))
+                    {
+                        string? reason = response.Response.Value<string>("failure_reason");
+                        return "Feedback could not be sent" + (string.IsNullOrEmpty(reason) ? "." : ": " + reason);
+                    }
+
+                    return "Feedback sent - reference " + id;
+                });
+
+            AddCard(card);
+        }
+
+        /// <summary>
+        /// GAP-3 `/remote-control`. Confirms first when turning the bridge ON: it publishes this
+        /// session to claude.ai/code, where it can be driven from another device. Turning it back
+        /// off only reduces exposure, so that direction is not gated.
+        /// </summary>
+        public void ToggleRemoteControl()
+        {
+            if (_session == null || !_session.IsRunning)
+            {
+                AddSystemNotice("/remote-control needs a running session - send a message first.", isError: true);
+                return;
+            }
+
+            if (_remoteControlEnabled)
+            {
+                _ = ApplyRemoteControlAsync(false);
+                return;
+            }
+
+            var card = new ChoiceCardViewModel(
+                "Enable Remote Control for this session?",
+                "This session becomes visible and drivable from claude.ai/code on any device signed in to your account. Run /remote-control again to turn it off.",
+                null,
+                "1  Enable Remote Control",
+                "2  Never mind",
+                async accepted =>
+                {
+                    if (!accepted)
+                        return "Never mind.";
+                    return await ApplyRemoteControlAsync(true).ConfigureAwait(true);
+                });
+
+            AddCard(card);
+        }
+
+        private async Task<string> ApplyRemoteControlAsync(bool enable)
+        {
+            ControlResponseEvent? response =
+                await _session!.SetRemoteControlAsync(enable).ConfigureAwait(true);
+
+            if (response == null)
+            {
+                const string timeout = "Remote Control did not respond before the request timed out.";
+                if (!enable)
+                    AddSystemNotice(timeout, isError: true);
+                return timeout;
+            }
+
+            if (!response.IsSuccess)
+            {
+                // Baseline's own wording for a failed bridge.
+                string error = "Remote Control error: " + (response.Error ?? "unknown") +
+                               " \u00b7 Run /remote-control to dismiss";
+                if (!enable)
+                    AddSystemNotice(error, isError: true);
+                return error;
+            }
+
+            _remoteControlEnabled = enable;
+
+            if (!enable)
+            {
+                const string off = "Remote Control disabled.";
+                AddSystemNotice(off, isError: false);
+                return off;
+            }
+
+            string? url = response.Response.Value<string>("session_url");
+            return "Remote Control is active \u00b7 Continue here, on your phone, or at " +
+                   (string.IsNullOrEmpty(url) ? "claude.ai/code" : url);
+        }
+
+        /// <summary>
+        /// Appends a standalone card to the transcript as its own system-role message, so it sits
+        /// between turns instead of attaching to whatever the assistant last said.
+        /// </summary>
+        private void AddCard(ContentBlockViewModel block)
+        {
+            if (block is ChoiceCardViewModel card)
+            {
+                PendingChoiceCard = card;
+                card.Resolved += (_, _) =>
+                {
+                    if (ReferenceEquals(PendingChoiceCard, card))
+                        PendingChoiceCard = null;
+                };
+            }
+
+            var message = new ChatMessageViewModel(ChatRole.System);
+            message.Blocks.Add(block);
+            Messages.Add(message);
+        }
+
+        /// <summary>
+        /// The unresolved choice card, if one is showing - what the 1/2 keys answer. Tracked as a
+        /// field rather than found by walking the transcript, because the key handler consults it
+        /// on every keystroke in the input box. Mirrors PendingPermissionRequest.
+        /// </summary>
+        private ChoiceCardViewModel? _pendingChoiceCard;
+        public ChoiceCardViewModel? PendingChoiceCard
+        {
+            get => _pendingChoiceCard;
+            private set => SetField(ref _pendingChoiceCard, value);
         }
 
         /// <summary>

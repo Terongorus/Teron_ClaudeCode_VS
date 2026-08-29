@@ -1,4 +1,4 @@
-using TeronClaudeCodeVS.ViewModels;
+﻿using TeronClaudeCodeVS.ViewModels;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -19,6 +19,12 @@ namespace TeronClaudeCodeVS.Controls
         public DataTemplate? InterruptedTemplate { get; set; }
         public DataTemplate? RetryTemplate { get; set; }
 
+        /// <summary>GAP-1 / GAP-3: the shared two-choice card (terminal hand-off, confirmations).</summary>
+        public DataTemplate? ChoiceCardTemplate { get; set; }
+
+        /// <summary>GAP-3: the `/btw` side-question answer.</summary>
+        public DataTemplate? SideQuestionTemplate { get; set; }
+
         public override DataTemplate? SelectTemplate(object item, DependencyObject container)
         {
             return item switch
@@ -34,6 +40,8 @@ namespace TeronClaudeCodeVS.Controls
                 ResultFooterViewModel => ResultTemplate,
                 InterruptedBlockViewModel => InterruptedTemplate,
                 RetryNoticeViewModel => RetryTemplate,
+                ChoiceCardViewModel => ChoiceCardTemplate,
+                SideQuestionViewModel => SideQuestionTemplate,
                 _ => base.SelectTemplate(item, container)
             };
         }

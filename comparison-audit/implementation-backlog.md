@@ -1,4 +1,4 @@
-# Implementation backlog — Teron_ClaudeCode_VS, derived from the baseline audit
+﻿# Implementation backlog — Teron_ClaudeCode_VS, derived from the baseline audit
 
 This is [`feature-matrix.md`](feature-matrix.md) **inverted for planning**. The matrix is organised
 for auditing (by feature area, baseline vs. ours). This file is organised by **work item**: what to
@@ -51,6 +51,9 @@ Updated as each phase of the Phase 7 parity build lands on `dev`. Commit SHAs ar
 | **UX-10** | ✅ done | C | `v0.3.0` in the palette footer, read from the shipped VSIX manifest. |
 | **UX-11** | ✅ done | C | Designed empty state on a new session. |
 | **UX-12** | ✅ done | C | One `PopupCardStyle` behind every popup, plus shared hint/footer styles. |
+| **GAP-1** | ✅ done | D | Five hand-off cards, baseline's wording verbatim; each launches `claude /<key>` on confirm. |
+| **GAP-2** | ✅ done | D | Launches Windows Terminal in the solution directory. External, not in-frame — see below. |
+| **GAP-3** | ✅ done | D | Measured extension-injected, then built: `/btw`, `/feedback`, `/remote-control` (+ `/rc`). |
 
 **ST-4 measurement (Phase B, VS 18 Experimental instance, 2026-08-29).** Sampled from
 `PrintWindow` captures, not judged by eye:
@@ -150,6 +153,105 @@ written as `<Setter Property="FontSize" Value="11"/>` rather than as attributes.
 rule now genuinely holds across the file.
 
 ---
+
+### Phase D notes (2026-08-29)
+
+**GAP-3 is answered, and the answer was "implement".** The item asked us to determine whether the
+three missing commands are CLI-provided (a passthrough bug) or extension-injected (real work).
+Measured directly against the shipped CLI binary (v2.1.251) by running it in the same
+`-p --input-format stream-json` mode this extension uses and reading the `init` event: it lists
+**50** slash commands, and `btw`, `feedback` and `remote-control` are **not among them**. They are
+injected by the official extension. So all three had to be built.
+
+What made them cheap was the second half of that investigation: none of the three is proprietary
+to VS Code. Each is backed by a **control-request subtype the CLI itself handles**, on the same
+stdin/stdout channel this extension already speaks for interrupts and permission responses
+— `side_question`, `submit_feedback`, and `remote_control`, all three confirmed present in the
+CLI binary's own request dispatcher, not merely in the official extension's SDK wrapper. The work
+was therefore generalising `SendInterruptAsync` into `SendControlRequestAsync` and adding three
+thin callers.
+
+| Command | Wiring | Confirmed live |
+|---|---|---|
+| `/btw` | `side_question` control request; answer rendered in its own card | real model answer returned and rendered |
+| `/feedback` | `submit_feedback`, **behind a confirmation card** | card renders; declined, nothing sent |
+| `/remote-control` (and `/rc`) | `remote_control`, **behind a confirmation card** | card renders; declined, bridge never enabled |
+
+**Two of the three are gated behind a confirmation, deliberately.** `/feedback` uploads this
+session's transcript to Anthropic and `/remote-control` publishes the session to claude.ai/code
+where it can be driven from another device. Both leave the machine and neither is trivially
+undoable, so neither fires on the command alone — typing it renders a card with baseline's
+numbered `1`/`2` convention and waits. Turning Remote Control back **off** is not gated, since
+that direction only reduces exposure. Baseline toggles both immediately; this is a deliberate
+divergence and the one place in Phase D where we are intentionally more conservative than the
+measured baseline.
+
+**GAP-2 is an honest divergence, not a match.** Baseline calls `vscode.window.createTerminal()`
+and gets a terminal docked inside the IDE. Visual Studio exposes no equivalent: its Terminal tool
+window is not on DTE, there is no VS SDK service for creating one or sending text to it, and
+`View.Terminal` only opens the window — what shell it starts and what is typed into it are not
+scriptable. So `TerminalLauncher` opens an **external** terminal: Windows Terminal when the
+`WindowsApps\wt.exe` alias exists, a console host otherwise. Same CLI, same working directory,
+different frame. Verified against the real process table rather than by looking at a window:
+
+```
+wt.exe -d "D:\Projects\Visual Studio Projects\Test_Project_Claude" ...\claude.exe /hooks
+```
+
+with a genuine interactive `claude.exe` as its child, and the card resolving to
+`Opened Claude in a terminal running /hooks.`
+
+**All GAP-1 wording is baseline's own**, lifted from the `W30` table in the official extension's
+`webview/index.js` rather than paraphrased — these are promises about how configuration
+propagates back to the IDE, and a reworded promise is a different promise. Baseline's table has a
+sixth entry, `plugins`, which it deliberately skips when building this menu because plugins get a
+real GUI panel; we skip it identically (see FEAT-5). Note also that baseline keys the "Output
+styles" card to `config`, not `output-style` — there is no `/output-style` command; the setting
+lives inside `/config`, which is what its description says. All five commands were confirmed to
+exist as real interactive commands in the CLI binary. They are absent from the headless
+`slash_commands` list precisely because they open interactive TUI surfaces, which is the reason
+they need a terminal at all.
+
+**A harness discovery that invalidates an assumption the earlier scripts were built on.**
+Phase C's verification enumerated UIA elements and asserted on `.Current.Name`. That sweep is
+**structurally blind to markdown content**: everything `MarkdownViewer` renders — assistant
+replies, thinking blocks, tool output, the `/btw` answer — lives in a `FlowDocument`, which UIA
+exposes as a `ControlType.Document` with an **empty Name** and its text reachable only through
+`TextPattern`. A Name-only assertion can therefore report "the card rendered" while being unable
+to see whether it rendered anything inside it. `Get-DocumentTexts` was added to
+`scripts/uia-lib.ps1` and is the correct tool whenever the assertion is about model-produced text;
+Name enumeration stays correct for chrome (labels, buttons, menu rows, status lines). Used here,
+it read the real `/btw` answer back out of the running control.
+
+**Phase D verification.** `scripts/phase-d-verify.ps1` — 21/21 structural checks pass, plus a
+live driven session covering the surfaces that only exist mid-conversation.
+
+| Check | Result |
+|---|---|
+| CUSTOMIZE section | all 5 rows + all 5 baseline menu descriptions |
+| Hand-off card | title, body, `claude /memory`, `1  Continue in Terminal`, `2  Never mind` |
+| Hand-off launch | real `wt.exe` process with the right cwd and `/hooks` |
+| Injected commands | `/btw`, `/feedback`, `/remote-control` all listed; 50 → 53 rows |
+| Sort not regressed | merged list still A–Z under `OrdinalIgnoreCase` (UX-5) |
+| `/btw` | real answer returned over `side_question` and rendered |
+| `/feedback` | confirmation card shown, declined, nothing uploaded |
+| `/remote-control` | confirmation card shown, declined, bridge never enabled |
+| `/rc` | resolves to the same card (baseline's alias) |
+
+Evidence: `screenshots/our-extension/37-PhaseD-customize-section.png`,
+`38-PhaseD-handoff-card.png`, `39-PhaseD-injected-commands.png`, `40-PhaseD-side-question.png`,
+`41-PhaseD-remote-control-confirm.png`. Unlike Phase C's in-frame attempts these are not blank,
+because the composite capture path works while the frame is visible — the PrintWindow
+limitation documented in `scripts/screenshot-toolwindow.ps1` applies to an **occluded** frame.
+
+**Not verified, and why.** The `1`/`2` keyboard shortcuts on the choice cards are implemented and
+gated exactly like the permission card's, but driving them needs `SendInput` for real modifier and
+key state, which steals focus — the same constraint that left UX-2's Shift+Tab cycle unproven in
+Phase C. Both are waiting on **TEST-1**. The buttons themselves were driven and work.
+
+**One deliberate behavioural difference from baseline** worth recording: baseline's hand-off is a
+modal dialog that disappears once answered. Ours resolves in place and stays in the transcript
+with an italic outcome line, so a session's history shows what was offered and what was chosen.
 
 ## Tier 0 — Correctness (do first; this is a real defect)
 

@@ -1,4 +1,5 @@
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -283,6 +284,10 @@ namespace TeronClaudeCodeVS.Protocol
             {
                 RequestId = envelope.Value<string>("request_id") ?? "",
                 Subtype = envelope.Value<string>("subtype") ?? "",
+                // A rejected request comes back as {"subtype":"error","error":"..."} with no
+                // "response" payload at all. Capturing the reason here is what lets GAP-3's
+                // commands report *why* they failed instead of just going quiet.
+                Error = envelope.Value<string>("error"),
                 Response = envelope["response"] as JObject ?? []
             };
         }
@@ -445,6 +450,13 @@ namespace TeronClaudeCodeVS.Protocol
     {
         public string RequestId { get; set; } = "";
         public string Subtype { get; set; } = "";
+
+        /// <summary>Set when <see cref="Subtype"/> is "error" - the CLI's own explanation.</summary>
+        public string? Error { get; set; }
+
         public JObject Response { get; set; } = [];
+
+        /// <summary>True when the CLI accepted and completed the request.</summary>
+        public bool IsSuccess => string.Equals(Subtype, "success", StringComparison.OrdinalIgnoreCase);
     }
 }

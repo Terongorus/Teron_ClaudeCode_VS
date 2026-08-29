@@ -1,4 +1,4 @@
-using TeronClaudeCodeVS.Protocol;
+﻿using TeronClaudeCodeVS.Protocol;
 using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
@@ -459,7 +459,26 @@ namespace TeronClaudeCodeVS.Core
         /// in-flight turn, and accepts a normal follow-up turn afterward with no --resume needed).
         /// Returns the correlated control_response, or null if none arrives within <paramref name="timeoutMs"/>.
         /// </summary>
-        public async Task<ControlResponseEvent?> SendInterruptAsync(bool cancelQueued = false, int timeoutMs = 5000)
+        public Task<ControlResponseEvent?> SendInterruptAsync(bool cancelQueued = false, int timeoutMs = 5000)
+        {
+            JObject request = new JObject { ["subtype"] = "interrupt" };
+            if (cancelQueued)
+                request["cancel_queued"] = true;
+
+            return SendControlRequestAsync(request, timeoutMs);
+        }
+
+        /// <summary>
+        /// Sends an arbitrary client-originated control_request and waits for the correlated
+        /// control_response. Returns null if none arrives within <paramref name="timeoutMs"/>.
+        ///
+        /// This is the same channel `interrupt` and the permission responses already ride on; it
+        /// was generalised for GAP-3, whose three commands (`side_question`, `submit_feedback`,
+        /// `remote_control`) all turned out to be real control-request subtypes handled by the
+        /// CLI itself - verified against the shipped binary (v2.1.251), not inferred from the
+        /// official extension's SDK wrapper.
+        /// </summary>
+        public async Task<ControlResponseEvent?> SendControlRequestAsync(JObject request, int timeoutMs)
         {
             string requestId = Guid.NewGuid().ToString();
             TaskCompletionSource<ControlResponseEvent> tcs = new TaskCompletionSource<ControlResponseEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -467,10 +486,6 @@ namespace TeronClaudeCodeVS.Core
             {
                 _pendingControlResponses[requestId] = tcs;
             }
-
-            JObject request = new JObject { ["subtype"] = "interrupt" };
-            if (cancelQueued)
-                request["cancel_queued"] = true;
 
             JObject payload = new JObject
             {
@@ -489,6 +504,51 @@ namespace TeronClaudeCodeVS.Core
             }
 
             return completed == tcs.Task ? await tcs.Task.ConfigureAwait(false) : null;
+        }
+
+        /// <summary>
+        /// GAP-3 `/btw`. Asks a one-off question that sees the session's context but is not added
+        /// to its transcript. Generous timeout: this is a real model call, not a local toggle.
+        /// </summary>
+        public Task<ControlResponseEvent?> SendSideQuestionAsync(string question, int timeoutMs = 300000)
+        {
+            JObject request = new JObject
+            {
+                ["subtype"] = "side_question",
+                ["question"] = question
+            };
+            return SendControlRequestAsync(request, timeoutMs);
+        }
+
+        /// <summary>
+        /// GAP-3 `/feedback`. Uploads the description together with the session transcript to
+        /// Anthropic. Outward-facing, so callers must confirm before calling this.
+        /// </summary>
+        public Task<ControlResponseEvent?> SubmitFeedbackAsync(string description, int timeoutMs = 60000)
+        {
+            JObject request = new JObject
+            {
+                ["subtype"] = "submit_feedback",
+                ["description"] = description,
+                // Baseline's SDK path sends no surface and the CLI defaults it to "sdk"; being
+                // explicit keeps our reports distinguishable from the VS Code extension's.
+                ["surface"] = "sdk"
+            };
+            return SendControlRequestAsync(request, timeoutMs);
+        }
+
+        /// <summary>
+        /// GAP-3 `/remote-control`. Enables or disables the bridge that makes this session
+        /// visible and drivable from claude.ai/code. Outward-facing; callers must confirm.
+        /// </summary>
+        public Task<ControlResponseEvent?> SetRemoteControlAsync(bool enabled, int timeoutMs = 60000)
+        {
+            JObject request = new JObject
+            {
+                ["subtype"] = "remote_control",
+                ["enabled"] = enabled
+            };
+            return SendControlRequestAsync(request, timeoutMs);
         }
 
         private async Task WriteLineAsync(JObject payload)

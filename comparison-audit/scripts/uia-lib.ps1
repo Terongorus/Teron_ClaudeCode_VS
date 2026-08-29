@@ -1,4 +1,4 @@
-# Minimal UI Automation helper library. Dot-source, then use Get-MainWindow / Find-ByAutomationId /
+﻿# Minimal UI Automation helper library. Dot-source, then use Get-MainWindow / Find-ByAutomationId /
 # Find-ByName / Invoke-UiaClick / Set-UiaValue / Wait-Uia.
 
 Add-Type -AssemblyName UIAutomationClient
@@ -182,4 +182,37 @@ function Get-UiaDoubleClick {
         return
     }
     throw "Element '$($Element.Current.Name)' supports neither LegacyIAccessiblePattern nor SelectionItemPattern - cannot double-click it without physical mouse simulation."
+}
+
+function Get-DocumentTexts {
+    # Reads the text of every FlowDocument rendered by the process.
+    #
+    # FOUND THE HARD WAY IN PHASE D, and it invalidates an assumption the earlier scripts were
+    # built on: enumerating elements and reading .Current.Name does NOT see markdown content.
+    # Everything the MarkdownViewer renders - assistant replies, thinking blocks, tool output,
+    # the /btw answer - lives in a FlowDocument, which UIA exposes as a ControlType.Document
+    # supporting TextPattern, with an empty Name. So a Name-only sweep can report "the card
+    # rendered" while being structurally blind to whether it rendered anything *in* it.
+    #
+    # Use this whenever the assertion is about model-produced or markdown-rendered text. Name
+    # enumeration remains correct for chrome: labels, buttons, menu rows, status lines.
+    param([Parameter(Mandatory=$true)][int]$ProcessId, [int]$MaxChars = 4000)
+
+    $desktop = [System.Windows.Automation.AutomationElement]::RootElement
+    $cond = New-Object System.Windows.Automation.PropertyCondition(
+        [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $ProcessId)
+
+    $seen = @{}
+    foreach ($e in $desktop.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)) {
+        if ($e.Current.ControlType -ne [System.Windows.Automation.ControlType]::Document) { continue }
+        $pattern = $null
+        if (-not $e.TryGetCurrentPattern([System.Windows.Automation.TextPattern]::Pattern, [ref]$pattern)) { continue }
+        try { $text = $pattern.DocumentRange.GetText($MaxChars) } catch { continue }
+        if (-not $text -or -not $text.Trim()) { continue }
+        # WPF hosts each document twice in the tree (viewer + document); de-duplicate.
+        $key = $text.Trim()
+        if ($seen.ContainsKey($key)) { continue }
+        $seen[$key] = $true
+        $key
+    }
 }

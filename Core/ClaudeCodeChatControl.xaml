@@ -1,4 +1,4 @@
-<UserControl x:Class="TeronClaudeCodeVS.Core.ClaudeCodeChatControl"
+﻿<UserControl x:Class="TeronClaudeCodeVS.Core.ClaudeCodeChatControl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vs="clr-namespace:Microsoft.VisualStudio.Shell;assembly=Microsoft.VisualStudio.Shell.15.0"
@@ -512,6 +512,17 @@
             </Button>
         </DataTemplate>
 
+        <!-- GAP-1: one Customize row per terminal hand-off entry. -->
+        <DataTemplate x:Key="TerminalHandoffMenuItemTemplate" DataType="{x:Type vm:TerminalHandoffEntry}">
+            <Button Style="{StaticResource MenuRowButtonStyle}" Click="OnTerminalHandoffClicked">
+                <StackPanel>
+                    <TextBlock Text="{Binding Label}"/>
+                    <TextBlock Text="{Binding MenuDescription}" FontSize="{StaticResource FontSizeChrome}"
+                               Opacity="0.6" TextWrapping="Wrap" Margin="0,1,0,0"/>
+                </StackPanel>
+            </Button>
+        </DataTemplate>
+
         <!-- ===================== Content-block templates ===================== -->
 
         <DataTemplate x:Key="TextBlockTemplate" DataType="{x:Type vm:TextBlockViewModel}">
@@ -900,6 +911,88 @@
             </StackPanel>
         </DataTemplate>
 
+        <!--
+            GAP-1 / GAP-3: the shared two-choice card. Deliberately built out of the permission
+            card's parts - same tinted border, same numbered-action convention, same italic
+            resolution line - because it answers the same kind of question ("do this, yes or
+            no?") and a second visual language for that would be noise. See UX-12.
+        -->
+        <DataTemplate x:Key="ChoiceCardTemplate" DataType="{x:Type vm:ChoiceCardViewModel}">
+            <Border Background="{StaticResource ClaudeAccentTintBrush}"
+                    BorderBrush="{StaticResource ClaudeAccentBrush}"
+                    TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                    BorderThickness="1" CornerRadius="{StaticResource RadiusControl}"
+                    Margin="0,4,0,4" Padding="10,8" MaxWidth="520">
+                <StackPanel>
+                    <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap"
+                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                               AutomationProperties.AutomationId="ChoiceCardTitle"/>
+                    <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Opacity="0.8" Margin="0,4,0,0"
+                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                    <TextBlock Text="{Binding Detail}" FontFamily="Consolas"
+                               FontSize="{StaticResource FontSizeChrome}" Opacity="0.7"
+                               TextWrapping="Wrap" Margin="0,6,0,0"
+                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                               Visibility="{Binding Detail, Converter={StaticResource NullToVisibilityConverter}}"
+                               AutomationProperties.AutomationId="ChoiceCardDetail"/>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0"
+                                Visibility="{Binding IsResolved, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}">
+                        <Button Content="{Binding PrimaryLabel}" Command="{Binding PrimaryCommand}"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                Width="Auto" Height="Auto" VerticalAlignment="Top"
+                                Padding="14,6" Margin="0,0,8,0"
+                                AutomationProperties.AutomationId="ChoiceCardPrimary"/>
+                        <Button Content="{Binding SecondaryLabel}" Command="{Binding SecondaryCommand}"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Width="Auto" Height="Auto" VerticalAlignment="Top"
+                                Padding="14,6" Margin="0,0,8,0"
+                                AutomationProperties.AutomationId="ChoiceCardSecondary"/>
+                        <TextBlock Text="1 / 2 to choose" Style="{StaticResource KeyHintStyle}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding ResolutionText}" FontStyle="Italic" Opacity="0.7"
+                               TextWrapping="Wrap" Margin="0,8,0,0"
+                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                               Visibility="{Binding IsResolved, Converter={StaticResource BoolToVisibilityConverter}}"
+                               AutomationProperties.AutomationId="ChoiceCardResolution"/>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!--
+            GAP-3 `/btw`. Rendered as its own quiet card rather than as a normal turn, because
+            that is what it is: the CLI answers it out-of-band and never writes it into the
+            session transcript, so styling it like an assistant reply would misrepresent what the
+            conversation actually contains.
+        -->
+        <DataTemplate x:Key="SideQuestionTemplate" DataType="{x:Type vm:SideQuestionViewModel}">
+            <Border BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
+                    TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                    CornerRadius="{StaticResource RadiusCard}" Margin="0,4,0,4" Padding="10,8"
+                    MaxWidth="620">
+                <StackPanel>
+                    <TextBlock Text="Side question" FontSize="{StaticResource FontSizeChrome}"
+                               Opacity="0.55" FontWeight="SemiBold"
+                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                               AutomationProperties.AutomationId="SideQuestionHeader"/>
+                    <TextBlock Text="{Binding Question}" TextWrapping="Wrap" FontWeight="SemiBold"
+                               Margin="0,2,0,0"
+                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                    <TextBlock Text="{Binding StatusText}" FontStyle="Italic" Opacity="0.7"
+                               TextWrapping="Wrap" Margin="0,6,0,0"
+                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                               Visibility="{Binding StatusText, Converter={StaticResource NullToVisibilityConverter}}"/>
+                    <controls:MarkdownViewer Margin="0,6,0,0"
+                                             Visibility="{Binding HasAnswer, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                    <TextBlock Text="Answered out of band - not added to the conversation."
+                               Style="{StaticResource KeyHintStyle}" Margin="0,4,0,0"
+                               Visibility="{Binding HasAnswer, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
         <controls:ContentBlockTemplateSelector x:Key="BlockTemplateSelector"
             TextTemplate="{StaticResource TextBlockTemplate}"
             ImageAttachmentTemplate="{StaticResource ImageAttachmentTemplate}"
@@ -911,7 +1004,9 @@
             AskUserQuestionTemplate="{StaticResource AskUserQuestionTemplate}"
             ResultTemplate="{StaticResource ResultFooterTemplate}"
             InterruptedTemplate="{StaticResource InterruptedTemplate}"
-            RetryTemplate="{StaticResource RetryTemplate}"/>
+            RetryTemplate="{StaticResource RetryTemplate}"
+            ChoiceCardTemplate="{StaticResource ChoiceCardTemplate}"
+            SideQuestionTemplate="{StaticResource SideQuestionTemplate}"/>
 
         <!-- ===================== Message templates ===================== -->
 
@@ -1651,6 +1746,28 @@
                                             Click="OnAccountUsageClicked" FontSize="{StaticResource FontSizeChrome}"
                                             Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                             Margin="0,0,0,2"/>
+
+                                    <Border Height="1" Background="{StaticResource HairlineBrush}" Margin="6,6"/>
+
+                                    <!--
+                                        GAP-1 / GAP-2. Baseline groups these under "Customize" and
+                                        so do we, with its labels and menu descriptions verbatim -
+                                        see TerminalHandoffCatalog for where each string came from.
+                                        Five of the six are hand-offs; "Open Claude in Terminal" is
+                                        the plain launcher they all build on.
+                                    -->
+                                    <TextBlock Text="CUSTOMIZE" Style="{StaticResource MenuSectionHeaderStyle}"/>
+                                    <ItemsControl ItemsSource="{Binding TerminalHandoffs}"
+                                                  ItemTemplate="{StaticResource TerminalHandoffMenuItemTemplate}"/>
+                                    <Button Style="{StaticResource MenuRowButtonStyle}" Click="OnOpenInTerminalClicked"
+                                            AutomationProperties.AutomationId="OpenInTerminalRow">
+                                        <StackPanel>
+                                            <TextBlock Text="Open Claude in Terminal"/>
+                                            <TextBlock Text="Start an interactive CLI session here"
+                                                       FontSize="{StaticResource FontSizeChrome}"
+                                                       Opacity="0.6" TextWrapping="Wrap" Margin="0,1,0,0"/>
+                                        </StackPanel>
+                                    </Button>
 
                                     <Border Height="1" Background="{StaticResource HairlineBrush}" Margin="6,6"/>
 
