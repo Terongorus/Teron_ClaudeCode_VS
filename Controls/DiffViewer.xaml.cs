@@ -101,6 +101,8 @@ namespace TeronClaudeCodeVS.Controls
             {
                 Text = text,
                 FontFamily = s_mono,
+                // ST-2: the chrome step of the two-size type scale in Core/ChatTheme.xaml. Diff
+                // rows are dense monospace, so they sit at Chrome rather than Body.
                 FontSize = 11,
                 Padding = new Thickness(6, 1, 6, 1),
                 TextWrapping = TextWrapping.NoWrap,

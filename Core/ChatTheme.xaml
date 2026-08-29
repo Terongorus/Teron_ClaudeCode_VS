@@ -1,0 +1,88 @@
+<!--
+    ChatTheme.xaml - the single source of truth for the chat UI's visual tokens.
+
+    Phase 7 / ST-1. Before this dictionary existed, every colour, font size and corner radius in
+    ClaudeCodeChatControl.xaml was a literal, and the 2026-08-28 live comparison audit measured the
+    result: 9 distinct font sizes and 8 distinct corner radii against the official VS Code
+    extension's 2 and 2. Nothing here is new visual design - it is the audited baseline's scale,
+    named, so that a value can only drift in one place.
+
+    Rules for anyone editing the chat UI:
+      * No FontSize / CornerRadius / brand-colour literals in ClaudeCodeChatControl.xaml. If you
+        need a value that isn't here, add it here first and justify it in a comment.
+      * Surface and text colours come from VsBrushes (theme-derived) or from the translucent grey
+        overlays below - never from a fixed light/dark colour, or the tool window breaks when the
+        user switches VS themes.
+      * The accent is Claude brand identity, not decoration. See "Accent" below for where it is
+        allowed to appear.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <!--
+        Accent (ST-4).
+
+        #D97757 is the Claude terracotta. It is deliberately fixed rather than theme-derived: it is
+        brand identity, and it carries acceptable contrast on both the light and dark VS themes.
+
+        It is permitted on exactly five surfaces, and nowhere else:
+          1. the Send button fill (and its pressed/hover darkening),
+          2. the focus ring on the input and on inline edit boxes,
+          3. the selection tint in popup lists and permission/model/mode cards,
+          4. current-selection affordances (the checkmark in a picker, the usage progress bar,
+             the "manage usage" hyperlink),
+          5. the user message bubble fill - see ST-5 note in ClaudeCodeChatControl.xaml.
+    -->
+    <SolidColorBrush x:Key="ClaudeAccentBrush" Color="#D97757"/>
+    <SolidColorBrush x:Key="ClaudeAccentDarkBrush" Color="#C6613F"/>
+    <SolidColorBrush x:Key="ClaudeAccentTintBrush" Color="#1FD97757"/>
+
+    <!--
+        Theme-agnostic translucent overlays. Grey at low alpha darkens a light theme and lightens a
+        dark one, so these read correctly on both without a DynamicResource round trip.
+    -->
+    <SolidColorBrush x:Key="HairlineBrush" Color="#33808080"/>
+    <SolidColorBrush x:Key="CardBackgroundBrush" Color="#14808080"/>
+    <SolidColorBrush x:Key="HoverBrush" Color="#22808080"/>
+
+    <!-- Status colours. Fixed, because "error" and "success" must not change meaning with a theme. -->
+    <SolidColorBrush x:Key="ErrorBrush" Color="#E5484D"/>
+    <SolidColorBrush x:Key="SuccessBrush" Color="#3FB950"/>
+
+    <!--
+        Type scale (ST-2).
+
+        Two sizes, matching the measured baseline. Emphasis is carried by FontWeight and Opacity,
+        not by a third size - a section heading is Body + SemiBold, a caption is Chrome + Opacity.
+    -->
+    <sys:Double x:Key="FontSizeBody">13</sys:Double>
+    <sys:Double x:Key="FontSizeChrome">11</sys:Double>
+
+    <!--
+        Glyph metrics. These are NOT part of the type scale: they size icon characters
+        (arrows, crosses, the search lens) inside fixed-size buttons, so they are geometry that
+        happens to be expressed in points. Kept separate so the two-size rule above stays honest.
+    -->
+    <sys:Double x:Key="GlyphSize">13</sys:Double>
+    <sys:Double x:Key="GlyphSizeSmall">9</sys:Double>
+
+    <!--
+        Corner radii (ST-3).
+
+        Two corner treatments. RadiusControl for anything interactive and inline (buttons, input
+        boxes, list rows, chips); RadiusCard for anything that reads as a raised container
+        (popups, panels, permission and tool cards).
+    -->
+    <CornerRadius x:Key="RadiusControl">5</CornerRadius>
+    <CornerRadius x:Key="RadiusCard">6</CornerRadius>
+
+    <!--
+        Shape radii. Like the glyph metrics these are geometry, not corner treatment: the value is
+        derived from the element's own height to produce a circle or a pill, so it does not belong
+        to the two-radius scale. Changing the element's height means changing these to match.
+    -->
+    <CornerRadius x:Key="RadiusCircle">15</CornerRadius>
+    <CornerRadius x:Key="RadiusPill">11</CornerRadius>
+
+</ResourceDictionary>

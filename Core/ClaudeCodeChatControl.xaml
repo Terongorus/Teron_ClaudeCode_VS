@@ -8,18 +8,16 @@
              Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
 
     <UserControl.Resources>
+        <ResourceDictionary>
 
-        <!-- Claude brand palette -->
-        <SolidColorBrush x:Key="ClaudeAccentBrush" Color="#D97757"/>
-        <SolidColorBrush x:Key="ClaudeAccentDarkBrush" Color="#C6613F"/>
-        <SolidColorBrush x:Key="ClaudeAccentTintBrush" Color="#1FD97757"/>
-
-        <!-- Theme-agnostic translucent overlays (read correctly on both light and dark themes) -->
-        <SolidColorBrush x:Key="HairlineBrush" Color="#33808080"/>
-        <SolidColorBrush x:Key="CardBackgroundBrush" Color="#14808080"/>
-        <SolidColorBrush x:Key="HoverBrush" Color="#22808080"/>
-        <SolidColorBrush x:Key="ErrorBrush" Color="#E5484D"/>
-        <SolidColorBrush x:Key="SuccessBrush" Color="#3FB950"/>
+            <!--
+                ST-1: every brush, font size and corner radius used below is defined once in
+                ChatTheme.xaml. Do not reintroduce literals here - see that file's header for the
+                rules and for why each token exists.
+            -->
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/TeronClaudeCodeVS;component/Core/ChatTheme.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
 
         <!-- Converters -->
         <controls:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
@@ -43,7 +41,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="ListBoxItem">
                         <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                BorderThickness="0" CornerRadius="3" Margin="2,1">
+                                BorderThickness="0" CornerRadius="{StaticResource RadiusControl}" Margin="2,1">
                             <ContentPresenter Margin="{TemplateBinding Padding}"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -76,7 +74,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="ListBoxItem">
                         <Border x:Name="Bd" Background="{TemplateBinding Background}"
-                                BorderThickness="0" CornerRadius="3" Margin="4,1">
+                                BorderThickness="0" CornerRadius="{StaticResource RadiusControl}" Margin="4,1">
                             <ContentPresenter Margin="{TemplateBinding Padding}"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -101,7 +99,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="15">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="{StaticResource RadiusCircle}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -129,7 +127,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="15">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="{StaticResource RadiusCircle}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -154,7 +152,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="4">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="{StaticResource RadiusControl}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -184,7 +182,7 @@
                     <ControlTemplate TargetType="ToggleButton">
                         <Border x:Name="Bg" Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="11">
+                                CornerRadius="{StaticResource RadiusPill}">
                             <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -215,7 +213,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bg" Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="11">
+                                CornerRadius="{StaticResource RadiusPill}">
                             <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -244,7 +242,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="4">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="{StaticResource RadiusControl}">
                             <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Stretch" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
@@ -284,7 +282,7 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="4">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="{StaticResource RadiusControl}">
                             <ContentPresenter Margin="{TemplateBinding Padding}"
                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
@@ -313,7 +311,7 @@
                         <Border x:Name="Bg" Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="4">
+                                CornerRadius="{StaticResource RadiusControl}">
                             <ContentPresenter Margin="{TemplateBinding Padding}"
                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
@@ -347,8 +345,8 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ProgressBar">
-                        <Border x:Name="PART_Track" Background="{TemplateBinding Background}" CornerRadius="3">
-                            <Border x:Name="PART_Indicator" HorizontalAlignment="Left" CornerRadius="3"
+                        <Border x:Name="PART_Track" Background="{TemplateBinding Background}" CornerRadius="{StaticResource RadiusControl}">
+                            <Border x:Name="PART_Indicator" HorizontalAlignment="Left" CornerRadius="{StaticResource RadiusControl}"
                                     Background="{TemplateBinding Foreground}"/>
                         </Border>
                     </ControlTemplate>
@@ -443,7 +441,7 @@
 
         <DataTemplate x:Key="SlashCommandMenuItemTemplate">
             <Button Style="{StaticResource MenuRowButtonStyle}" Click="OnSlashCommandMenuItemClicked">
-                <TextBlock Text="{Binding StringFormat=/{0}}" FontFamily="Consolas" FontSize="11"/>
+                <TextBlock Text="{Binding StringFormat=/{0}}" FontFamily="Consolas" FontSize="{StaticResource FontSizeChrome}"/>
             </Button>
         </DataTemplate>
 
@@ -454,16 +452,16 @@
         </DataTemplate>
 
         <DataTemplate x:Key="ImageAttachmentTemplate" DataType="{x:Type vm:ImageAttachmentViewModel}">
-            <Border CornerRadius="6" Margin="0,0,0,6" MaxWidth="260" ClipToBounds="True">
+            <Border CornerRadius="{StaticResource RadiusCard}" Margin="0,0,0,6" MaxWidth="260" ClipToBounds="True">
                 <Image Source="{Binding Thumbnail}" Stretch="Uniform" MaxHeight="200"/>
             </Border>
         </DataTemplate>
 
         <DataTemplate x:Key="FileAttachmentTemplate" DataType="{x:Type vm:FileAttachmentViewModel}">
-            <Border CornerRadius="4" Margin="0,0,0,6" Padding="6,3" Background="#22FFFFFF">
+            <Border CornerRadius="{StaticResource RadiusControl}" Margin="0,0,0,6" Padding="6,3" Background="#22FFFFFF">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="📄" Margin="0,0,5,0"/>
-                    <TextBlock Text="{Binding Title}" FontSize="11.5"/>
+                    <TextBlock Text="{Binding Title}" FontSize="{StaticResource FontSizeBody}"/>
                 </StackPanel>
             </Border>
         </DataTemplate>
@@ -475,7 +473,7 @@
                                    RelativeSource={RelativeSource AncestorType=ItemsControl, AncestorLevel=2},
                                    Converter={StaticResource HiddenInSummaryModeConverter}}">
                 <Expander.Header>
-                    <TextBlock Text="Thinking" FontStyle="Italic" FontSize="11.5"
+                    <TextBlock Text="Thinking" FontStyle="Italic" FontSize="{StaticResource FontSizeBody}"
                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                 </Expander.Header>
                 <controls:MarkdownViewer Margin="18,4,0,2"/>
@@ -485,7 +483,7 @@
         <DataTemplate x:Key="ToolCallTemplate" DataType="{x:Type vm:ToolCallViewModel}">
             <Border Background="{StaticResource CardBackgroundBrush}"
                     BorderBrush="{StaticResource HairlineBrush}"
-                    BorderThickness="1" CornerRadius="4" Margin="0,3,0,3">
+                    BorderThickness="1" CornerRadius="{StaticResource RadiusControl}" Margin="0,3,0,3">
                 <Expander IsExpanded="{Binding IsExpanded}" Padding="2"
                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
                     <Expander.IsEnabled>
@@ -530,7 +528,7 @@
             <Border Background="{StaticResource ClaudeAccentTintBrush}"
                     BorderBrush="{StaticResource ClaudeAccentBrush}"
                     TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                    BorderThickness="1" CornerRadius="4" Margin="0,4,0,4" Padding="10,8">
+                    BorderThickness="1" CornerRadius="{StaticResource RadiusControl}" Margin="0,4,0,4" Padding="10,8">
                 <StackPanel>
                     <TextBlock Text="Claude has a question" FontWeight="SemiBold" Margin="0,0,0,8"
                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
@@ -551,9 +549,9 @@
                                                 <RadioButton GroupName="{Binding RadioGroupName}"
                                                              IsChecked="{Binding IsSelected, Mode=TwoWay}" Margin="0,3,0,3">
                                                     <StackPanel>
-                                                        <TextBlock Text="{Binding Label}" FontSize="12"
+                                                        <TextBlock Text="{Binding Label}" FontSize="{StaticResource FontSizeBody}"
                                                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
-                                                        <TextBlock Text="{Binding Description}" FontSize="10.5" Opacity="0.6"
+                                                        <TextBlock Text="{Binding Description}" FontSize="{StaticResource FontSizeChrome}" Opacity="0.6"
                                                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                                                    Visibility="{Binding Description, Converter={StaticResource NullToVisibilityConverter}}"/>
                                                     </StackPanel>
@@ -569,9 +567,9 @@
                                             <DataTemplate DataType="{x:Type vm:SelectableOptionViewModel}">
                                                 <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}" Margin="0,3,0,3">
                                                     <StackPanel>
-                                                        <TextBlock Text="{Binding Label}" FontSize="12"
+                                                        <TextBlock Text="{Binding Label}" FontSize="{StaticResource FontSizeBody}"
                                                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
-                                                        <TextBlock Text="{Binding Description}" FontSize="10.5" Opacity="0.6"
+                                                        <TextBlock Text="{Binding Description}" FontSize="{StaticResource FontSizeChrome}" Opacity="0.6"
                                                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                                                    Visibility="{Binding Description, Converter={StaticResource NullToVisibilityConverter}}"/>
                                                     </StackPanel>
@@ -582,7 +580,7 @@
 
                                     <!-- Free-text input (when no options) -->
                                     <TextBox Text="{Binding AnswerText, UpdateSourceTrigger=PropertyChanged}"
-                                             Margin="0,2,0,0" Padding="4,4" FontSize="12"
+                                             Margin="0,2,0,0" Padding="4,4" FontSize="{StaticResource FontSizeBody}"
                                              BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
                                              Background="Transparent"
                                              Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
@@ -616,7 +614,7 @@
             <Border Background="{StaticResource ClaudeAccentTintBrush}"
                     BorderBrush="{StaticResource ClaudeAccentBrush}"
                     TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                    BorderThickness="1" CornerRadius="4" Margin="0,4,0,4" Padding="10,8">
+                    BorderThickness="1" CornerRadius="{StaticResource RadiusControl}" Margin="0,4,0,4" Padding="10,8">
                 <StackPanel>
                     <TextBlock Text="{Binding Title}" FontWeight="SemiBold"
                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
@@ -650,7 +648,7 @@
             <Border Background="{StaticResource ClaudeAccentTintBrush}"
                     BorderBrush="{StaticResource ClaudeAccentBrush}"
                     TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                    BorderThickness="1" CornerRadius="4" Margin="0,4,0,4" Padding="10,8">
+                    BorderThickness="1" CornerRadius="{StaticResource RadiusControl}" Margin="0,4,0,4" Padding="10,8">
                 <StackPanel>
                     <TextBlock Text="Accept this plan?" FontWeight="SemiBold"
                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
@@ -658,7 +656,7 @@
                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                     <Button Content="Reopen plan tab" Command="{Binding ReopenTabCommand}"
                             Style="{StaticResource SecondaryButtonStyle}" HorizontalAlignment="Left"
-                            Padding="8,3" FontSize="11" Margin="0,6,0,0"/>
+                            Padding="8,3" FontSize="{StaticResource FontSizeChrome}" Margin="0,6,0,0"/>
 
                     <!-- Staged comments (added from the plan tab's selection adornment) -->
                     <StackPanel Visibility="{Binding HasComments, Converter={StaticResource BoolToVisibilityConverter}}"
@@ -670,7 +668,7 @@
                                 <DataTemplate DataType="{x:Type vm:PlanCommentEntry}">
                                     <Border Background="{StaticResource CardBackgroundBrush}"
                                             BorderBrush="{StaticResource HairlineBrush}"
-                                            BorderThickness="1" CornerRadius="3" Padding="8,6" Margin="0,0,0,6">
+                                            BorderThickness="1" CornerRadius="{StaticResource RadiusControl}" Padding="8,6" Margin="0,0,0,6">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
@@ -678,7 +676,7 @@
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0">
                                                 <TextBlock Text="{Binding QuotedExcerpt, StringFormat='&quot;{0}&quot;'}"
-                                                           FontStyle="Italic" Opacity="0.7" TextWrapping="Wrap" FontSize="11"
+                                                           FontStyle="Italic" Opacity="0.7" TextWrapping="Wrap" FontSize="{StaticResource FontSizeChrome}"
                                                            Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                                                 <TextBlock Text="{Binding CommentText}" TextWrapping="Wrap" Margin="0,3,0,0"
                                                            Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
@@ -729,10 +727,10 @@
 
                         <!-- Below the action button(s), matching the real extension's layout -->
                         <StackPanel Margin="0,10,0,0">
-                            <TextBlock Text="Tell Claude what to do instead" FontSize="11" Opacity="0.6"
+                            <TextBlock Text="Tell Claude what to do instead" FontSize="{StaticResource FontSizeChrome}" Opacity="0.6"
                                        Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                             <TextBox Text="{Binding FeedbackText, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,2,0,0" Padding="4,4" FontSize="12"
+                                     Margin="0,2,0,0" Padding="4,4" FontSize="{StaticResource FontSizeBody}"
                                      BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
                                      Background="Transparent" TextWrapping="Wrap" AcceptsReturn="True" MaxHeight="80"
                                      Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
@@ -748,7 +746,7 @@
         </DataTemplate>
 
         <DataTemplate x:Key="ResultFooterTemplate" DataType="{x:Type vm:ResultFooterViewModel}">
-            <TextBlock Text="{Binding Text}" FontSize="11" Opacity="0.6" Margin="2,4,0,8">
+            <TextBlock Text="{Binding Text}" FontSize="{StaticResource FontSizeChrome}" Opacity="0.6" Margin="2,4,0,8">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Style.Triggers>
@@ -765,14 +763,14 @@
         <DataTemplate x:Key="InterruptedTemplate" DataType="{x:Type vm:InterruptedBlockViewModel}">
             <Border Background="{StaticResource CardBackgroundBrush}"
                     BorderBrush="{StaticResource HairlineBrush}"
-                    BorderThickness="1" CornerRadius="4" Margin="0,4,0,4" Padding="8,6">
-                <TextBlock Text="⏹ Response interrupted" FontStyle="Italic" Opacity="0.6" FontSize="12"/>
+                    BorderThickness="1" CornerRadius="{StaticResource RadiusControl}" Margin="0,4,0,4" Padding="8,6">
+                <TextBlock Text="⏹ Response interrupted" FontStyle="Italic" Opacity="0.6" FontSize="{StaticResource FontSizeBody}"/>
             </Border>
         </DataTemplate>
 
         <DataTemplate x:Key="RetryTemplate" DataType="{x:Type vm:RetryNoticeViewModel}">
             <StackPanel Margin="0,4,0,4" HorizontalAlignment="Stretch">
-                <TextBlock Text="{Binding Text}" FontSize="12" Opacity="0.75" TextWrapping="Wrap" Margin="0,0,0,6"/>
+                <TextBlock Text="{Binding Text}" FontSize="{StaticResource FontSizeBody}" Opacity="0.75" TextWrapping="Wrap" Margin="0,0,0,6"/>
                 <Button Content="Try again" Command="{Binding RetryCommand}"
                         Style="{StaticResource PrimaryButtonStyle}"
                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
@@ -795,6 +793,21 @@
 
         <!-- ===================== Message templates ===================== -->
 
+        <!--
+            ST-5 - DELIBERATE DIVERGENCE FROM THE MEASURED BASELINE. DO NOT "FIX".
+
+            The 2026-08-28 live audit found that the official VS Code extension renders user
+            messages with no bubble at all - plain text, left-aligned, distinguished only by
+            weight. Our right-aligned terracotta bubble was raised as a style gap (ST-5) and was
+            explicitly kept: the asymmetry makes turn boundaries readable at a glance when the
+            tool window is docked narrow, which is the common case in Visual Studio and not the
+            common case in VS Code's wider sidebar.
+
+            Because the fill is the accent, this is the one place the brand colour carries a large
+            surface area, and the 10,10,2,10 radius is the tail - both are intentionally literal
+            here rather than tokenised, so that a future pass over ChatTheme.xaml cannot change
+            them by accident.
+        -->
         <DataTemplate x:Key="UserMessageTemplate" DataType="{x:Type vm:ChatMessageViewModel}">
             <Border Background="{StaticResource ClaudeAccentBrush}"
                     TextElement.Foreground="White"
@@ -819,6 +832,7 @@
             AssistantTemplate="{StaticResource AssistantMessageTemplate}"
             SystemTemplate="{StaticResource SystemMessageTemplate}"/>
 
+        </ResourceDictionary>
     </UserControl.Resources>
 
     <Grid>
@@ -844,13 +858,13 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <Border Grid.Column="0" Width="22" Height="22" CornerRadius="5"
+                <Border Grid.Column="0" Width="22" Height="22" CornerRadius="{StaticResource RadiusControl}"
                         Background="{StaticResource ClaudeAccentBrush}" VerticalAlignment="Center">
-                    <TextBlock Text="✳" FontSize="12" FontWeight="Bold" Foreground="White"
+                    <TextBlock Text="✳" FontSize="{StaticResource GlyphSize}" FontWeight="Bold" Foreground="White"
                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
                 </Border>
 
-                <TextBlock Grid.Column="1" Text="Claude Code" FontWeight="SemiBold" FontSize="13"
+                <TextBlock Grid.Column="1" Text="Claude Code" FontWeight="SemiBold" FontSize="{StaticResource FontSizeBody}"
                            Margin="8,0,0,0" VerticalAlignment="Center"/>
 
                 <Button Grid.Column="2" Style="{StaticResource IconButtonStyle}"
@@ -875,7 +889,7 @@
 
                 <Button Grid.Column="5" x:Name="TranscriptModeButton" Style="{StaticResource ChipButtonStyle}"
                         Click="OnTranscriptModeClicked" Margin="2,0" VerticalAlignment="Center"
-                        Padding="7,2" FontSize="11"
+                        Padding="7,2" FontSize="{StaticResource FontSizeChrome}"
                         ToolTip="Transcript detail level: how much of each turn is shown"
                         AutomationProperties.AutomationId="TranscriptModeButton">
                     <TextBlock Text="{Binding CurrentTranscriptMode.DisplayName}"/>
@@ -886,7 +900,7 @@
                        AutomationProperties.AutomationId="TranscriptModePopup">
                     <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
                             TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                            BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="6"
+                            BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}"
                             MinWidth="150" Margin="0,4,0,0">
                         <Border.Effect>
                             <DropShadowEffect BlurRadius="16" Opacity="0.3" ShadowDepth="2" Color="Black"/>
@@ -908,7 +922,7 @@
 
         <!-- ===================== Status strip ===================== -->
         <Border Grid.Row="1" Padding="10,2">
-            <TextBlock FontSize="11" Opacity="0.65">
+            <TextBlock FontSize="{StaticResource FontSizeChrome}" Opacity="0.65">
                 <TextBlock.Text>
                     <MultiBinding Converter="{StaticResource StatusLineConverter}">
                         <Binding Path="IsBusy"/>
@@ -933,7 +947,7 @@
                 AutomationProperties.AutomationId="RunningTasksPanel">
             <StackPanel>
                 <TextBlock Text="{Binding RunningTaskCount, StringFormat='Running tasks ({0})'}"
-                           FontSize="10" Opacity="0.55" Margin="0,0,0,3"
+                           FontSize="{StaticResource FontSizeChrome}" Opacity="0.55" Margin="0,0,0,3"
                            Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                 <ItemsControl ItemsSource="{Binding RunningToolCalls}">
                     <ItemsControl.ItemTemplate>
@@ -949,13 +963,13 @@
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="{Binding Icon}" Margin="0,0,6,0"
                                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
-                                    <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontSize="11"
+                                    <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontSize="{StaticResource FontSizeChrome}"
                                                Margin="0,0,6,0"
                                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
-                                    <TextBlock Grid.Column="2" Text="{Binding Summary}" FontSize="11" Opacity="0.6"
+                                    <TextBlock Grid.Column="2" Text="{Binding Summary}" FontSize="{StaticResource FontSizeChrome}" Opacity="0.6"
                                                TextTrimming="CharacterEllipsis"
                                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
-                                    <TextBlock Grid.Column="3" Text="{Binding ElapsedText}" FontSize="10.5" Opacity="0.6"
+                                    <TextBlock Grid.Column="3" Text="{Binding ElapsedText}" FontSize="{StaticResource FontSizeChrome}" Opacity="0.6"
                                                Margin="6,0,0,0"
                                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                                 </Grid>
@@ -978,7 +992,7 @@
             <Border Padding="24" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="380"
                     Visibility="{Binding ClaudeNotFoundMessage, Converter={StaticResource NullToVisibilityConverter}}">
                 <StackPanel>
-                    <TextBlock Text="Claude Code CLI not found" FontWeight="SemiBold" FontSize="14"
+                    <TextBlock Text="Claude Code CLI not found" FontWeight="SemiBold" FontSize="{StaticResource FontSizeBody}"
                                HorizontalAlignment="Center" Margin="0,0,0,8" TextWrapping="Wrap"/>
                     <TextBlock Text="{Binding ClaudeNotFoundMessage}" TextWrapping="Wrap"
                                TextAlignment="Center" Opacity="0.85"/>
@@ -1001,34 +1015,34 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="Session History" FontWeight="SemiBold" FontSize="13"
+                        <TextBlock Text="Session History" FontWeight="SemiBold" FontSize="{StaticResource FontSizeBody}"
                                    VerticalAlignment="Center"
                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                         <Button Grid.Column="1" Content="✕" Style="{StaticResource IconButtonStyle}"
-                                Click="OnCloseHistoryClicked" Width="22" Height="22" FontSize="10"
+                                Click="OnCloseHistoryClicked" Width="22" Height="22" FontSize="{StaticResource GlyphSize}"
                                 AutomationProperties.AutomationId="CloseHistoryButton"/>
                     </Grid>
 
                     <Border Grid.Row="1" Margin="10,0,10,8"
                             Background="{StaticResource CardBackgroundBrush}"
-                            BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="5">
+                            BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusControl}">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="⌕" Margin="8,0,4,0" VerticalAlignment="Center"
-                                       Opacity="0.5" FontSize="14"
+                                       Opacity="0.5" FontSize="{StaticResource GlyphSize}"
                                        Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                             <Grid Grid.Column="1">
                                 <TextBox x:Name="SessionSearchBox" BorderThickness="0" Background="Transparent"
-                                         Padding="2,5" FontSize="12"
+                                         Padding="2,5" FontSize="{StaticResource FontSizeBody}"
                                          Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                          CaretBrush="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                          TextChanged="OnSessionSearchChanged"
                                          AutomationProperties.AutomationId="SessionSearchBox"/>
                                 <TextBlock IsHitTestVisible="False" Text="Search sessions…" Opacity="0.4"
-                                           Margin="2,5,2,5" FontSize="12" VerticalAlignment="Center"
+                                           Margin="2,5,2,5" FontSize="{StaticResource FontSizeBody}" VerticalAlignment="Center"
                                            Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
@@ -1062,7 +1076,7 @@
                                     </Grid.ColumnDefinitions>
 
                                     <!-- Title text (click to resume) -->
-                                    <TextBlock Grid.Column="0" Text="{Binding Title}" FontSize="12.5"
+                                    <TextBlock Grid.Column="0" Text="{Binding Title}" FontSize="{StaticResource FontSizeBody}"
                                                VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                                                Cursor="Hand" MouseLeftButtonUp="OnSessionItemClicked"
                                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
@@ -1079,7 +1093,7 @@
 
                                     <!-- Inline title editor -->
                                     <TextBox Grid.Column="0" Text="{Binding Title, UpdateSourceTrigger=PropertyChanged}"
-                                             FontSize="12.5" BorderThickness="0,0,0,1"
+                                             FontSize="{StaticResource FontSizeBody}" BorderThickness="0,0,0,1"
                                              BorderBrush="{StaticResource ClaudeAccentBrush}"
                                              Background="Transparent" Padding="0,1"
                                              Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
@@ -1098,7 +1112,7 @@
                                     </TextBox>
 
                                     <!-- Time ago (hidden while editing) -->
-                                    <TextBlock Grid.Column="1" Text="{Binding TimeAgo}" FontSize="11" Opacity="0.55"
+                                    <TextBlock Grid.Column="1" Text="{Binding TimeAgo}" FontSize="{StaticResource FontSizeChrome}" Opacity="0.55"
                                                VerticalAlignment="Center" Margin="0,0,4,0"
                                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
                                         <TextBlock.Style>
@@ -1128,10 +1142,10 @@
                                             </Style>
                                         </StackPanel.Style>
                                         <Button Content="✎" Style="{StaticResource IconButtonStyle}"
-                                                Width="22" Height="22" FontSize="12" Margin="2,0"
+                                                Width="22" Height="22" FontSize="{StaticResource GlyphSize}" Margin="2,0"
                                                 Tag="{Binding}" Click="OnEditSessionTitleClicked"/>
                                         <Button Content="✕" Style="{StaticResource IconButtonStyle}"
-                                                Width="22" Height="22" FontSize="10" Margin="2,0"
+                                                Width="22" Height="22" FontSize="{StaticResource GlyphSize}" Margin="2,0"
                                                 Foreground="{StaticResource ErrorBrush}"
                                                 Tag="{Binding}" Click="OnDeleteSessionClicked"/>
                                     </StackPanel>
@@ -1156,17 +1170,17 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="Raw CLI Output" FontSize="10" Opacity="0.55" VerticalAlignment="Center"
+                    <TextBlock Text="Raw CLI Output" FontSize="{StaticResource FontSizeChrome}" Opacity="0.55" VerticalAlignment="Center"
                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                     <Button Grid.Column="1" Content="Copy All" Style="{StaticResource ChipButtonStyle}"
-                            Click="OnCopyRawOutputClicked" Padding="7,2" FontSize="10"
+                            Click="OnCopyRawOutputClicked" Padding="7,2" FontSize="{StaticResource FontSizeChrome}"
                             AutomationProperties.AutomationId="CopyRawOutputButton"/>
                 </Grid>
                 <ScrollViewer Grid.Row="1" x:Name="RawOutputScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
                     <ItemsControl ItemsSource="{Binding RawOutput}" Margin="6,2">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="10" TextWrapping="NoWrap" Opacity="0.75"/>
+                                <TextBlock Text="{Binding}" FontFamily="Consolas" FontSize="{StaticResource FontSizeChrome}" TextWrapping="NoWrap" Opacity="0.75"/>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
@@ -1176,7 +1190,7 @@
 
         <!-- ===================== Input area ===================== -->
         <Border x:Name="InputAreaBorder" Grid.Row="5" Margin="10,6,10,10" Background="{StaticResource CardBackgroundBrush}"
-                BorderThickness="1" CornerRadius="8"
+                BorderThickness="1" CornerRadius="{StaticResource RadiusCard}"
                 AllowDrop="True" DragEnter="OnInputAreaDragEnter" DragLeave="OnInputAreaDragLeave"
                 PreviewDragOver="OnInputAreaDragOver" Drop="OnInputAreaDrop"
                 AutomationProperties.AutomationId="InputAreaBorder">
@@ -1221,12 +1235,12 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="{x:Type vm:PendingImageAttachment}">
-                                <Border CornerRadius="4" Margin="0,0,6,0"
+                                <Border CornerRadius="{StaticResource RadiusControl}" Margin="0,0,6,0"
                                         BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1">
                                     <Grid>
                                         <Image Source="{Binding Thumbnail}" Width="44" Height="44" Stretch="UniformToFill"/>
                                         <Button Content="✕" Click="OnRemovePendingImageClicked" Tag="{Binding}"
-                                                Style="{StaticResource IconButtonStyle}" Width="16" Height="16" FontSize="9"
+                                                Style="{StaticResource IconButtonStyle}" Width="16" Height="16" FontSize="{StaticResource GlyphSizeSmall}"
                                                 HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-8,-8,0"/>
                                     </Grid>
                                 </Border>
@@ -1244,15 +1258,15 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="{x:Type vm:PendingFileAttachment}">
-                                <Border CornerRadius="4" Margin="0,0,6,0" Padding="6,3"
+                                <Border CornerRadius="{StaticResource RadiusControl}" Margin="0,0,6,0" Padding="6,3"
                                         BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1">
                                     <StackPanel Orientation="Horizontal">
                                         <TextBlock Text="📄" Margin="0,0,5,0"
                                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
-                                        <TextBlock Text="{Binding Title}" FontSize="11"
+                                        <TextBlock Text="{Binding Title}" FontSize="{StaticResource FontSizeChrome}"
                                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                                         <Button Content="✕" Click="OnRemovePendingFileClicked" Tag="{Binding}"
-                                                Style="{StaticResource IconButtonStyle}" Width="16" Height="16" FontSize="9"
+                                                Style="{StaticResource IconButtonStyle}" Width="16" Height="16" FontSize="{StaticResource GlyphSizeSmall}"
                                                 Margin="5,0,0,0"/>
                                     </StackPanel>
                                 </Border>
@@ -1268,7 +1282,7 @@
                          BorderThickness="0" Background="Transparent"
                          Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                          CaretBrush="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                         Padding="2,2" FontSize="12.5"
+                         Padding="2,2" FontSize="{StaticResource FontSizeBody}"
                          PreviewKeyDown="OnInputPreviewKeyDown"
                          TextChanged="OnInputTextChanged"
                          DataObject.Pasting="OnInputBoxPasting"
@@ -1279,7 +1293,7 @@
                        AutomationProperties.AutomationId="SlashCommandPopup">
                     <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
                             TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                            BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="4"
+                            BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusControl}"
                             MaxHeight="160" MinWidth="240">
                         <ListBox x:Name="SlashCommandList" BorderThickness="0" Background="Transparent"
                                  Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
@@ -1294,7 +1308,7 @@
                        AutomationProperties.AutomationId="FilePickerPopup">
                     <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
                             TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                            BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="4"
+                            BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusControl}"
                             MaxHeight="200" MinWidth="300">
                         <ListBox x:Name="FilePickerList" BorderThickness="0" Background="Transparent"
                                  Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
@@ -1310,10 +1324,10 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Grid.Column="0"
                                                    Text="{Binding Converter={StaticResource FilePathToNameConverter}}"
-                                                   FontFamily="Consolas" FontSize="11.5" Margin="0,0,10,0"/>
+                                                   FontFamily="Consolas" FontSize="{StaticResource FontSizeBody}" Margin="0,0,10,0"/>
                                         <TextBlock Grid.Column="1"
                                                    Text="{Binding Converter={StaticResource FilePathToDirConverter}}"
-                                                   FontFamily="Consolas" FontSize="10" Opacity="0.5"
+                                                   FontFamily="Consolas" FontSize="{StaticResource FontSizeChrome}" Opacity="0.5"
                                                    VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                                     </Grid>
                                 </DataTemplate>
@@ -1366,7 +1380,7 @@
                            AutomationProperties.AutomationId="PalettePopup">
                         <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
                                 TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="6"
+                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}"
                                 MinWidth="230" MaxWidth="320" MaxHeight="380" Margin="0,0,0,6">
                             <Border.Effect>
                                 <DropShadowEffect BlurRadius="16" Opacity="0.3" ShadowDepth="2" Color="Black"/>
@@ -1374,11 +1388,11 @@
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                                 <StackPanel Margin="2,4">
                                     <TextBlock Text="THIS SESSION" Style="{StaticResource MenuSectionHeaderStyle}"/>
-                                    <TextBlock Text="{Binding SessionUsageText}" FontSize="11" Opacity="0.75"
+                                    <TextBlock Text="{Binding SessionUsageText}" FontSize="{StaticResource FontSizeChrome}" Opacity="0.75"
                                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                                Margin="8,0,8,4" TextWrapping="Wrap"/>
                                     <Button Content="Account &amp; Usage →" Style="{StaticResource MenuRowButtonStyle}"
-                                            Click="OnAccountUsageClicked" FontSize="11"
+                                            Click="OnAccountUsageClicked" FontSize="{StaticResource FontSizeChrome}"
                                             Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                             Margin="0,0,0,2"/>
 
@@ -1396,7 +1410,7 @@
                            AutomationProperties.AutomationId="ModelPopup">
                         <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
                                 TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="6"
+                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}"
                                 MinWidth="180" Margin="0,0,0,6">
                             <Border.Effect>
                                 <DropShadowEffect BlurRadius="16" Opacity="0.3" ShadowDepth="2" Color="Black"/>
@@ -1412,7 +1426,7 @@
                            AutomationProperties.AutomationId="PermissionPopup">
                         <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
                                 TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="6"
+                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}"
                                 MinWidth="230" Margin="0,0,0,6">
                             <Border.Effect>
                                 <DropShadowEffect BlurRadius="16" Opacity="0.3" ShadowDepth="2" Color="Black"/>
@@ -1428,7 +1442,7 @@
                            AutomationProperties.AutomationId="EffortPopup">
                         <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
                                 TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="6"
+                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}"
                                 MinWidth="180" Margin="0,0,0,6">
                             <Border.Effect>
                                 <DropShadowEffect BlurRadius="16" Opacity="0.3" ShadowDepth="2" Color="Black"/>
@@ -1444,7 +1458,7 @@
                            AutomationProperties.AutomationId="AccountUsagePopup">
                         <Border Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
                                 TextElement.Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
-                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="6"
+                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusCard}"
                                 MinWidth="340" MaxWidth="420" Margin="0,0,0,6">
                             <Border.Effect>
                                 <DropShadowEffect BlurRadius="16" Opacity="0.3" ShadowDepth="2" Color="Black"/>
@@ -1458,21 +1472,21 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock Text="Account &amp; Usage" FontWeight="SemiBold" FontSize="13"
+                                        <TextBlock Text="Account &amp; Usage" FontWeight="SemiBold" FontSize="{StaticResource FontSizeBody}"
                                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                                         <Button Grid.Column="1" Content="✕" Style="{StaticResource IconButtonStyle}"
-                                                Click="OnCloseAccountUsageClicked" Width="20" Height="20" FontSize="10"
+                                                Click="OnCloseAccountUsageClicked" Width="20" Height="20" FontSize="{StaticResource GlyphSize}"
                                                 AutomationProperties.AutomationId="CloseAccountUsageButton"/>
                                     </Grid>
 
                                     <!-- Loading -->
-                                    <TextBlock Text="Loading…" FontSize="11" Opacity="0.6"
+                                    <TextBlock Text="Loading…" FontSize="{StaticResource FontSizeChrome}" Opacity="0.6"
                                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                                Margin="0,0,0,8"
                                                Visibility="{Binding AccountUsage.IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"/>
 
                                     <!-- Error -->
-                                    <TextBlock Text="{Binding AccountUsage.LoadError}" FontSize="11" TextWrapping="Wrap"
+                                    <TextBlock Text="{Binding AccountUsage.LoadError}" FontSize="{StaticResource FontSizeChrome}" TextWrapping="Wrap"
                                                Foreground="{StaticResource ErrorBrush}" Margin="0,0,0,8"
                                                Visibility="{Binding AccountUsage.LoadError, Converter={StaticResource NullToVisibilityConverter}}"/>
 
@@ -1487,9 +1501,9 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="Auth method" Opacity="0.65" FontSize="11.5"
+                                            <TextBlock Text="Auth method" Opacity="0.65" FontSize="{StaticResource FontSizeBody}"
                                                        Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
-                                            <TextBlock Grid.Column="1" Text="{Binding AccountUsage.AuthMethod}" FontSize="11.5"
+                                            <TextBlock Grid.Column="1" Text="{Binding AccountUsage.AuthMethod}" FontSize="{StaticResource FontSizeBody}"
                                                        Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                                         </Grid>
 
@@ -1498,9 +1512,9 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="Email" Opacity="0.65" FontSize="11.5"
+                                            <TextBlock Text="Email" Opacity="0.65" FontSize="{StaticResource FontSizeBody}"
                                                        Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
-                                            <TextBlock Grid.Column="1" Text="{Binding AccountUsage.Email}" FontSize="11.5"
+                                            <TextBlock Grid.Column="1" Text="{Binding AccountUsage.Email}" FontSize="{StaticResource FontSizeBody}"
                                                        Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                                         </Grid>
 
@@ -1510,9 +1524,9 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="Organization" Opacity="0.65" FontSize="11.5"
+                                            <TextBlock Text="Organization" Opacity="0.65" FontSize="{StaticResource FontSizeBody}"
                                                        Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
-                                            <TextBlock Grid.Column="1" Text="{Binding AccountUsage.Organization}" FontSize="11.5"
+                                            <TextBlock Grid.Column="1" Text="{Binding AccountUsage.Organization}" FontSize="{StaticResource FontSizeBody}"
                                                        Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                                        MaxWidth="200" TextTrimming="CharacterEllipsis"/>
                                         </Grid>
@@ -1522,9 +1536,9 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="Plan" Opacity="0.65" FontSize="11.5"
+                                            <TextBlock Text="Plan" Opacity="0.65" FontSize="{StaticResource FontSizeBody}"
                                                        Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
-                                            <TextBlock Grid.Column="1" Text="{Binding AccountUsage.Plan}" FontSize="11.5"
+                                            <TextBlock Grid.Column="1" Text="{Binding AccountUsage.Plan}" FontSize="{StaticResource FontSizeBody}"
                                                        Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                                         </Grid>
 
@@ -1539,17 +1553,17 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{Binding AccountUsage.SessionLabel}" FontSize="11.5" FontWeight="SemiBold"
+                                            <TextBlock Text="{Binding AccountUsage.SessionLabel}" FontSize="{StaticResource FontSizeBody}" FontWeight="SemiBold"
                                                        Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
-                                            <TextBlock Grid.Column="1" Text="{Binding AccountUsage.SessionPercentLabel}" FontSize="11.5"
+                                            <TextBlock Grid.Column="1" Text="{Binding AccountUsage.SessionPercentLabel}" FontSize="{StaticResource FontSizeBody}"
                                                        Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                                         </Grid>
                                         <ProgressBar Value="{Binding AccountUsage.SessionPercent, Mode=OneWay}"
                                                      Style="{StaticResource UsageBarStyle}" Margin="0,0,0,4"
                                                      Visibility="{Binding AccountUsage.HasRateLimitData, Converter={StaticResource BoolToVisibilityConverter}}"/>
-                                        <Border Height="6" CornerRadius="3" Background="{StaticResource HairlineBrush}" Margin="0,0,0,4"
+                                        <Border Height="6" CornerRadius="{StaticResource RadiusControl}" Background="{StaticResource HairlineBrush}" Margin="0,0,0,4"
                                                 Visibility="{Binding AccountUsage.HasRateLimitData, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
-                                        <TextBlock Text="{Binding AccountUsage.SessionResetLabel}" FontSize="10.5" Opacity="0.6"
+                                        <TextBlock Text="{Binding AccountUsage.SessionResetLabel}" FontSize="{StaticResource FontSizeChrome}" Opacity="0.6"
                                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                                    Margin="0,0,0,10"/>
 
@@ -1559,21 +1573,21 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{Binding AccountUsage.WeeklyLabel}" FontSize="11.5" FontWeight="SemiBold"
+                                            <TextBlock Text="{Binding AccountUsage.WeeklyLabel}" FontSize="{StaticResource FontSizeBody}" FontWeight="SemiBold"
                                                        Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
-                                            <TextBlock Grid.Column="1" Text="{Binding AccountUsage.WeeklyPercentLabel}" FontSize="11.5"
+                                            <TextBlock Grid.Column="1" Text="{Binding AccountUsage.WeeklyPercentLabel}" FontSize="{StaticResource FontSizeBody}"
                                                        Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                                         </Grid>
                                         <ProgressBar Value="{Binding AccountUsage.WeeklyPercent, Mode=OneWay}"
                                                      Style="{StaticResource UsageBarStyle}" Margin="0,0,0,4"
                                                      Visibility="{Binding AccountUsage.HasRateLimitData, Converter={StaticResource BoolToVisibilityConverter}}"/>
-                                        <Border Height="6" CornerRadius="3" Background="{StaticResource HairlineBrush}" Margin="0,0,0,4"
+                                        <Border Height="6" CornerRadius="{StaticResource RadiusControl}" Background="{StaticResource HairlineBrush}" Margin="0,0,0,4"
                                                 Visibility="{Binding AccountUsage.HasRateLimitData, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
-                                        <TextBlock Text="{Binding AccountUsage.WeeklyResetLabel}" FontSize="10.5" Opacity="0.6"
+                                        <TextBlock Text="{Binding AccountUsage.WeeklyResetLabel}" FontSize="{StaticResource FontSizeChrome}" Opacity="0.6"
                                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                                    Margin="0,0,0,6"/>
 
-                                        <TextBlock FontSize="11" Margin="0,0,0,10">
+                                        <TextBlock FontSize="{StaticResource FontSizeChrome}" Margin="0,0,0,10">
                                             <Hyperlink RequestNavigate="OnManageUsageClicked"
                                                        NavigateUri="https://claude.ai/settings/limits"
                                                        Foreground="{StaticResource ClaudeAccentBrush}">
@@ -1585,7 +1599,7 @@
 
                                         <!-- ── THIS SESSION ───────────────────────── -->
                                         <TextBlock Text="THIS SESSION" Style="{StaticResource MenuSectionHeaderStyle}" Margin="0,0,0,4"/>
-                                        <TextBlock Text="{Binding SessionUsageText}" FontSize="11" Opacity="0.75"
+                                        <TextBlock Text="{Binding SessionUsageText}" FontSize="{StaticResource FontSizeChrome}" Opacity="0.75"
                                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                                    Margin="0,0,0,10" TextWrapping="Wrap"/>
 
@@ -1598,12 +1612,12 @@
                     <Button Grid.Column="1" x:Name="SendButton" Style="{StaticResource AccentButtonStyle}"
                             Click="OnSendClicked" Margin="6,0,0,0" ToolTip="Send (Enter)"
                             AutomationProperties.AutomationId="SendButton">
-                        <TextBlock Text="➤" FontSize="13"/>
+                        <TextBlock Text="➤" FontSize="{StaticResource GlyphSize}"/>
                     </Button>
                     <Button Grid.Column="1" x:Name="StopButton" Style="{StaticResource StopButtonStyle}"
                             Click="OnStopClicked" Margin="6,0,0,0" Visibility="Collapsed" ToolTip="Stop"
                             AutomationProperties.AutomationId="StopButton">
-                        <TextBlock Text="■" FontSize="11"/>
+                        <TextBlock Text="■" FontSize="{StaticResource GlyphSize}"/>
                     </Button>
                 </Grid>
             </Grid>

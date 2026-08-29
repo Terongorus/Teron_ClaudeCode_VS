@@ -26,6 +26,44 @@ Tiers are ordered by *value per unit of effort*, not by feature glamour.
 
 ---
 
+## Implementation status
+
+Updated as each phase of the Phase 7 parity build lands on `dev`. Commit SHAs are collected in
+`docs/Phase 7 - Baseline Parity Implementation.md`; this table is the quick index.
+
+| ID | Status | Phase | Note |
+|---|---|---|---|
+| **BUG-1** | ✅ done | A | Fixed by resolving the shell's `SEID_DocumentFrame` first. Verified live on the exact Markdown Preview tab that failed in the audit. |
+| **ST-1** | ✅ done | B | `Core/ChatTheme.xaml`. |
+| **ST-2** | ✅ done | B | 9 sizes → 2 (`FontSizeBody` 13, `FontSizeChrome` 11), plus 2 explicitly-separate glyph metrics. |
+| **ST-3** | ✅ done | B | 8 radii → 2 (`RadiusControl` 5, `RadiusCard` 6), plus 2 shape radii (circle/pill). |
+| **ST-4** | ✅ done | B | Verified by pixel sampling in both themes - see below. |
+| **ST-5** | ✅ decided | B | **Bubble kept**, deliberately. Rationale recorded at the template in `ClaudeCodeChatControl.xaml`. |
+
+**ST-4 measurement (Phase B, VS 18 Experimental instance, 2026-08-29).** Sampled from
+`PrintWindow` captures, not judged by eye:
+
+| Surface | Light theme | Dark theme |
+|---|---|---|
+| Chat panel background | `#F9F9F9` | `#282828` |
+| Solution Explorer background (control) | `#F9F9F9` | `#282828` |
+| Chat input area background | `#EFEFEF` | `#2F2F2F` |
+| Send button fill (accent) | `#D97757` | `#D97757` |
+
+The chat panel tracks a stock VS tool window exactly in both themes, and the accent is
+byte-identical across them - which is what ST-4 asks for. Evidence:
+`screenshots/our-extension/28-PhaseB-tokens-light.png`, `29-PhaseB-tokens-dark.png`,
+`30-PhaseB-tokens-model-popup.png`.
+
+> **On ST-2/ST-3 and the "two values" criterion.** Two of the nine font sizes and four of the
+> eight radii were never typography or corner treatment: they size icon glyphs inside fixed-size
+> buttons, and they round an element to a circle or a pill from its own height. Those are geometry.
+> They are kept as separately-named tokens (`GlyphSize`, `GlyphSizeSmall`, `RadiusCircle`,
+> `RadiusPill`) rather than folded into the scale, so that the two-value rule stays a real
+> constraint on the type and corner scales instead of being quietly widened to four.
+
+---
+
 ## Tier 0 — Correctness (do first; this is a real defect)
 
 | ID | Item | Size | Evidence | Done when |
