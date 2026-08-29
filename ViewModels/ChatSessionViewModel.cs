@@ -1281,6 +1281,7 @@ namespace TeronClaudeCodeVS.ViewModels
                     EnsureAssistantMessage();
                 _currentAssistantMessage!.Blocks.Add(request);
                 PendingPermissionRequest = request;
+                AutoOpenDiffTab(request);
 
                 StatusText = "⚠ Approval required — see chat";
                 PermissionRequestAdded?.Invoke(this, EventArgs.Empty);
@@ -1293,6 +1294,78 @@ namespace TeronClaudeCodeVS.ViewModels
                 _ = RespondToPermissionAsync(e, allow: false);
             }
         }
+
+        /// <summary>
+        /// FEAT-2. Opens a native side-by-side diff tab for a tool card, reporting in-transcript
+        /// why it could not rather than doing nothing - the same silent-return failure BUG-1 was
+        /// about. Takes the card as `object` because one button serves two unrelated card types.
+        /// </summary>
+        public void OpenDiffTab(object? card)
+        {
+            string toolName;
+            JObject? input;
+            bool applied;
+            string? toolUseId;
+
+            switch (card)
+            {
+                case PermissionRequestViewModel permission:
+                    // Nothing has touched the file yet, so the working copy is still the "before".
+                    toolName = permission.ToolName;
+                    input = permission.Input;
+                    applied = false;
+                    toolUseId = null;
+                    break;
+
+                case ToolCallViewModel call:
+                    toolName = call.ToolName;
+                    input = call.Input;
+                    applied = call.Status == ToolCallStatus.Done;
+                    toolUseId = call.ToolUseId;
+                    break;
+
+                default:
+                    return;
+            }
+
+            string? reason = VsDiffTab.Open(toolName, input, applied, _workingDirectory, CurrentSessionId, toolUseId);
+            if (reason != null)
+                AddSystemNotice(reason, isError: true);
+        }
+
+        /// <summary>
+        /// The session id the CLI is actually using right now: `init` sets it at session start,
+        /// which is well before any tool call, so prefer it over the id last captured off a
+        /// finished turn.
+        /// </summary>
+        private string? CurrentSessionId => _session?.LastSessionId ?? _lastSessionId;
+
+        /// <summary>
+        /// FEAT-2, the automatic half: baseline opens the tab itself when it proposes an edit.
+        /// Doing it on the permission prompt rather than on every edit means tabs appear exactly
+        /// when a human is already being asked to look at something - under acceptEdits or
+        /// bypassPermissions no prompt is raised, so no tabs pile up behind a long agent run.
+        /// </summary>
+        private void AutoOpenDiffTab(PermissionRequestViewModel request)
+        {
+            if (!request.CanOpenDiffTab)
+                return;
+            if (ClaudeCodePackage.Instance?.GetOptions()?.OpenDiffTabForEdits != true)
+                return;
+
+            string? reason = VsDiffTab.Open(request.ToolName, request.Input, alreadyApplied: false,
+                                            _workingDirectory, CurrentSessionId, null);
+            if (reason == null || _autoDiffTabFailureReported)
+                return;
+
+            // Say it once. The inline diff on the card is still there, so a repeated notice on
+            // every approval would be noise - but a setting that silently never works would be
+            // worse, so the first failure is surfaced with its reason.
+            _autoDiffTabFailureReported = true;
+            AddSystemNotice($"Diff tabs are turned on but couldn't be opened - {reason}", isError: true);
+        }
+
+        private bool _autoDiffTabFailureReported;
 
         /// <summary>
         /// Handles the built-in AskUserQuestion tool's can_use_tool request (distinct from

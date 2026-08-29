@@ -216,3 +216,84 @@ function Get-DocumentTexts {
         $key
     }
 }
+
+# Expands a WPF Expander found by the text on its header.
+#
+# Written after a Phase E assertion failed against a card that was in fact fine: a WPF Expander
+# header is a ToggleButton (AutomationId "HeaderSite") carrying TogglePattern, and the Expander
+# itself is a Group carrying ExpandCollapsePattern - neither of them supports InvokePattern. Any
+# helper that walks up from a label looking for something invokable therefore walks straight past
+# a collapsed card and finds nothing, so the content inside it is never realised and every
+# assertion about that content fails for the wrong reason.
+#
+# -Collapse closes it instead. That direction matters more than it looks: several cards in this UI
+# carry the SAME AutomationId on their own copy of a control (every tool card has a
+# ToolCallOpenDiffTab), so a lookup by id returns whichever card happens to come first in the tree.
+# Collapsing the cards a test is not talking about is what makes the next lookup unambiguous.
+function Expand-UiaByLabel {
+    param(
+        [Parameter(Mandatory = $true)][int]$ProcessId,
+        [Parameter(Mandatory = $true)][string]$Label,
+        [switch]$Collapse
+    )
+    $desktop = [System.Windows.Automation.AutomationElement]::RootElement
+    $cond = New-Object System.Windows.Automation.PropertyCondition(
+        [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $ProcessId)
+    $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+
+    foreach ($e in $desktop.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)) {
+        if ($e.Current.Name -ne $Label) { continue }
+        $n = $e
+        for ($i = 0; $i -lt 6 -and $null -ne $n; $i++) {
+            try {
+                $p = $n.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
+                $isExpanded = $p.Current.ExpandCollapseState -eq [System.Windows.Automation.ExpandCollapseState]::Expanded
+                if ($Collapse) { if ($isExpanded) { $p.Collapse() } }
+                elseif (-not $isExpanded) { $p.Expand() }
+                return $true
+            }
+            catch { $n = $walker.GetParent($n) }
+        }
+    }
+    return $false
+}
+
+# Finds the invokable control behind a piece of visible text, retrying until it appears.
+#
+# The retry is the point. A card's text and its Button's automation peer do not become visible to
+# UIA at the same instant: a Phase E run waited for "1  Allow", found it, and still got null from a
+# non-retrying lookup a fraction of a second later - then every assertion after it failed against a
+# card nobody had actually clicked. Waiting on text and then acting on a control is two different
+# questions, so the second one has to be asked until it answers.
+#
+# Also handles the shape these cards use: a Button whose content is a panel carries no Name of its
+# own, so the Name match lands on an inner TextBlock and the invokable ancestor is up to a few hops
+# above it.
+function Find-InvokableByName {
+    param(
+        [Parameter(Mandatory = $true)][int]$ProcessId,
+        [Parameter(Mandatory = $true)][string]$Label,
+        [int]$TimeoutMs = 8000
+    )
+    $desktop = [System.Windows.Automation.AutomationElement]::RootElement
+    $cond = New-Object System.Windows.Automation.PropertyCondition(
+        [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $ProcessId)
+    $walker = [System.Windows.Automation.TreeWalker]::ControlViewWalker
+    $deadline = (Get-Date).AddMilliseconds($TimeoutMs)
+
+    while ($true) {
+        foreach ($e in $desktop.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)) {
+            if ($e.Current.Name -ne $Label) { continue }
+            $n = $e
+            for ($i = 0; $i -lt 6 -and $null -ne $n; $i++) {
+                try {
+                    $null = $n.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
+                    return $n
+                }
+                catch { $n = $walker.GetParent($n) }
+            }
+        }
+        if ((Get-Date) -ge $deadline) { return $null }
+        Start-Sleep -Milliseconds 400
+    }
+}

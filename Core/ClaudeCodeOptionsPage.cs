@@ -1,4 +1,4 @@
-using Microsoft.VisualStudio.Shell;
+﻿using Microsoft.VisualStudio.Shell;
 using System.ComponentModel;
 using System.ComponentModel.Design;
 using System.Drawing.Design;
@@ -64,6 +64,11 @@ namespace TeronClaudeCodeVS.Core
         [Description("Tool names to deny (space/newline-separated). Passed via --disallowedTools.")]
         [Editor(typeof(MultilineStringEditor), typeof(UITypeEditor))]
         public string DisallowedTools { get; set; } = "";
+
+        [Category("Tools")]
+        [DisplayName("Open a Diff Tab for Proposed Edits")]
+        [Description("When Claude asks permission to edit or write a file, also open a native side-by-side diff tab in the editor (FEAT-2). The inline diff in the chat is shown either way, and Allow/Deny always stay on the chat card - the tab is read-only.")]
+        public bool OpenDiffTabForEdits { get; set; } = true;
 
         // ─── Advanced ───────────────────────────────────────────────────────────
 

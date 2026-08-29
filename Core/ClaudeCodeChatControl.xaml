@@ -593,6 +593,16 @@
                         </Grid>
                     </Expander.Header>
                     <StackPanel Margin="22,4,4,4">
+                        <!--
+                            FEAT-2: the same comparison the chat card shows inline, in a real VS
+                            diff tab. Visible only for Edit/Write - see VsDiffTab for the rest.
+                        -->
+                        <Button Content="Open diff tab" Click="OnOpenDiffTabClicked"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Padding="8,3" FontSize="{StaticResource FontSizeChrome}"
+                                HorizontalAlignment="Left" Margin="0,0,0,6"
+                                AutomationProperties.AutomationId="ToolCallOpenDiffTab"
+                                Visibility="{Binding CanOpenDiffTab, Converter={StaticResource BoolToVisibilityConverter}}"/>
                         <controls:DiffViewer RawDiff="{Binding RawDiff}"
                                               Visibility="{Binding RawDiff, Converter={StaticResource NullToVisibilityConverter}}"/>
                         <controls:MarkdownViewer
@@ -710,6 +720,19 @@
                                TextWrapping="Wrap" Margin="0,4,0,0"
                                Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                                Visibility="{Binding FullPath, Converter={StaticResource NullToVisibilityConverter}}"/>
+
+                    <!--
+                        FEAT-2: opens the proposed change as a real side-by-side VS tab before the
+                        user answers. Accept/Deny deliberately stay here on the card - VS's
+                        difference window is read-only browsing UI and takes no custom commands.
+                    -->
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0"
+                                Visibility="{Binding CanOpenDiffTab, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <Button Content="Open diff tab" Click="OnOpenDiffTabClicked"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Padding="8,3" FontSize="{StaticResource FontSizeChrome}"
+                                AutomationProperties.AutomationId="PermissionOpenDiffTab"/>
+                    </StackPanel>
 
                     <controls:DiffViewer Margin="0,6,0,0" RawDiff="{Binding RawDiff}"
                                           Visibility="{Binding RawDiff, Converter={StaticResource NullToVisibilityConverter}}"/>

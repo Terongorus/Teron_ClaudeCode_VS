@@ -110,6 +110,7 @@ namespace TeronClaudeCodeVS.ViewModels
                 {
                     OnPropertyChanged(nameof(Summary));
                     OnPropertyChanged(nameof(RawDiff));
+                    OnPropertyChanged(nameof(CanOpenDiffTab));
                     OnPropertyChanged(nameof(HasDetail));
                     OnPropertyChanged(nameof(HasMarkdownDetail));
                     OnPropertyChanged(nameof(DetailDocument));
@@ -167,6 +168,15 @@ namespace TeronClaudeCodeVS.ViewModels
         /// Consumed by DiffViewer — the MarkdownViewer shows only the output/error portion.
         /// </summary>
         public string? RawDiff => ToolPresentation.GetRawDiff(ToolName, _input);
+
+        /// <summary>
+        /// FEAT-2: whether this call can be shown in a native side-by-side tab. Only the two
+        /// whole-file tools qualify - see <see cref="Core.VsDiffTab"/> for why a notebook edit
+        /// does not.
+        /// </summary>
+        public bool CanOpenDiffTab =>
+            (ToolName == "Edit" || ToolName == "Write") &&
+            ToolPresentation.GetFullPath(ToolName, _input) != null;
 
         /// <summary>
         /// Markdown shown in the MarkdownViewer below the diff (output/error for Edit tools;
@@ -243,6 +253,24 @@ namespace TeronClaudeCodeVS.ViewModels
         public string? FullPath { get; }
 
         /// <summary>
+        /// The raw tool input, kept so FEAT-2 can compute both sides of a comparison from the
+        /// call the user is being asked to approve.
+        /// </summary>
+        public JObject Input { get; }
+
+        /// <summary>
+        /// FEAT-2: whether a native side-by-side tab can be opened from THIS card. It goes away
+        /// once the card is answered, and not only for tidiness: this card's comparison is built
+        /// from the working copy on the understanding that nothing has touched the file yet, which
+        /// stops being true the moment the edit is allowed. After that the finished tool call is
+        /// the card that knows the file has changed, and it carries its own button.
+        /// </summary>
+        public bool CanOpenDiffTab =>
+            !IsResolved &&
+            (ToolName == "Edit" || ToolName == "Write") &&
+            ToolPresentation.GetFullPath(ToolName, Input) != null;
+
+        /// <summary>
         /// Line-level diff for Edit/NotebookEdit calls; null for everything else. Consumed by
         /// DiffViewer, same as ToolCallViewModel.RawDiff - keeps the pending-approval card and the
         /// resolved tool-call card showing an identical diff instead of two different renderers.
@@ -258,7 +286,11 @@ namespace TeronClaudeCodeVS.ViewModels
         public bool IsResolved
         {
             get => _isResolved;
-            private set => SetField(ref _isResolved, value);
+            private set
+            {
+                if (SetField(ref _isResolved, value))
+                    OnPropertyChanged(nameof(CanOpenDiffTab));
+            }
         }
 
         private string? _resolutionText;
@@ -306,6 +338,7 @@ namespace TeronClaudeCodeVS.ViewModels
         {
             ToolName = toolName;
             Title = title;
+            Input = input;
             Summary = ToolPresentation.GetSummary(toolName, input);
             FullPath = ToolPresentation.GetFullPath(toolName, input);
 

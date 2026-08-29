@@ -530,6 +530,16 @@ namespace TeronClaudeCodeVS.Core
             Keyboard.Focus(InputBox);
         }
 
+        /// <summary>
+        /// FEAT-2: open the native side-by-side tab for whichever card's button was pressed. The
+        /// card itself is the DataContext, so one handler serves both the pending-approval card
+        /// and the finished tool call.
+        /// </summary>
+        private void OnOpenDiffTabClicked(object sender, RoutedEventArgs e)
+        {
+            _vm.OpenDiffTab(((FrameworkElement)sender).DataContext);
+        }
+
         /// <summary>GAP-1: one of the five Customize rows was picked - show its hand-off card.</summary>
         private void OnTerminalHandoffClicked(object sender, RoutedEventArgs e)
         {

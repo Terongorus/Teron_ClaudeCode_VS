@@ -54,6 +54,7 @@ Updated as each phase of the Phase 7 parity build lands on `dev`. Commit SHAs ar
 | **GAP-1** | ✅ done | D | Five hand-off cards, baseline's wording verbatim; each launches `claude /<key>` on confirm. |
 | **GAP-2** | ✅ done | D | Launches Windows Terminal in the solution directory. External, not in-frame — see below. |
 | **GAP-3** | ✅ done | D | Measured extension-injected, then built: `/btw`, `/feedback`, `/remote-control` (+ `/rc`). |
+| **FEAT-2** | ✅ done | E | Native VS diff tab, auto-opened on an edit prompt. Accept/revert stay on the card — see below. |
 
 **ST-4 measurement (Phase B, VS 18 Experimental instance, 2026-08-29).** Sampled from
 `PrintWindow` captures, not judged by eye:
@@ -252,6 +253,83 @@ Phase C. Both are waiting on **TEST-1**. The buttons themselves were driven and 
 **One deliberate behavioural difference from baseline** worth recording: baseline's hand-off is a
 modal dialog that disappears once answered. Ours resolves in place and stays in the transcript
 with an italic outcome line, so a session's history shows what was offered and what was chosen.
+
+### Phase E notes (2026-08-29)
+
+**What VS gives and what it does not.** Baseline's diff tab carries five toolbar buttons: accept,
+revert, next change, previous change, swap sides. Visual Studio's own difference window supplies
+the navigation half outright — `Previous difference` and `Next difference` were read out of the
+live UIA tree, not assumed — plus its side-by-side/inline view switch. The other two cannot be
+had: `IVsDifferenceService` is read-only browsing UI with no apply mechanism and no way to add
+commands to the window it creates, which this codebase had already established when the MCP
+`openDiff` path was built. So accept and revert stay on the chat card, driving the same permission
+response they always did. **The tab is the view; the card is the control.**
+
+Both sides are temp files marked read-only, because it really is a view: a user who typed into a
+pane and saved would otherwise be editing scratch while believing they had edited their file. That
+attribute is also why this path does not hand VS the `VSDIFFOPT_*IsTemporary` flags the MCP path
+uses — `File.Delete` throws on a read-only file, so cleanup is ours. (That is a justification for
+the choice, not a measured claim about what VS would have done.)
+
+**When it opens.** Automatically on an approval prompt, which is the moment a human is already
+being asked to look at something — so under `acceptEdits` or `bypassPermissions`, where no prompt is
+raised, no tabs pile up behind a long agent run. One tab per file, replaced rather than stacked.
+Both the approval card and the finished tool call carry a manual button; the approval card drops
+its button once answered, because its comparison assumes nothing has touched the file yet and that
+stops being true the moment the edit is allowed.
+
+**The correction that mattered.** FEAT-2 needs the "before" side of an edit that has already been
+applied, and the tool input cannot supply it — a `Write` call carries no record of what it
+overwrote. The CLI's own checkpoint store can, and `ViewModels/SessionCheckpointStore.cs` reads it.
+The first version of that reader was **wrong in a way that looked right**: it assumed one
+`file-history-delta` per edit. In fact the CLI writes a delta only the first time it backs up a
+given file; after that the file is carried forward in each turn's `file-history-snapshot`, under
+`trackedFileBackups`. Reading deltas alone returns a real backup of the right file **from the wrong
+point in its history** — a plausible-looking wrong diff, which is worse than no diff because it
+invites trust. Caught by a live run, corrected, and re-verified.
+
+A second, latent version of the same mistake was found while writing this up: the pending-edit
+branch read `before = backup ?? diskText`, harmless today only because every pending caller passes
+no tool-use id. Had one ever been passed — entirely natural, since a permission request has one —
+a proposal would have been compared against a stale snapshot instead of the working copy. The
+lookup now lives inside the applied branch, where it is the only honest source.
+
+**Verification.** Three scripts, 52 checks, all passing.
+
+| Script | What it establishes |
+|---|---|
+| `scripts/phase-e-verify.ps1` (21) | The whole Edit path live: auto-open, labels, real difference navigation, temp files read-only with correct contents, the edit landing on disk, one tab per file, the approval card dropping its button once answered. |
+| `scripts/phase-e-verify-write.ps1` (7) | That the applied "before" really comes from the CLI's store. A `Write` cannot be reverse-reconstructed by design, so a correct left side has only one possible source. |
+| `scripts/phase-e-unit.ps1` (24) | The branches a live session structurally cannot reach — see below. |
+
+Evidence: `screenshots/our-extension/42-PhaseE-proposed-diff-tab.png`,
+`43-PhaseE-applied-diff-tab.png`, `44-PhaseE-write-diff-tab.png`. The last one shows the rendered
+comparison (`1 change · -4 · +1`), not merely that a tab exists.
+
+**Why a third script exists.** The live run leaves real branches unexecuted, and unexecuted is
+untested however green the run looks. The CLI writes a backup for every edit, so the
+reverse-reconstruction fallback never runs; the model will not emit `replace_all` on request; no
+temp directory is ever a day old during a test; and no error string is ever displayed when
+everything works. `phase-e-unit.ps1` reaches all of those **through the real built assembly by
+reflection**, not through a copy of the logic pasted into a test project, and checks
+`SessionCheckpointStore` against the actual transcripts and backup files the live runs left in
+`~/.claude`. It needs no IDE, opens no window, and takes no focus.
+
+**Harness lessons, all of which first showed up as a "product bug" that was not one.**
+
+| Symptom | Cause |
+|---|---|
+| Tab reported missing though it was open | PowerShell `-like` reads `[Claude Code]` as a character class. Assertions on that caption need ordinal `Contains`. |
+| A card's button "not invokable" moments after its text appeared | Text and automation peer do not arrive together. `Find-InvokableByName` retries; waiting for text is a different question from finding its control. |
+| Tool card would not expand | A WPF Expander header is a ToggleButton and the Expander a Group with `ExpandCollapsePattern` — neither supports `InvokePattern`, so a walk-up-for-something-invokable finds nothing. `Expand-UiaByLabel` added. |
+| A real diff of the wrong tool call | Every tool card carries the same `AutomationId`, so a lookup by id returns whichever comes first in the tree. Collapse the cards a test is not talking about. |
+| "4 tabs" for one tab | The caption also appears on the window frame, the document and the title bar. Count `TabItem`s, not name matches. |
+| Several unit assertions passing while exercising nothing | Setting a `JObject` indexer through PowerShell's object adapter silently does nothing, so the inputs were empty. Build inputs by parsing JSON. |
+| Parameter-count mismatch from reflection | A `JObject` is enumerable, so `$bound += $jobject` appends its properties. Build argument arrays by index. |
+
+**Deliberately not covered.** `NotebookEdit` gets no tab: a cell edit inside a `.ipynb` would mean
+re-serialising the notebook and diffing our guess at the CLI's output. It is refused with a
+sentence rather than silently ignored, and that refusal is asserted.
 
 ## Tier 0 — Correctness (do first; this is a real defect)
 
