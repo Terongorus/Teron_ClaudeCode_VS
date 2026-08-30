@@ -389,6 +389,88 @@ in-process, which reaches more than an IDE session would and takes no focus.
 | Two decoy checks failing against a reader that was behaving correctly | Inside `@(...)`, `'a' + ('x' * 400), 'b', 'c'` binds the `+` across the whole comma list, so the array collapsed to one string and the fixture file was written with a single line. Build long strings on their own line, then assert the array's length. |
 | "No update computed", and two *passing* checks that proved nothing | `MethodInfo.Invoke` on a **void** method returns `$null`, and PowerShell emits that `$null` into the enclosing function's output — inflating every result array. Because `$null.Count` is 0 in PowerShell, the "expected no update" checks passed for entirely the wrong reason. `[void]` the call, and keep arrays intact across `return` with a leading comma. |
 
+### Phase G notes (2026-08-30)
+
+**FEAT-4 and FEAT-5 are the two Customize entries that are real GUI, and both are windows onto the
+CLI.** Neither panel owns any state: `Core/ClaudeCliQuery.cs` runs a subcommand headlessly, and the
+two view models turn its output into rows. That is why the empty states match baseline — for MCP,
+the sentence the panel shows *is* the sentence `claude mcp list` printed, not a copy of it.
+
+**What the CLI actually offers, measured rather than assumed** (shipped CLI 2.1.251, 2026-08-30):
+
+| Query | `--json`? | Shape |
+|---|---|---|
+| `claude mcp list` | **no** — its only option is `-h` | text, one line per server |
+| `claude plugin list` | yes | bare array of installed plugins |
+| `claude plugin list --json --available` | yes (`--available` *requires* `--json`) | `{ "installed": [...], "available": [...] }` |
+| `claude plugin marketplace list --json` | yes | bare array of marketplaces |
+
+So the plugins panel parses JSON and the MCP panel parses text — and the text format was not
+guessed. It was read out of the shipped binary's own renderer:
+
+```
+sse:            `${name}: ${url} (SSE) - ${o}`
+http:           `${name}: ${url} (HTTP) - ${o}`
+claudeai-proxy: `${name}: ${url} - ${o}`
+stdio:          `${name}: ${command} ${args.join(" ")} - ${o}`
+                o = issue ? `${status} — ${issue}` : status        (that second dash is an em dash)
+```
+
+with a closed status vocabulary of nine strings: `✓ Connected`, `! Connected · tools fetch failed`,
+`! Needs authentication`, `- Not configured`, `✗ Failed to connect`, `✗ Connection error`,
+`⏸ Pending approval (run \`claude\` to approve)`, `✗ Rejected (see disabledMcpjsonServers in
+settings)`, `⊘ Disabled for this project (re-enable via /mcp)`.
+
+**Two defects that only that vocabulary could have revealed**, both found by the harness and fixed:
+
+* `✗ Rejected (see disabledMcpjsonServers in settings)` was classified as *Disabled*, because the
+  status names the setting that caused it and a case-insensitive search for "disabled" matches the
+  sentence before "Rejected" does. Rejection is now tested first, and disablement is matched on the
+  fuller phrase.
+* `- Not configured` begins with the separator's own characters, so `name: cmd - - Not configured`
+  splits one character late — leaving a stray dash on the target and eating the status's leading
+  marker. Detected by exactly that stray dash and undone.
+
+Neither is hypothetical: both statuses are ones the shipped CLI emits.
+
+**The working directory is part of the answer.** `claude mcp list` resolves project-scoped servers
+out of the `.mcp.json` beside the current directory. Run from the extension host's own cwd — which
+is wherever `devenv.exe` lives — a solution's own servers simply do not appear, and no amount of
+parser testing would show it. `ClaudeCliQuery` therefore takes a working directory, the panel passes
+the solution directory, and the panel prints that directory under its title so the reader knows what
+scope they are looking at.
+
+**A divergence from baseline's empty state, taken deliberately.** FEAT-5's acceptance criterion is
+baseline's sentence, *"No plugins available. Add a marketplace to discover plugins."* — which is
+correct advice when there is no marketplace to discover anything from, and misleading once there is
+one. It is used verbatim in exactly the case it describes; when marketplaces exist but nothing is
+installed, the CLI's own *"No plugins installed. Use `claude plugin install`…"* is shown instead.
+Both branches are covered by tests. (Baseline's MCP sentence as transcribed in the Phase 6 audit
+said "to add servers."; the shipped CLI says "to add a server." Since the panel surfaces the CLI's
+own line, ours is right by construction — the audit's transcription was one word off.)
+
+**Verification — 141 checks, no Visual Studio instance, no window, no focus taken.**
+
+| Script | Checks | What it establishes |
+|---|---|---|
+| `comparison-audit/scripts/phase-g-unit.ps1` | 99 | The parsers, against real captured output plus every status in the CLI's vocabulary; both hard format cases above; both JSON shapes; noise, chatter-prefixed JSON and malformed rows; the empty-state branch; **and every `{Binding …}` path the two new panels declare, resolved against the real view-model types** — the one XAML failure mode (a silent typo) that a headless run can still catch. |
+| `comparison-audit/scripts/phase-g-vm.ps1` | 42 | The real view models driving the **real CLI**: two project-scoped MCP servers found in one directory and none in the directory next door (the working-directory proof, re-run in reverse as a control); a bogus CLI path producing an error rather than a serene empty state; the timeout path; and a real marketplace with a real installed plugin, created under a throwaway `CLAUDE_CONFIG_DIR` so the user's own configuration is never written — asserted unchanged before and after. |
+
+Every check that asserts something is *empty* is paired with a positive control that runs the same
+code and must not be — the rule Phase F's void-`Invoke` trap earned.
+
+**Two incidental findings worth keeping.** `CLAUDE_CONFIG_DIR` is honoured by the CLI and is the
+clean way to exercise plugin state without touching a real machine's configuration; and
+`ClaudeCliLocator.Find(null)` resolves to the CLI bundled with the VS Code extension
+(`anthropic.claude-code-2.1.251`) on this machine rather than the one on `PATH`, so the two harnesses
+between them exercised two different CLI builds and got identical output shapes from both.
+
+**Not covered by this phase's tests:** the rendered XAML itself — layout, the tab strip's underline,
+the modal shadow — and the six `Click` handlers, which are three lines each. Those need a live
+instance and are deferred to TEST-1 with the rest.
+
+---
+
 ## Tier 0 — Correctness (do first; this is a real defect)
 
 | ID | Item | Size | Evidence | Done when |

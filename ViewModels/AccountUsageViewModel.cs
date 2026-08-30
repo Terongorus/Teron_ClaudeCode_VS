@@ -1,9 +1,7 @@
 using Newtonsoft.Json.Linq;
 using System;
-using System.Diagnostics;
-using System.IO;
-using System.Text;
 using System.Threading.Tasks;
+using TeronClaudeCodeVS.Core;
 using TeronClaudeCodeVS.Protocol;
 
 namespace TeronClaudeCodeVS.ViewModels
@@ -185,49 +183,18 @@ namespace TeronClaudeCodeVS.ViewModels
             return $"{(int)ts.TotalMinutes}m";
         }
 
+        /// <summary>
+        /// Thin wrapper over the shared runner. Kept because this class only ever wants the stdout
+        /// of a command it already knows how to parse; the runner itself lives in ClaudeCliQuery so
+        /// the MCP and plugins panels (FEAT-4/FEAT-5) do not each grow their own copy of it.
+        /// </summary>
         private static async Task<string> RunCommandAsync(string claudePath, string args, int timeoutMs = 8000)
         {
-            try
-            {
-                string fileName = claudePath;
-                string fullArgs = args;
+            ClaudeCliResult result = await ClaudeCliQuery
+                .RunAsync(claudePath, args, workingDirectory: null, timeoutMs: timeoutMs)
+                .ConfigureAwait(true);
 
-                string ext = Path.GetExtension(claudePath);
-                if (string.Equals(ext, ".cmd", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(ext, ".bat", StringComparison.OrdinalIgnoreCase))
-                {
-                    fileName = Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe";
-                    fullArgs = $"/c \"{claudePath}\" {args}";
-                }
-
-                ProcessStartInfo psi = new ProcessStartInfo
-                {
-                    FileName = fileName,
-                    Arguments = fullArgs,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true,
-                    StandardOutputEncoding = new UTF8Encoding(false),
-                };
-
-                using Process process = Process.Start(psi);
-                if (process == null) return "";
-
-                var readTask = process.StandardOutput.ReadToEndAsync();
-                var done = await Task.WhenAny(readTask, Task.Delay(timeoutMs));
-
-                if (!process.HasExited)
-                {
-                    try { process.Kill(); } catch { }
-                }
-
-                return done == readTask ? await readTask : "";
-            }
-            catch
-            {
-                return "";
-            }
+            return result.StdOut;
         }
     }
 }

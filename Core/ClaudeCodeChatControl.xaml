@@ -77,6 +77,7 @@
         <controls:StatusLineConverter x:Key="StatusLineConverter"/>
         <controls:FilePathToNameConverter x:Key="FilePathToNameConverter"/>
         <controls:FilePathToDirConverter x:Key="FilePathToDirConverter"/>
+        <controls:McpStatusToBrushConverter x:Key="McpStatusToBrushConverter"/>
 
         <!-- ListBoxItem style for popups: replaces all WPF system-color defaults with VS theme brushes -->
         <Style x:Key="PopupListItemStyle" TargetType="ListBoxItem">
@@ -521,6 +522,25 @@
                                Opacity="0.6" TextWrapping="Wrap" Margin="0,1,0,0"/>
                 </StackPanel>
             </Button>
+        </DataTemplate>
+
+        <!--
+            FEAT-5: one row per plugin, shared by the panel's Installed and Available lists. An
+            installed row has no description of its own - only the marketplace catalog carries one -
+            so the detail line does the work instead (version, marketplace, scope, enablement).
+        -->
+        <DataTemplate x:Key="PluginRowTemplate" DataType="{x:Type vm:PluginEntry}">
+            <StackPanel Margin="0,4,0,4">
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="{StaticResource FontSizeBody}"
+                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                <TextBlock Text="{Binding Description}" FontSize="{StaticResource FontSizeChrome}"
+                           Opacity="0.75" TextWrapping="Wrap" Margin="0,1,0,0"
+                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                           Visibility="{Binding HasDescription, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                <TextBlock Text="{Binding DetailLine}" FontSize="{StaticResource FontSizeChrome}"
+                           Opacity="0.55" TextTrimming="CharacterEllipsis" Margin="0,1,0,0"
+                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+            </StackPanel>
         </DataTemplate>
 
         <!-- ===================== Content-block templates ===================== -->
@@ -1782,6 +1802,28 @@
                                     <TextBlock Text="CUSTOMIZE" Style="{StaticResource MenuSectionHeaderStyle}"/>
                                     <ItemsControl ItemsSource="{Binding TerminalHandoffs}"
                                                   ItemTemplate="{StaticResource TerminalHandoffMenuItemTemplate}"/>
+                                    <!--
+                                        FEAT-4 / FEAT-5. The two Customize entries that are real GUI
+                                        panels rather than terminal hand-offs. Baseline's labels.
+                                    -->
+                                    <Button Style="{StaticResource MenuRowButtonStyle}" Click="OnMcpServersClicked"
+                                            AutomationProperties.AutomationId="McpServersRow">
+                                        <StackPanel>
+                                            <TextBlock Text="MCP servers"/>
+                                            <TextBlock Text="Connect external tools and data"
+                                                       FontSize="{StaticResource FontSizeChrome}"
+                                                       Opacity="0.6" TextWrapping="Wrap" Margin="0,1,0,0"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Style="{StaticResource MenuRowButtonStyle}" Click="OnManagePluginsClicked"
+                                            AutomationProperties.AutomationId="ManagePluginsRow">
+                                        <StackPanel>
+                                            <TextBlock Text="Manage plugins"/>
+                                            <TextBlock Text="Install plugins from marketplaces"
+                                                       FontSize="{StaticResource FontSizeChrome}"
+                                                       Opacity="0.6" TextWrapping="Wrap" Margin="0,1,0,0"/>
+                                        </StackPanel>
+                                    </Button>
                                     <Button Style="{StaticResource MenuRowButtonStyle}" Click="OnOpenInTerminalClicked"
                                             AutomationProperties.AutomationId="OpenInTerminalRow">
                                         <StackPanel>
@@ -1988,6 +2030,238 @@
                                     </StackPanel>
                                 </StackPanel>
                             </ScrollViewer>
+                        </Border>
+                    </Popup>
+
+                    <!--
+                        ===================== FEAT-4: MCP servers =====================
+
+                        One of only two entries in baseline's "Customize" section that open a real
+                        GUI panel instead of handing off to a terminal. Everything shown here comes
+                        from `claude mcp list` - including the empty state, which is the CLI's own
+                        sentence rather than a copy of it (see McpServersViewModel).
+                    -->
+                    <Popup x:Name="McpPopup" PlacementTarget="{Binding ElementName=PaletteButton}"
+                           Placement="Top" StaysOpen="False" AllowsTransparency="True"
+                           AutomationProperties.AutomationId="McpPopup">
+                        <Border Style="{StaticResource PopupCardStyle}" MinWidth="340" MaxWidth="440">
+                            <DockPanel>
+
+                                <Grid DockPanel.Dock="Top" Margin="14,10,10,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="MCP servers" FontWeight="SemiBold" FontSize="{StaticResource FontSizeBody}"
+                                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                                   AutomationProperties.AutomationId="McpPanelTitle"/>
+                                        <!-- Project-scoped servers depend on which directory the query ran in. -->
+                                        <TextBlock Text="{Binding McpServers.ScopeDirectory}" Style="{StaticResource KeyHintStyle}"
+                                                   Margin="0,1,0,0" TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding McpServers.ScopeDirectory}"/>
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="✕" Style="{StaticResource IconButtonStyle}"
+                                            Click="OnCloseMcpClicked" Width="20" Height="20" FontSize="{StaticResource GlyphSize}"
+                                            VerticalAlignment="Top"
+                                            AutomationProperties.AutomationId="CloseMcpButton"/>
+                                </Grid>
+
+                                <Border DockPanel.Dock="Bottom" Style="{StaticResource PopupFooterStyle}">
+                                    <TextBlock Style="{StaticResource KeyHintStyle}">
+                                        <Hyperlink NavigateUri="https://code.claude.com/docs/en/mcp"
+                                                   RequestNavigate="OnDocsLinkClicked"
+                                                   Foreground="{StaticResource ClaudeAccentBrush}"
+                                                   AutomationProperties.AutomationId="McpLearnMoreLink">Learn more about MCP</Hyperlink>
+                                    </TextBlock>
+                                </Border>
+
+                                <Grid Margin="14,4,14,4" MinHeight="60">
+                                    <TextBlock Text="Loading…" FontSize="{StaticResource FontSizeChrome}" Opacity="0.6"
+                                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                               Visibility="{Binding McpServers.IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"
+                                               AutomationProperties.AutomationId="McpLoadingText"/>
+
+                                    <StackPanel Visibility="{Binding McpServers.IsLoading, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}">
+                                        <TextBlock Text="{Binding McpServers.LoadError}" FontSize="{StaticResource FontSizeChrome}"
+                                                   TextWrapping="Wrap" Foreground="{StaticResource ErrorBrush}" Margin="0,0,0,6"
+                                                   Visibility="{Binding McpServers.LoadError, Converter={StaticResource NullToVisibilityConverter}}"
+                                                   AutomationProperties.AutomationId="McpErrorText"/>
+
+                                        <!-- The CLI's own "nothing configured" sentence. -->
+                                        <TextBlock Text="{Binding McpServers.EmptyStateText}" FontSize="{StaticResource FontSizeBody}"
+                                                   TextWrapping="Wrap" Opacity="0.7" TextAlignment="Center" Margin="6,12,6,12"
+                                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                                   Visibility="{Binding McpServers.Servers.Count, Converter={StaticResource CountToVisibilityConverter}}"
+                                                   AutomationProperties.AutomationId="McpEmptyStateText"/>
+
+                                        <ItemsControl ItemsSource="{Binding McpServers.Servers}"
+                                                      AutomationProperties.AutomationId="McpServerList">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="0,4,0,4">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Ellipse Width="7" Height="7" Margin="0,5,7,0" VerticalAlignment="Top"
+                                                                 Fill="{Binding Kind, Converter={StaticResource McpStatusToBrushConverter}}"/>
+                                                        <StackPanel Grid.Column="1">
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                                                           FontSize="{StaticResource FontSizeBody}"
+                                                                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                                                <TextBlock Text="{Binding Transport}" Style="{StaticResource KeyHintStyle}"
+                                                                           Margin="6,1,0,0"
+                                                                           Visibility="{Binding HasTransport, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding Target}" FontSize="{StaticResource FontSizeChrome}"
+                                                                       Opacity="0.6" TextTrimming="CharacterEllipsis"
+                                                                       ToolTip="{Binding Target}"
+                                                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                                            <TextBlock Text="{Binding Status}" FontSize="{StaticResource FontSizeChrome}"
+                                                                       Margin="0,1,0,0" TextWrapping="Wrap"
+                                                                       Foreground="{Binding Kind, Converter={StaticResource McpStatusToBrushConverter}}"/>
+                                                            <TextBlock Text="{Binding Issue}" FontSize="{StaticResource FontSizeChrome}"
+                                                                       Opacity="0.7" TextWrapping="Wrap"
+                                                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                                                       Visibility="{Binding HasIssue, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Grid>
+                            </DockPanel>
+                        </Border>
+                    </Popup>
+
+                    <!--
+                        ===================== FEAT-5: Manage plugins =====================
+
+                        Baseline's other real GUI panel, and the reason TerminalHandoffCatalog skips
+                        the `plugins` hand-off entirely. The Plugins / Marketplaces tab strip is
+                        baseline's; the contents come from `claude plugin list` (asked for JSON, with available
+                        plugins included) and `claude plugin marketplace list`.
+                    -->
+                    <Popup x:Name="PluginsPopup" PlacementTarget="{Binding ElementName=PaletteButton}"
+                           Placement="Top" StaysOpen="False" AllowsTransparency="True"
+                           AutomationProperties.AutomationId="PluginsPopup">
+                        <Border Style="{StaticResource PopupCardStyle}" MinWidth="340" MaxWidth="440">
+                            <DockPanel>
+
+                                <Grid DockPanel.Dock="Top" Margin="14,10,10,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Manage plugins" FontWeight="SemiBold" FontSize="{StaticResource FontSizeBody}"
+                                               VerticalAlignment="Center"
+                                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                               AutomationProperties.AutomationId="PluginsPanelTitle"/>
+                                    <Button Grid.Column="1" Content="✕" Style="{StaticResource IconButtonStyle}"
+                                            Click="OnClosePluginsClicked" Width="20" Height="20" FontSize="{StaticResource GlyphSize}"
+                                            AutomationProperties.AutomationId="ClosePluginsButton"/>
+                                </Grid>
+
+                                <!-- Tab strip. The underline, not a fill, marks the active tab. -->
+                                <Border DockPanel.Dock="Top" BorderBrush="{StaticResource HairlineBrush}"
+                                        BorderThickness="0,0,0,1" Margin="0,0,0,4">
+                                    <StackPanel Orientation="Horizontal" Margin="12,0,0,0">
+                                        <Grid Margin="0,0,4,0">
+                                            <Button Style="{StaticResource ChipButtonStyle}" Click="OnPluginsTabClicked"
+                                                    BorderThickness="0" Background="Transparent"
+                                                    AutomationProperties.AutomationId="PluginsTabButton">
+                                                <TextBlock Text="Plugins"/>
+                                            </Button>
+                                            <Border Height="2" VerticalAlignment="Bottom" Background="{StaticResource ClaudeAccentBrush}"
+                                                    Visibility="{Binding Plugins.IsPluginsTab, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        </Grid>
+                                        <Grid>
+                                            <Button Style="{StaticResource ChipButtonStyle}" Click="OnMarketplacesTabClicked"
+                                                    BorderThickness="0" Background="Transparent"
+                                                    AutomationProperties.AutomationId="MarketplacesTabButton">
+                                                <TextBlock Text="Marketplaces"/>
+                                            </Button>
+                                            <Border Height="2" VerticalAlignment="Bottom" Background="{StaticResource ClaudeAccentBrush}"
+                                                    Visibility="{Binding Plugins.IsMarketplacesTab, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border DockPanel.Dock="Bottom" Style="{StaticResource PopupFooterStyle}">
+                                    <TextBlock Style="{StaticResource KeyHintStyle}">
+                                        <Hyperlink NavigateUri="https://code.claude.com/docs/en/plugins"
+                                                   RequestNavigate="OnDocsLinkClicked"
+                                                   Foreground="{StaticResource ClaudeAccentBrush}"
+                                                   AutomationProperties.AutomationId="PluginsLearnMoreLink">Learn more about plugins</Hyperlink>
+                                    </TextBlock>
+                                </Border>
+
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="360">
+                                    <Grid Margin="14,4,14,4" MinHeight="60">
+                                        <TextBlock Text="Loading…" FontSize="{StaticResource FontSizeChrome}" Opacity="0.6"
+                                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                                   Visibility="{Binding Plugins.IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"
+                                                   AutomationProperties.AutomationId="PluginsLoadingText"/>
+
+                                        <StackPanel Visibility="{Binding Plugins.IsLoading, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}">
+                                            <TextBlock Text="{Binding Plugins.LoadError}" FontSize="{StaticResource FontSizeChrome}"
+                                                       TextWrapping="Wrap" Foreground="{StaticResource ErrorBrush}" Margin="0,0,0,6"
+                                                       Visibility="{Binding Plugins.LoadError, Converter={StaticResource NullToVisibilityConverter}}"
+                                                       AutomationProperties.AutomationId="PluginsErrorText"/>
+
+                                            <!-- Plugins tab -->
+                                            <StackPanel Visibility="{Binding Plugins.IsPluginsTab, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                <TextBlock Text="{Binding Plugins.PluginsEmptyStateText}" FontSize="{StaticResource FontSizeBody}"
+                                                           TextWrapping="Wrap" Opacity="0.7" TextAlignment="Center" Margin="6,12,6,12"
+                                                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                                           Visibility="{Binding Plugins.IsPluginListEmpty, Converter={StaticResource BoolToVisibilityConverter}}"
+                                                           AutomationProperties.AutomationId="PluginsEmptyStateText"/>
+
+                                                <TextBlock Text="INSTALLED" Style="{StaticResource MenuSectionHeaderStyle}" Margin="0,2,0,2"
+                                                           Visibility="{Binding Plugins.InstalledPlugins.Count, Converter={StaticResource CountToVisibilityConverter}, ConverterParameter=Invert}"/>
+                                                <ItemsControl ItemsSource="{Binding Plugins.InstalledPlugins}"
+                                                              ItemTemplate="{StaticResource PluginRowTemplate}"
+                                                              AutomationProperties.AutomationId="InstalledPluginList"/>
+
+                                                <TextBlock Text="AVAILABLE" Style="{StaticResource MenuSectionHeaderStyle}" Margin="0,8,0,2"
+                                                           Visibility="{Binding Plugins.AvailablePlugins.Count, Converter={StaticResource CountToVisibilityConverter}, ConverterParameter=Invert}"/>
+                                                <ItemsControl ItemsSource="{Binding Plugins.AvailablePlugins}"
+                                                              ItemTemplate="{StaticResource PluginRowTemplate}"
+                                                              AutomationProperties.AutomationId="AvailablePluginList"/>
+                                            </StackPanel>
+
+                                            <!-- Marketplaces tab -->
+                                            <StackPanel Visibility="{Binding Plugins.IsMarketplacesTab, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                <TextBlock Text="{Binding Plugins.MarketplacesEmptyStateText}" FontSize="{StaticResource FontSizeBody}"
+                                                           TextWrapping="Wrap" Opacity="0.7" TextAlignment="Center" Margin="6,12,6,12"
+                                                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                                           Visibility="{Binding Plugins.Marketplaces.Count, Converter={StaticResource CountToVisibilityConverter}}"
+                                                           AutomationProperties.AutomationId="MarketplacesEmptyStateText"/>
+
+                                                <ItemsControl ItemsSource="{Binding Plugins.Marketplaces}"
+                                                              AutomationProperties.AutomationId="MarketplaceList">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <StackPanel Margin="0,4,0,4">
+                                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                                                           FontSize="{StaticResource FontSizeBody}"
+                                                                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                                                <TextBlock Text="{Binding DetailLine}" FontSize="{StaticResource FontSizeChrome}"
+                                                                           Opacity="0.6" TextTrimming="CharacterEllipsis"
+                                                                           ToolTip="{Binding Path}"
+                                                                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+                                </ScrollViewer>
+                            </DockPanel>
                         </Border>
                     </Popup>
 

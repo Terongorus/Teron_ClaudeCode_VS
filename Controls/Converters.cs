@@ -185,4 +185,41 @@ namespace TeronClaudeCodeVS.Controls
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
             => throw new NotSupportedException();
     }
+
+    /// <summary>
+    /// FEAT-4. Colours an MCP server's status dot. The palette is deliberately the same four
+    /// colours ToolStatusToBrushConverter already uses, so "green means fine, amber means it needs
+    /// you, red means broken" reads identically wherever it appears in the tool window.
+    /// </summary>
+    public sealed class McpStatusToBrushConverter : IValueConverter
+    {
+        private static readonly SolidColorBrush Neutral = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
+        private static readonly SolidColorBrush Warning = new SolidColorBrush(Color.FromRgb(0xE5, 0xA5, 0x4B));
+        private static readonly SolidColorBrush Ok = new SolidColorBrush(Color.FromRgb(0x3F, 0xB9, 0x50));
+        private static readonly SolidColorBrush Bad = new SolidColorBrush(Color.FromRgb(0xE5, 0x48, 0x4D));
+
+        static McpStatusToBrushConverter()
+        {
+            Neutral.Freeze();
+            Warning.Freeze();
+            Ok.Freeze();
+            Bad.Freeze();
+        }
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            return value switch
+            {
+                McpStatusKind.Connected => Ok,
+                McpStatusKind.Warning => Warning,
+                McpStatusKind.Pending => Warning,
+                McpStatusKind.Error => Bad,
+                McpStatusKind.Disabled => Neutral,
+                _ => Neutral
+            };
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
 }

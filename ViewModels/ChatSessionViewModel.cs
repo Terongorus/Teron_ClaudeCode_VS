@@ -260,6 +260,12 @@ namespace TeronClaudeCodeVS.ViewModels
         /// <summary>Account info and subscription rate-limit usage, loaded on demand.</summary>
         public AccountUsageViewModel AccountUsage { get; } = new AccountUsageViewModel();
 
+        /// <summary>FEAT-4. Configured MCP servers, read from `claude mcp list` on demand.</summary>
+        public McpServersViewModel McpServers { get; } = new McpServersViewModel();
+
+        /// <summary>FEAT-5. Installed/available plugins and marketplaces, read on demand.</summary>
+        public PluginsViewModel Plugins { get; } = new PluginsViewModel();
+
         /// <summary>Resolved path to the claude executable; empty until <see cref="Initialize"/> succeeds.</summary>
         public string ClaudePath => _claudePath;
 

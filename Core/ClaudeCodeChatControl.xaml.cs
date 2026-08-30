@@ -348,6 +348,8 @@ namespace TeronClaudeCodeVS.Core
             PermissionPopup.IsOpen = false;
             EffortPopup.IsOpen = false;
             AccountUsagePopup.IsOpen = false;
+            McpPopup.IsOpen = false;
+            PluginsPopup.IsOpen = false;
         }
 
         private void OnPaletteMenuClicked(object sender, RoutedEventArgs e)
@@ -466,6 +468,69 @@ namespace TeronClaudeCodeVS.Core
         private void OnCloseAccountUsageClicked(object sender, RoutedEventArgs e)
         {
             AccountUsagePopup.IsOpen = false;
+        }
+
+        // ── FEAT-4: MCP servers panel ─────────────────────────────────────────
+
+#pragma warning disable VSTHRD100 // WPF Click handlers are void by contract.
+        private async void OnMcpServersClicked(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            CloseAllMenuPopups();
+            McpPopup.IsOpen = true;
+
+            // The working directory is not incidental: `claude mcp list` resolves project-scoped
+            // servers out of the .mcp.json beside it, so the solution directory is the right scope.
+            await _vm.McpServers.RefreshAsync(_vm.ClaudePath, _vm.WorkingDirectory);
+        }
+
+        private void OnCloseMcpClicked(object sender, RoutedEventArgs e)
+        {
+            McpPopup.IsOpen = false;
+        }
+
+        // ── FEAT-5: Manage plugins panel ──────────────────────────────────────
+
+#pragma warning disable VSTHRD100
+        private async void OnManagePluginsClicked(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            CloseAllMenuPopups();
+            PluginsPopup.IsOpen = true;
+            await _vm.Plugins.RefreshAsync(_vm.ClaudePath, _vm.WorkingDirectory);
+        }
+
+        private void OnClosePluginsClicked(object sender, RoutedEventArgs e)
+        {
+            PluginsPopup.IsOpen = false;
+        }
+
+        private void OnPluginsTabClicked(object sender, RoutedEventArgs e)
+        {
+            _vm.Plugins.SelectedTab = PluginsTab.Plugins;
+        }
+
+        private void OnMarketplacesTabClicked(object sender, RoutedEventArgs e)
+        {
+            _vm.Plugins.SelectedTab = PluginsTab.Marketplaces;
+        }
+
+        /// <summary>
+        /// Opens a documentation link in the system browser. Shared by both panels' footers - a
+        /// Hyperlink inside a Popup does nothing on its own, RequestNavigate has to be handled.
+        /// </summary>
+        private void OnDocsLinkClicked(object sender, RequestNavigateEventArgs e)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(e.Uri.ToString()) { UseShellExecute = true });
+            }
+            catch
+            {
+                // No browser, or the shell refused - nothing useful to say about it here.
+            }
+
+            e.Handled = true;
         }
 
         private void OnCopyRawOutputClicked(object sender, RoutedEventArgs e)
