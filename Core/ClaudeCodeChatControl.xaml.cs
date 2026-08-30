@@ -45,6 +45,7 @@ namespace TeronClaudeCodeVS.Core
             _vm.PropertyChanged += OnViewModelPropertyChanged;
             _vm.PermissionRequestAdded += OnPermissionRequestAdded;
             _vm.PlanFileReadyToOpen += OnPlanFileReadyToOpen;
+            _vm.InputPrefillRequested += OnInputPrefillRequested;
         }
 
 #pragma warning disable VSTHRD100
@@ -352,6 +353,11 @@ namespace TeronClaudeCodeVS.Core
             McpPopup.IsOpen = false;
             PluginsPopup.IsOpen = false;
             AddMenuPopup.IsOpen = false;
+            MessageActionsPopup.IsOpen = false;
+
+            // Not RewindConfirmPopup: it is StaysOpen and is dismissed only by its own two
+            // buttons, because it is the last thing standing between a click and the working tree.
+            RewindPopup.IsOpen = false;
         }
 
         private void OnPaletteMenuClicked(object sender, RoutedEventArgs e)
@@ -505,6 +511,116 @@ namespace TeronClaudeCodeVS.Core
         private void OnClosePluginsClicked(object sender, RoutedEventArgs e)
         {
             PluginsPopup.IsOpen = false;
+        }
+
+        // ── FEAT-1: rewind and fork ───────────────────────────────────────────
+
+        private void OnRewindClicked(object sender, RoutedEventArgs e)
+        {
+            CloseAllMenuPopups();
+            _vm.OpenRewindPicker();
+        }
+
+        private void OnCloseRewindClicked(object sender, RoutedEventArgs e)
+        {
+            _vm.IsRewindPickerVisible = false;
+        }
+
+        /// <summary>
+        /// The per-message `…`. The message it belongs to rides on the button's Tag, since the
+        /// popup is shared and its own DataContext is the view model rather than any one message.
+        /// </summary>
+        private void OnMessageActionsClicked(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button || button.Tag is not ChatMessageViewModel message)
+                return;
+
+            CloseAllMenuPopups();
+            _messageActionsTarget = message;
+            MessageActionsPopup.PlacementTarget = button;
+            MessageActionsPopup.IsOpen = true;
+        }
+
+        private ChatMessageViewModel? _messageActionsTarget;
+
+        /// <summary>
+        /// Resolves the `…` menu's message to a rewind point, or explains in the transcript why it
+        /// could not. Deliberately not silent: this is the path where a wrong answer would restore
+        /// files from the wrong moment, so "I could not match this message" has to be said.
+        /// </summary>
+        private bool TryTakeMessageActionTarget(out RewindPoint? point)
+        {
+            point = null;
+            MessageActionsPopup.IsOpen = false;
+
+            ChatMessageViewModel? message = _messageActionsTarget;
+            _messageActionsTarget = null;
+            if (message == null)
+                return false;
+
+            if (_vm.TryResolveRewindPoint(message, out point, out string? problem))
+                return true;
+
+            _vm.AddSystemNotice(problem ?? "That message cannot be rewound to.", isError: true);
+            return false;
+        }
+
+#pragma warning disable VSTHRD100 // WPF Click handlers are void by contract.
+        private async void OnMessageForkClicked(object sender, RoutedEventArgs e)
+        {
+            if (TryTakeMessageActionTarget(out RewindPoint? point) && point != null)
+                await _vm.BeginRewindAsync(point, RewindAction.Fork);
+        }
+
+        private async void OnMessageRewindCodeClicked(object sender, RoutedEventArgs e)
+        {
+            if (TryTakeMessageActionTarget(out RewindPoint? point) && point != null)
+                await _vm.BeginRewindAsync(point, RewindAction.RewindCode);
+        }
+
+        private async void OnMessageForkAndRewindClicked(object sender, RoutedEventArgs e)
+        {
+            if (TryTakeMessageActionTarget(out RewindPoint? point) && point != null)
+                await _vm.BeginRewindAsync(point, RewindAction.ForkAndRewindCode);
+        }
+
+        private async void OnRewindForkClicked(object sender, RoutedEventArgs e)
+            => await BeginPickerRewindAsync(RewindAction.Fork);
+
+        private async void OnRewindCodeClicked(object sender, RoutedEventArgs e)
+            => await BeginPickerRewindAsync(RewindAction.RewindCode);
+
+        private async void OnRewindForkAndCodeClicked(object sender, RoutedEventArgs e)
+            => await BeginPickerRewindAsync(RewindAction.ForkAndRewindCode);
+
+        private async void OnConfirmRewindClicked(object sender, RoutedEventArgs e)
+        {
+            await _vm.ConfirmRewindAsync();
+        }
+#pragma warning restore VSTHRD100
+
+        private Task BeginPickerRewindAsync(RewindAction action)
+        {
+            RewindPoint? point = _vm.SelectedRewindPoint;
+            return point == null ? Task.CompletedTask : _vm.BeginRewindAsync(point, action);
+        }
+
+        private void OnCancelRewindClicked(object sender, RoutedEventArgs e)
+        {
+            _vm.CancelRewind();
+        }
+
+        /// <summary>
+        /// Puts the rewound-to message back in the composer. Going back to a point is nearly always
+        /// a prelude to saying it differently, so the text is handed back rather than discarded -
+        /// and it replaces whatever is there, because a fork has just reset the conversation the
+        /// half-typed line belonged to.
+        /// </summary>
+        private void OnInputPrefillRequested(object? sender, string text)
+        {
+            InputBox.Text = text;
+            InputBox.CaretIndex = InputBox.Text.Length;
+            InputBox.Focus();
         }
 
         private void OnPluginsTabClicked(object sender, RoutedEventArgs e)

@@ -1,6 +1,9 @@
 ﻿using Newtonsoft.Json.Linq;
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
+using System.Text;
 
 namespace TeronClaudeCodeVS.ViewModels
 {
@@ -29,6 +32,12 @@ namespace TeronClaudeCodeVS.ViewModels
     /// disk is the "after" side and there is no honest way to reconstruct the "before" side from
     /// the tool input alone (a Write call simply does not say what it overwrote). The CLI's own
     /// backup is that missing side, and it is authoritative rather than inferred.
+    ///
+    /// FEAT-1 reads this store too, for the list of points a conversation can be taken back to -
+    /// but the restore itself is asked of the CLI (`rewind_files`), never performed here. Writing
+    /// somebody else's backups back over the user's working tree from the outside would have to
+    /// re-derive rules the CLI already applies and would be wrong the first time one of them
+    /// changed; this class stays a read.
     ///
     /// Best-effort throughout: a transcript that has not been flushed yet, a pruned backup, or a
     /// schema that grows a field all return null, and the caller falls back or explains itself.
@@ -152,6 +161,139 @@ namespace TeronClaudeCodeVS.ViewModels
                 return "";
 
             return null;
+        }
+
+        /// <summary>
+        /// FEAT-1. Every point the conversation can be taken back to, newest first.
+        ///
+        /// The transcript is the source rather than our own <c>Messages</c> collection because the
+        /// two ids a rewind needs - the target message's uuid and the uuid of the entry before it -
+        /// exist only there. Nothing on the live wire carries them: the CLI stamps a turn's reply
+        /// with the *client's* uuid for correlation, which is a different thing from the uuid it
+        /// files the message under, and it is the filed one that `rewind_files` and
+        /// `--resume-session-at` both take.
+        ///
+        /// The filter is baseline's, matched entry for entry against its own picker
+        /// (<c>webview/index.js</c>, v2.1.251): a real user prompt is a `user` record that has a
+        /// uuid, is not synthetic, is not a sidechain, carries no <c>parentToolUseId</c>, and has
+        /// text left once tool results are excluded. That last clause is what keeps the tool-result
+        /// relays out - they are `user` records too, and a picker listing them would offer to
+        /// rewind to points the user never typed.
+        ///
+        /// <para><see cref="RewindPoint.ResumeAtUuid"/> is the nearest preceding `assistant` or
+        /// `user` entry, which is baseline's rule and is not the same as the record's own
+        /// <c>parentUuid</c> in every case - a resumed or compacted transcript can carry a parent
+        /// that is no longer the previous line. Scanning backwards is what both agree on.</para>
+        ///
+        /// Best-effort like the rest of this class: an unreadable or absent transcript returns an
+        /// empty list, and the caller shows the empty state rather than an error.
+        /// </summary>
+        public static List<RewindPoint> LoadRewindPoints(string workingDirectory, string sessionId)
+        {
+            string? transcript = TranscriptReplay.FindTranscriptPath(workingDirectory, sessionId);
+            return transcript == null ? new List<RewindPoint>() : ReadRewindPoints(transcript, DateTime.UtcNow);
+        }
+
+        /// <summary>
+        /// The parsing half of <see cref="LoadRewindPoints"/>, split out so it can be run against a
+        /// captured transcript instead of only against whatever happens to be in
+        /// <c>~/.claude/projects</c> today. <paramref name="now"/> is a parameter for the same
+        /// reason: relative ages are otherwise untestable.
+        /// </summary>
+        internal static List<RewindPoint> ReadRewindPoints(string transcript, DateTime now)
+        {
+            List<RewindPoint> points = new List<RewindPoint>();
+
+            string? previousChainUuid = null;
+            int ordinal = 0;
+
+            try
+            {
+                foreach (string line in File.ReadLines(transcript))
+                {
+                    if (string.IsNullOrWhiteSpace(line))
+                        continue;
+
+                    JObject record;
+                    try { record = JObject.Parse(line); }
+                    catch { continue; }
+
+                    string? type = record.Value<string>("type");
+                    if (type != "user" && type != "assistant")
+                        continue;
+
+                    string? uuid = record.Value<string>("uuid");
+                    bool sidechain = record.Value<bool?>("isSidechain") == true;
+
+                    if (type == "user" && !sidechain && !string.IsNullOrEmpty(uuid) &&
+                        record.Value<bool?>("isSynthetic") != true &&
+                        record.Value<bool?>("isMeta") != true &&
+                        record.Value<string>("parentToolUseId") == null)
+                    {
+                        string text = ExtractPromptText(record["message"]?["content"]);
+                        if (text.Length > 0)
+                        {
+                            DateTime stamp = ParseTimestamp(record.Value<string>("timestamp"), now);
+                            points.Add(new RewindPoint
+                            {
+                                MessageUuid = uuid!,
+                                ResumeAtUuid = previousChainUuid,
+                                PromptText = text,
+                                UserOrdinal = ordinal++,
+                                TimestampUtc = stamp,
+                                RelativeTime = RewindPoint.DescribeAge(stamp, now)
+                            });
+                        }
+                    }
+
+                    // Advances for every chain entry, including the tool-result relays and the
+                    // message just recorded - the next prompt's anchor is whatever line precedes
+                    // it, not the last thing the user typed.
+                    if (!string.IsNullOrEmpty(uuid) && !sidechain)
+                        previousChainUuid = uuid;
+                }
+            }
+            catch (IOException) { return points; }
+            catch (UnauthorizedAccessException) { return points; }
+
+            points.Reverse();
+            return points;
+        }
+
+        /// <summary>
+        /// The message's typed text, or "" when the record is a tool-result relay or carries no
+        /// text at all. Mirrors baseline's extractor: text blocks only, joined and trimmed.
+        /// </summary>
+        private static string ExtractPromptText(JToken? content)
+        {
+            if (content == null)
+                return "";
+
+            if (content.Type == JTokenType.String)
+                return (content.Value<string>() ?? "").Trim();
+
+            if (content is not JArray blocks)
+                return "";
+
+            StringBuilder sb = new StringBuilder();
+            foreach (JToken block in blocks)
+            {
+                if (block is not JObject obj) continue;
+                if (obj.Value<string>("type") != "text") continue;
+                sb.Append(obj.Value<string>("text") ?? "");
+            }
+            return sb.ToString().Trim();
+        }
+
+        private static DateTime ParseTimestamp(string? value, DateTime fallback)
+        {
+            if (string.IsNullOrEmpty(value))
+                return fallback;
+            return DateTime.TryParse(value, CultureInfo.InvariantCulture,
+                                     DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal,
+                                     out DateTime parsed)
+                ? parsed
+                : fallback;
         }
 
         private static string? ReadBackup(string sessionId, string backupFileName)

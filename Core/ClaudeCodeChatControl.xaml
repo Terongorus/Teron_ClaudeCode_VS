@@ -1069,12 +1069,41 @@
             them by accident.
         -->
         <DataTemplate x:Key="UserMessageTemplate" DataType="{x:Type vm:ChatMessageViewModel}">
-            <Border Background="{StaticResource ClaudeAccentBrush}"
-                    TextElement.Foreground="White"
-                    CornerRadius="10,10,2,10" Padding="10,6" Margin="48,4,4,4"
-                    HorizontalAlignment="Right" MaxWidth="460">
-                <ItemsControl ItemsSource="{Binding Blocks}" ItemTemplateSelector="{StaticResource BlockTemplateSelector}"/>
-            </Border>
+            <!--
+                FEAT-1's per-message affordance. Baseline reveals a `…` on hover beside each user
+                message and offers the same three actions its picker does; this is that, kept
+                outside the bubble so the terracotta fill stays a clean shape. It is transparent
+                rather than collapsed when not hovered, exactly as baseline's is - which also means
+                it is a real element in the automation tree at all times, so a live test can reach
+                it without simulating a mouse.
+            -->
+            <Grid x:Name="UserRow" HorizontalAlignment="Right" Margin="48,4,4,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Button x:Name="MessageActionsButton" Grid.Column="0" Content="…"
+                        Style="{StaticResource IconButtonStyle}" Width="20" Height="20"
+                        VerticalAlignment="Top" Margin="0,2,4,0" Opacity="0"
+                        FontSize="{StaticResource GlyphSize}"
+                        Click="OnMessageActionsClicked" Tag="{Binding}"
+                        ToolTip="Rewind or fork from this message"
+                        AutomationProperties.AutomationId="MessageActionsButton"
+                        AutomationProperties.Name="Message actions"/>
+
+                <Border Grid.Column="1" Background="{StaticResource ClaudeAccentBrush}"
+                        TextElement.Foreground="White"
+                        CornerRadius="10,10,2,10" Padding="10,6"
+                        MaxWidth="460">
+                    <ItemsControl ItemsSource="{Binding Blocks}" ItemTemplateSelector="{StaticResource BlockTemplateSelector}"/>
+                </Border>
+            </Grid>
+            <DataTemplate.Triggers>
+                <Trigger SourceName="UserRow" Property="IsMouseOver" Value="True">
+                    <Setter TargetName="MessageActionsButton" Property="Opacity" Value="1"/>
+                </Trigger>
+            </DataTemplate.Triggers>
         </DataTemplate>
 
         <DataTemplate x:Key="AssistantMessageTemplate" DataType="{x:Type vm:ChatMessageViewModel}">
@@ -1878,6 +1907,25 @@
                                     <Border Height="1" Background="{StaticResource HairlineBrush}" Margin="6,6"/>
 
                                     <!--
+                                        FEAT-1. Baseline registers this as a command in its own
+                                        "Context" category, with this label and this description -
+                                        so it gets a section here rather than being folded into
+                                        Customize, which is hand-offs and panels.
+                                    -->
+                                    <TextBlock Text="CONTEXT" Style="{StaticResource MenuSectionHeaderStyle}"/>
+                                    <Button Style="{StaticResource MenuRowButtonStyle}" Click="OnRewindClicked"
+                                            AutomationProperties.AutomationId="RewindRow">
+                                        <StackPanel>
+                                            <TextBlock Text="Rewind"/>
+                                            <TextBlock Text="Restore code and conversation to an earlier point"
+                                                       FontSize="{StaticResource FontSizeChrome}"
+                                                       Opacity="0.6" TextWrapping="Wrap" Margin="0,1,0,0"/>
+                                        </StackPanel>
+                                    </Button>
+
+                                    <Border Height="1" Background="{StaticResource HairlineBrush}" Margin="6,6"/>
+
+                                    <!--
                                         GAP-1 / GAP-2. Baseline groups these under "Customize" and
                                         so do we, with its labels and menu descriptions verbatim -
                                         see TerminalHandoffCatalog for where each string came from.
@@ -2346,6 +2394,231 @@
                                         </StackPanel>
                                     </Grid>
                                 </ScrollViewer>
+                            </DockPanel>
+                        </Border>
+                    </Popup>
+
+                    <!--
+                        ================== FEAT-1: rewind and fork ==================
+
+                        Three surfaces, because baseline has three: the picker ("Rewind to…"), the
+                        per-message `…` menu, and the confirmation the two file-touching actions
+                        both pass through. All the copy here is baseline's own, read out of its
+                        webview bundle (v2.1.251) rather than paraphrased - including the empty
+                        state, the key hints, the fork note, and the warning about manual edits,
+                        which is a real limitation of the CLI's checkpoints and not decoration.
+
+                        The one deliberate difference: baseline's picker always does "restore code
+                        AND fork", keeping the three-way choice for the per-message menu. The
+                        backlog asked for the two to be independently selectable from BOTH
+                        surfaces, so a row here is selected first and the same three actions follow.
+                    -->
+                    <Popup x:Name="RewindPopup" PlacementTarget="{Binding ElementName=PaletteButton}"
+                           Placement="Top" StaysOpen="False" AllowsTransparency="True"
+                           IsOpen="{Binding IsRewindPickerVisible, Mode=TwoWay}"
+                           AutomationProperties.AutomationId="RewindPopup">
+                        <Border Style="{StaticResource PopupCardStyle}" MinWidth="380" MaxWidth="520">
+                            <DockPanel>
+
+                                <Grid DockPanel.Dock="Top" Margin="14,10,10,4">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Rewind to…" FontWeight="SemiBold" FontSize="{StaticResource FontSizeBody}"
+                                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                               AutomationProperties.AutomationId="RewindPanelTitle"/>
+                                    <Button Grid.Column="1" Content="✕" Style="{StaticResource IconButtonStyle}"
+                                            Click="OnCloseRewindClicked" Width="20" Height="20"
+                                            FontSize="{StaticResource GlyphSize}" VerticalAlignment="Top"
+                                            AutomationProperties.AutomationId="CloseRewindButton"/>
+                                </Grid>
+
+                                <Border DockPanel.Dock="Bottom" Style="{StaticResource PopupFooterStyle}">
+                                    <TextBlock Style="{StaticResource KeyHintStyle}"
+                                               Text="↑ ↓ to navigate · Enter to select · Esc to close"/>
+                                </Border>
+
+                                <!-- The three actions, enabled once a row is picked. -->
+                                <StackPanel DockPanel.Dock="Bottom" Margin="10,2,10,6"
+                                            Visibility="{Binding RewindPoints.Count, Converter={StaticResource CountToVisibilityConverter}, ConverterParameter=Invert}">
+                                    <Border Height="1" Background="{StaticResource HairlineBrush}" Margin="0,2,0,4"/>
+                                    <Button Style="{StaticResource MenuRowButtonStyle}" Click="OnRewindForkClicked"
+                                            IsEnabled="{Binding HasSelectedRewindPoint}"
+                                            Content="Fork conversation from here"
+                                            AutomationProperties.AutomationId="RewindForkRow"/>
+                                    <Button Style="{StaticResource MenuRowButtonStyle}" Click="OnRewindCodeClicked"
+                                            IsEnabled="{Binding HasSelectedRewindPoint}"
+                                            Content="Rewind code to here"
+                                            AutomationProperties.AutomationId="RewindCodeRow"/>
+                                    <Button Style="{StaticResource MenuRowButtonStyle}" Click="OnRewindForkAndCodeClicked"
+                                            IsEnabled="{Binding HasSelectedRewindPoint}"
+                                            Content="Fork conversation and rewind code"
+                                            AutomationProperties.AutomationId="RewindForkAndCodeRow"/>
+                                </StackPanel>
+
+                                <Grid Margin="14,0,14,4" MinHeight="60" MaxHeight="260">
+                                    <TextBlock Text="{Binding RewindEmptyStateText}" FontSize="{StaticResource FontSizeBody}"
+                                               TextWrapping="Wrap" Opacity="0.7" TextAlignment="Center" Margin="6,12,6,12"
+                                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                               Visibility="{Binding RewindPoints.Count, Converter={StaticResource CountToVisibilityConverter}}"
+                                               AutomationProperties.AutomationId="RewindEmptyStateText"/>
+
+                                    <DockPanel Visibility="{Binding RewindPoints.Count, Converter={StaticResource CountToVisibilityConverter}, ConverterParameter=Invert}">
+                                        <TextBlock DockPanel.Dock="Top" Style="{StaticResource KeyHintStyle}"
+                                                   TextWrapping="Wrap" Margin="0,0,0,4"
+                                                   Text="Select a message to restore code and fork the conversation from that point."/>
+                                        <ListBox x:Name="RewindList" BorderThickness="0" Background="Transparent"
+                                                 ItemsSource="{Binding RewindPoints}"
+                                                 SelectedItem="{Binding SelectedRewindPoint, Mode=TwoWay}"
+                                                 ItemContainerStyle="{StaticResource SessionListItemStyle}"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                 AutomationProperties.AutomationId="RewindList">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type vm:RewindPoint}">
+                                                    <Grid Margin="0,2,0,2">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="{Binding PromptText}" TextTrimming="CharacterEllipsis"
+                                                                   FontSize="{StaticResource FontSizeBody}" MaxHeight="34"
+                                                                   TextWrapping="Wrap" ToolTip="{Binding PromptText}"
+                                                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                                        <TextBlock Grid.Column="1" Text="{Binding RelativeTime}"
+                                                                   Style="{StaticResource KeyHintStyle}" Margin="8,1,0,0"
+                                                                   VerticalAlignment="Top"/>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                    </DockPanel>
+                                </Grid>
+                            </DockPanel>
+                        </Border>
+                    </Popup>
+
+                    <!--
+                        The per-message menu. PlacementTarget is assigned in code-behind because the
+                        anchor is whichever `…` was clicked, and the popup is shared rather than one
+                        per message.
+                    -->
+                    <Popup x:Name="MessageActionsPopup" Placement="Bottom" StaysOpen="False"
+                           AllowsTransparency="True" AutomationProperties.AutomationId="MessageActionsPopup">
+                        <Border Style="{StaticResource PopupCardStyle}" MinWidth="240">
+                            <StackPanel Margin="2,4">
+                                <TextBlock Text="REWIND" Style="{StaticResource MenuSectionHeaderStyle}"/>
+                                <Button Style="{StaticResource MenuRowButtonStyle}" Click="OnMessageForkClicked"
+                                        Content="Fork conversation from here"
+                                        AutomationProperties.AutomationId="MessageForkRow"/>
+                                <Button Style="{StaticResource MenuRowButtonStyle}" Click="OnMessageRewindCodeClicked"
+                                        Content="Rewind code to here"
+                                        AutomationProperties.AutomationId="MessageRewindCodeRow"/>
+                                <Button Style="{StaticResource MenuRowButtonStyle}" Click="OnMessageForkAndRewindClicked"
+                                        Content="Fork conversation and rewind code"
+                                        AutomationProperties.AutomationId="MessageForkAndRewindRow"/>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+
+                    <!--
+                        The confirmation. StaysOpen because this one writes to the user's working
+                        tree: it closes on its own two buttons and on nothing else, so a stray click
+                        cannot dismiss the thing that was about to explain what is going to change.
+                    -->
+                    <Popup x:Name="RewindConfirmPopup" PlacementTarget="{Binding ElementName=PaletteButton}"
+                           Placement="Top" StaysOpen="True" AllowsTransparency="True"
+                           IsOpen="{Binding IsRewindConfirmVisible, Mode=TwoWay}"
+                           AutomationProperties.AutomationId="RewindConfirmPopup">
+                        <Border Style="{StaticResource PopupCardStyle}" MinWidth="380" MaxWidth="520">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Top" Text="{Binding RewindConfirmTitle}"
+                                           FontWeight="SemiBold" FontSize="{StaticResource FontSizeBody}"
+                                           Margin="14,10,14,4"
+                                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                           AutomationProperties.AutomationId="RewindConfirmTitle"/>
+
+                                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                                            HorizontalAlignment="Right" Margin="14,4,14,10">
+                                    <Button Style="{StaticResource PrimaryButtonStyle}"
+                                            Content="{Binding RewindConfirmButtonText}"
+                                            IsEnabled="{Binding CanConfirmRewind}"
+                                            Click="OnConfirmRewindClicked" Margin="0,0,6,0"
+                                            AutomationProperties.AutomationId="ConfirmRewindButton"/>
+                                    <Button Style="{StaticResource SecondaryButtonStyle}" Content="Never mind"
+                                            Click="OnCancelRewindClicked"
+                                            AutomationProperties.AutomationId="CancelRewindButton"/>
+                                </StackPanel>
+
+                                <StackPanel Margin="14,0,14,4">
+                                    <TextBlock Text="{Binding RewindTargetPreview}" FontSize="{StaticResource FontSizeChrome}"
+                                               Opacity="0.7" TextWrapping="Wrap" MaxHeight="46" TextTrimming="CharacterEllipsis"
+                                               Margin="0,0,0,6"
+                                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                               AutomationProperties.AutomationId="RewindTargetPreview"/>
+
+                                    <TextBlock Text="A new forked conversation will be created after rewinding."
+                                               FontSize="{StaticResource FontSizeChrome}" TextWrapping="Wrap"
+                                               Margin="0,0,0,6" Opacity="0.8"
+                                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                               Visibility="{Binding ShowRewindForkNote, Converter={StaticResource BoolToVisibilityConverter}}"
+                                               AutomationProperties.AutomationId="RewindForkNote"/>
+
+                                    <TextBlock Text="Checking what would change…" FontSize="{StaticResource FontSizeChrome}"
+                                               Opacity="0.6"
+                                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                               Visibility="{Binding IsRewindPreviewLoading, Converter={StaticResource BoolToVisibilityConverter}}"
+                                               AutomationProperties.AutomationId="RewindPreviewLoadingText"/>
+
+                                    <TextBlock Text="{Binding RewindPreviewError}" FontSize="{StaticResource FontSizeChrome}"
+                                               TextWrapping="Wrap" Foreground="{StaticResource ErrorBrush}" Margin="0,0,0,4"
+                                               Visibility="{Binding RewindPreviewError, Converter={StaticResource NullToVisibilityConverter}}"
+                                               AutomationProperties.AutomationId="RewindPreviewError"/>
+
+                                    <StackPanel Visibility="{Binding RewindHasChanges, Converter={StaticResource BoolToVisibilityConverter}}">
+                                        <TextBlock Text="{Binding RewindChangeSummary}" FontSize="{StaticResource FontSizeChrome}"
+                                                   FontWeight="SemiBold" Margin="0,0,0,2"
+                                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                                   AutomationProperties.AutomationId="RewindChangeSummary"/>
+                                        <ItemsControl ItemsSource="{Binding RewindFilesChanged}" MaxHeight="140"
+                                                      AutomationProperties.AutomationId="RewindFileList">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding}" FontSize="{StaticResource FontSizeChrome}"
+                                                               Opacity="0.75" TextTrimming="CharacterEllipsis"
+                                                               ToolTip="{Binding}" Margin="0,1,0,1"
+                                                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+
+                                    <TextBlock FontSize="{StaticResource FontSizeChrome}" TextWrapping="Wrap" Opacity="0.75"
+                                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                               Text="The code has not changed, so no code will be restored."
+                                               AutomationProperties.AutomationId="RewindNoChangesText">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding RewindHasChanges}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsRewindPreviewLoading}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+
+                                    <!-- A real limitation of the CLI's checkpoints, in its own words. -->
+                                    <TextBlock Text="⚠ Rewinding does not affect files edited manually or via bash."
+                                               FontSize="{StaticResource FontSizeChrome}" TextWrapping="Wrap"
+                                               Opacity="0.7" Margin="0,6,0,0"
+                                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                               AutomationProperties.AutomationId="RewindManualEditWarning"/>
+                                </StackPanel>
                             </DockPanel>
                         </Border>
                     </Popup>

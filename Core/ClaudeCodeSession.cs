@@ -110,10 +110,19 @@ namespace TeronClaudeCodeVS.Core
 
         public bool IsRunning => _process != null && !_process.HasExited;
 
-        /// <summary>Starts the underlying `claude` process. Output is consumed on background tasks.</summary>
+        /// <summary>
+        /// Starts the underlying `claude` process. Output is consumed on background tasks.
+        ///
+        /// <paramref name="forkSession"/> and <paramref name="resumeSessionAt"/> are FEAT-1's fork
+        /// half and are deliberately parameters rather than fields on
+        /// <see cref="ClaudeSessionStartOptions"/>: that object is built once from the options page
+        /// and reused for every restart, whereas these two apply to exactly one restart and would
+        /// silently fork every later one if they were left on it.
+        /// </summary>
         public void Start(string claudePath, string workingDirectory, string? model, string? permissionMode,
             string? resumeSessionId = null, string? effortArg = null, ClaudeSessionStartOptions? options = null,
-            (int Port, string AuthToken)? ideServer = null)
+            (int Port, string AuthToken)? ideServer = null,
+            bool forkSession = false, string? resumeSessionAt = null)
         {
             if (_process != null)
                 throw new InvalidOperationException("Session already started.");
@@ -174,6 +183,22 @@ namespace TeronClaudeCodeVS.Core
             {
                 args.Add("--resume");
                 args.Add(resumeSessionId!);
+
+                // FEAT-1's fork. Both flags only mean anything alongside --resume, and both are
+                // hidden from `claude --help`, so they were verified against the real CLI before
+                // anything was built on them (2026-08-30, v2.1.251): forking a two-turn session at
+                // the first turn's last entry produced a new session id, a transcript holding turn
+                // one and the new prompt only, and an untouched original. --resume-session-at keeps
+                // everything up to AND INCLUDING the id it is given, which is why the caller passes
+                // the entry before the message being rewound to rather than the message itself.
+                if (forkSession)
+                    args.Add("--fork-session");
+
+                if (!string.IsNullOrWhiteSpace(resumeSessionAt))
+                {
+                    args.Add("--resume-session-at");
+                    args.Add(resumeSessionAt!);
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(effortArg))
@@ -519,6 +544,37 @@ namespace TeronClaudeCodeVS.Core
             }
 
             return completed == tcs.Task ? await tcs.Task.ConfigureAwait(false) : null;
+        }
+
+        /// <summary>
+        /// FEAT-1. Asks the CLI to restore every file changed since <paramref name="userMessageId"/>
+        /// to the state it was in just before that message.
+        ///
+        /// <para>This is the CLI's own operation, not a reimplementation of it. The alternative -
+        /// reading `~/.claude/file-history` and writing the backups back ourselves - was already
+        /// half-built here for FEAT-2 and is a read that is easy to get subtly wrong (see
+        /// <see cref="ViewModels.SessionCheckpointStore"/>'s note on deltas). The CLI additionally
+        /// refuses paths that turned into links or moved since the checkpoint, and reports how many
+        /// it skipped; none of that would survive being rebuilt from the outside.</para>
+        ///
+        /// <para><paramref name="dryRun"/> is what makes the confirmation honest. Verified against
+        /// the real CLI (2026-08-30, v2.1.251): a dry run answers with the real file list and the
+        /// real insertion/deletion counts and writes nothing - the scratch file it named was still
+        /// on its later contents afterwards - while the same call with dryRun false restored it.
+        /// The two shapes differ: a dry run reports filesChanged/insertions/deletions and never
+        /// skippedLinks, a real one reports skippedLinks and none of the rest.</para>
+        ///
+        /// Returns null if the CLI never answers within the timeout.
+        /// </summary>
+        public Task<ControlResponseEvent?> RewindFilesAsync(string userMessageId, bool dryRun, int timeoutMs = 60000)
+        {
+            JObject request = new JObject
+            {
+                ["subtype"] = "rewind_files",
+                ["user_message_id"] = userMessageId,
+                ["dry_run"] = dryRun
+            };
+            return SendControlRequestAsync(request, timeoutMs);
         }
 
         /// <summary>

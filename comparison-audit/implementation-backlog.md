@@ -471,6 +471,92 @@ instance and are deferred to TEST-1 with the rest.
 
 ---
 
+### Phase I notes (2026-08-30)
+
+FEAT-1 was the backlog's one XL item and its "largest genuine feature gap". It came in far smaller
+than that, because the mechanisms already existed in the CLI and only had to be found — but finding
+them changed the design twice, so the route is worth recording.
+
+#### The CLI does all three of these itself
+
+Everything below was measured against the shipped binary (v2.1.251) **before** any of FEAT-1 was
+written, in a throwaway session in a scratch directory that was given two turns — write `ALPHA` to a
+file, then change it to `BETA`.
+
+| What was needed | What the CLI already has | How it was established |
+|---|---|---|
+| Restore files changed since a message | `rewind_files` **control request** — `{user_message_id, dry_run}` → `{canRewind, error?, filesChanged?, insertions?, deletions?, skippedLinks?}` | Sent on the same stdin/stdout control channel this extension already uses for `interrupt`. Answered `canRewind:true` with the real file list; the same call with `dry_run:false` put the file back to `ALPHA`. |
+| A preview to confirm against | the same request's `dry_run` | Returned the file list and `+1 −1`, and the file on disk was still `BETA` afterwards. |
+| Fork the conversation at a point | `--fork-session` **plus the hidden `--resume-session-at <id>`** | Forking the two-turn session at the first turn's last entry produced a new session id, a transcript holding turn one and the new prompt only, and an original left untouched. |
+
+`--resume-session-at` is hidden from `--help` and its own text says it keeps everything up to **and
+including** the id it is given — so forking "from" a message means resuming at the entry *before*
+it. That entry is the nearest preceding `assistant`/`user` record, which is baseline's own rule and
+is **not** always the record's `parentUuid`.
+
+**The plan's design changed as a result.** It called for walking `file-history-delta` records and
+writing the backups back ourselves. That is now explicitly not what happens: `SessionCheckpointStore`
+stays a read, and the restore is asked of the CLI. Re-deriving its rules from outside — which paths
+it refuses, what counts as "already tracked", how a symlink is handled — would be wrong the first
+time any of them changed, and the store's own history in this repo is a reminder that a plausible
+wrong answer is worse than none.
+
+#### Two surfaces, three actions, and one deliberate difference from baseline
+
+Baseline's copy is carried verbatim throughout, read out of its webview bundle: the picker title
+*Rewind to…*, the empty state *No messages to rewind to yet.*, the hint, the three option labels,
+*A new forked conversation will be created after rewinding.*, *The code has not changed, so no code
+will be restored.*, the outcome line *Code rewind successful* with its explanation of what a skipped
+file means, and the CLI's warning that *Rewinding does not affect files edited manually or via bash*.
+
+The difference: **baseline's picker only ever does "restore code and fork" together**, and keeps the
+three-way choice for the per-message `…` menu. This item's own acceptance criterion is that the two
+are "independently selectable, from both a picker and a per-message affordance", so a row here is
+selected first and then offered the same three actions the menu offers.
+
+A fork on its own writes nothing to the working tree, so it runs immediately. Anything that restores
+files stops at the confirmation, which is where the dry run is shown.
+
+#### Verification — 127 checks, 59 of them against a live IDE
+
+| Script | Checks | What it establishes |
+|---|---|---|
+| `scripts/phase-i-unit.ps1` | 68 | The transcript reader against a **captured real session** (`fixtures/`): two prompts out of four `user` records, newest first, the fork anchor, the first-message case, ordinals, ages in baseline's wording, the outcome sentences. Plus the fork flags on a **real spawned command line** — `Start` spawns the process itself, so the args are read back off the process rather than from a seam in our own code. |
+| `scripts/phase-i-live.ps1` | 59 | **A real experimental instance, driven end to end.** The empty state; two real Haiku turns that create and then change a scratch file; the picker listing exactly the two prompts with their ages; the actions disabled until a row is selected; a real dry run naming the real file; *Never mind* leaving the disk untouched; the per-message menu; **the file on disk going back to `ALPHA`**; and a fork that produces a different session id, a trimmed view, a prefilled composer, and a transcript holding the kept turn and not the dropped one. |
+
+**Four harness defects, each found by a check that disagreed with something already proven** — and
+each one a lesson worth keeping, because three of them were checks that *passed* when they should
+not have:
+
+* *"and it closes" passed against a popup that had never opened.* A WPF `Popup` has no automation
+  peer at all, so asking whether `RewindPopup` exists asks about something that never exists.
+  Openness is now asked of an element **inside** the popup.
+* *"the forked-from turn is gone" passed whether it was there or not.* A user message is rendered by
+  the markdown viewer into a FlowDocument, which UIA exposes as a Document with an **empty Name** —
+  so a Name sweep is structurally blind to it. `uia-lib.ps1` has carried that warning since Phase D
+  and this script still made the mistake; it now reads through `TextPattern`.
+* *"the fork has a genuinely different session id" passed against a transcript from an earlier run.*
+  The "sessions that existed before" list held `<id>.jsonl` and was compared against bare ids, so it
+  excluded nothing. Fixed, and then strengthened: the check now also asserts the forked transcript
+  holds the kept turn and not the dropped one, and that the original still holds both.
+* *"turn 1 finished" passed instantly*, because `Ready` is also what the status says before anything
+  is sent. It now waits for the send button to become the stop button first.
+
+A fifth issue was not a harness defect at all: **retrying a toggle by clicking again just closes
+what it opened.** Every surface is now opened by looking first and clicking only if it is shut.
+
+**One real defect found by the live run and fixed:** the picker's rows announced themselves to the
+accessibility tree as `TeronClaudeCodeVS.ViewModels.RewindPoint` — a `ListBoxItem` with no
+`AutomationProperties.Name` falls back to `ToString()`. A screen reader would have read the type
+name and nothing else. `RewindPoint.ToString()` now returns the prompt.
+
+**Not covered, and stated rather than glossed:** the working tree used in the live run was this
+repository, so a rewind that had to refuse a path — a symlink, or a file whose directory moved — was
+never exercised. `skippedLinks` is surfaced with the CLI's own explanation, but that branch has been
+run only through fixtures.
+
+---
+
 ### Phase H notes (2026-08-30)
 
 **Verification changed in this phase, and the change applies backwards.** Phases G and H were built

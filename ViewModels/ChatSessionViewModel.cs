@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Media.Imaging;
@@ -662,13 +663,21 @@ namespace TeronClaudeCodeVS.ViewModels
             }
             TrimRawOutput();
 
+            // FEAT-1: consumed here and cleared immediately, so a fork applies to this one restart
+            // and not to every later restart the model or permission pickers trigger.
+            bool fork = _forkOnNextStart;
+            string? forkAt = _forkResumeAt;
+            _forkOnNextStart = false;
+            _forkResumeAt = null;
+
             _session = new ClaudeCodeSession();
             Hook(_session);
             _session.Start(
                 _claudePath, _workingDirectory,
                 SelectedModel.Value, SelectedPermissionMode.Value,
                 _lastSessionId, SelectedThinkingLevel.EffortArg,
-                _advancedOptions, ideServer);
+                _advancedOptions, ideServer,
+                fork, forkAt);
 
             IsBusy = false;
             StatusText = "Starting Claude Code…";
@@ -820,6 +829,14 @@ namespace TeronClaudeCodeVS.ViewModels
 
         private void OnSessionInitialized(InitMessage init)
         {
+            // FEAT-1 made this matter: a forked session reports a NEW id here, and until this turn
+            // completes _lastSessionId would still name the session it was forked from - so any
+            // restart in between (switching model or permission mode both restart) would resume
+            // the original and fork it a second time. The id init reports is authoritative from
+            // the moment it arrives.
+            if (!string.IsNullOrEmpty(init.SessionId))
+                _lastSessionId = init.SessionId;
+
             // UX-5: the CLI emits commands in skill/source order, which reads as arbitrary in a
             // ~50-entry list. Sorting here rather than in the view keeps the palette and the "/"
             // autocomplete - which both bind this one collection - in the same order.
@@ -1709,6 +1726,464 @@ namespace TeronClaudeCodeVS.ViewModels
         }
 
         private static string FormatDuration(long ms) => ms < 1000 ? $"{ms} ms" : $"{ms / 1000.0:0.0}s";
+
+        // ─── FEAT-1: rewind and fork ──────────────────────────────────────────────
+
+        /// <summary>
+        /// Raised with the text of the message a rewind went back to, so the composer can be
+        /// prefilled with it - the point of going back is almost always to say it differently.
+        /// </summary>
+        public event EventHandler<string>? InputPrefillRequested;
+
+        public ObservableCollection<RewindPoint> RewindPoints { get; } = [];
+
+        private bool _isRewindPickerVisible;
+        public bool IsRewindPickerVisible
+        {
+            get => _isRewindPickerVisible;
+            set => SetField(ref _isRewindPickerVisible, value);
+        }
+
+        /// <summary>Baseline's own empty state, verbatim.</summary>
+        public string RewindEmptyStateText => "No messages to rewind to yet.";
+
+        private RewindPoint? _selectedRewindPoint;
+
+        /// <summary>
+        /// The row the picker's three actions apply to.
+        ///
+        /// Baseline's picker only ever does one thing - it restores code and forks, together - and
+        /// keeps the three-way choice for the per-message menu. The backlog asked for the two
+        /// concerns to be independently selectable *from both surfaces*, so the picker selects a
+        /// row first and then offers the same three actions the `…` menu does, rather than
+        /// committing to the combined one on click.
+        /// </summary>
+        public RewindPoint? SelectedRewindPoint
+        {
+            get => _selectedRewindPoint;
+            set
+            {
+                if (SetField(ref _selectedRewindPoint, value))
+                    OnPropertyChanged(nameof(HasSelectedRewindPoint));
+            }
+        }
+
+        public bool HasSelectedRewindPoint => _selectedRewindPoint != null;
+
+        /// <summary>
+        /// Rebuilds the list and shows the picker. Rebuilt on every open rather than kept live:
+        /// the relative ages ("5m ago") are computed at load, and the transcript grows underneath
+        /// us with every turn.
+        /// </summary>
+        public void OpenRewindPicker()
+        {
+            SelectedRewindPoint = null;
+            RewindPoints.Clear();
+
+            string? sessionId = CurrentSessionId;
+            if (!string.IsNullOrEmpty(sessionId))
+            {
+                try
+                {
+                    foreach (RewindPoint point in SessionCheckpointStore.LoadRewindPoints(_workingDirectory, sessionId!))
+                        RewindPoints.Add(point);
+                }
+                catch (Exception ex)
+                {
+                    RawOutput.Add($"[rewind] failed to read rewind points: {ex.GetType().Name}: {ex.Message}");
+                }
+            }
+
+            IsRewindPickerVisible = true;
+        }
+
+        /// <summary>
+        /// Resolves the rewind point for one message already on screen, for the per-message `…`
+        /// affordance.
+        ///
+        /// <para>The join is positional - the nth real user prompt on screen is the nth in the
+        /// transcript - and is then checked against the message's own text before it is used. The
+        /// check is the point: a positional match that has drifted (a transcript still being
+        /// flushed, a compaction that rewrote the chain) would otherwise offer to rewind to a
+        /// different message than the one whose menu was opened, and restoring the wrong files is
+        /// exactly the failure this feature cannot have. On a mismatch the caller is told why
+        /// instead of being given a plausible wrong answer.</para>
+        /// </summary>
+        public bool TryResolveRewindPoint(ChatMessageViewModel message, out RewindPoint? point, out string? problem)
+        {
+            point = null;
+            problem = null;
+
+            int ordinal = -1, seen = 0;
+            foreach (ChatMessageViewModel candidate in Messages)
+            {
+                if (candidate.Role != ChatRole.User) continue;
+                if (ReferenceEquals(candidate, message)) { ordinal = seen; break; }
+                seen++;
+            }
+
+            if (ordinal < 0)
+            {
+                problem = "That message is no longer in the conversation.";
+                return false;
+            }
+
+            string? sessionId = CurrentSessionId;
+            if (string.IsNullOrEmpty(sessionId))
+            {
+                problem = "This session has not started yet, so there is nothing to rewind to.";
+                return false;
+            }
+
+            List<RewindPoint> points;
+            try { points = SessionCheckpointStore.LoadRewindPoints(_workingDirectory, sessionId!); }
+            catch (Exception ex)
+            {
+                problem = $"Could not read the session transcript ({ex.GetType().Name}).";
+                return false;
+            }
+
+            RewindPoint? match = points.FirstOrDefault(p => p.UserOrdinal == ordinal);
+            if (match == null)
+            {
+                problem = "The CLI has not written this message to its transcript yet. Try again in a moment.";
+                return false;
+            }
+
+            string onScreen = string.Concat(message.Blocks.OfType<TextBlockViewModel>().Select(b => b.Text)).Trim();
+            if (onScreen.Length > 0 && !string.Equals(onScreen, match.PromptText, StringComparison.Ordinal))
+            {
+                problem = "This message could not be matched to the session transcript, so rewinding here would " +
+                          "not be safe. Use the Rewind picker instead.";
+                return false;
+            }
+
+            point = match;
+            return true;
+        }
+
+        // The confirmation surface. Baseline runs a dry run as the dialog opens and shows what
+        // would change; that is the whole reason this is a two-step flow rather than a menu item.
+
+        private RewindPoint? _pendingRewindPoint;
+        private RewindAction _pendingRewindAction;
+
+        private bool _isRewindConfirmVisible;
+        public bool IsRewindConfirmVisible
+        {
+            get => _isRewindConfirmVisible;
+            set => SetField(ref _isRewindConfirmVisible, value);
+        }
+
+        private string _rewindConfirmTitle = "Rewind code";
+        public string RewindConfirmTitle
+        {
+            get => _rewindConfirmTitle;
+            private set => SetField(ref _rewindConfirmTitle, value);
+        }
+
+        private string _rewindConfirmButtonText = "Rewind";
+        public string RewindConfirmButtonText
+        {
+            get => _rewindConfirmButtonText;
+            private set => SetField(ref _rewindConfirmButtonText, value);
+        }
+
+        private string _rewindTargetPreview = "";
+        public string RewindTargetPreview
+        {
+            get => _rewindTargetPreview;
+            private set => SetField(ref _rewindTargetPreview, value);
+        }
+
+        private bool _showRewindForkNote;
+        /// <summary>Shows baseline's "A new forked conversation will be created after rewinding."</summary>
+        public bool ShowRewindForkNote
+        {
+            get => _showRewindForkNote;
+            private set => SetField(ref _showRewindForkNote, value);
+        }
+
+        private bool _isRewindPreviewLoading;
+        public bool IsRewindPreviewLoading
+        {
+            get => _isRewindPreviewLoading;
+            private set => SetField(ref _isRewindPreviewLoading, value);
+        }
+
+        private string? _rewindPreviewError;
+        public string? RewindPreviewError
+        {
+            get => _rewindPreviewError;
+            private set => SetField(ref _rewindPreviewError, value);
+        }
+
+        public ObservableCollection<string> RewindFilesChanged { get; } = [];
+
+        private string _rewindChangeSummary = "";
+        /// <summary>"1 file will be restored:" / "3 files will be restored:", with the +/- counts.</summary>
+        public string RewindChangeSummary
+        {
+            get => _rewindChangeSummary;
+            private set => SetField(ref _rewindChangeSummary, value);
+        }
+
+        private bool _rewindHasChanges;
+        public bool RewindHasChanges
+        {
+            get => _rewindHasChanges;
+            private set => SetField(ref _rewindHasChanges, value);
+        }
+
+        private bool _canConfirmRewind;
+        public bool CanConfirmRewind
+        {
+            get => _canConfirmRewind;
+            private set => SetField(ref _canConfirmRewind, value);
+        }
+
+        /// <summary>
+        /// Entry point for all three actions, from either surface.
+        ///
+        /// A fork on its own writes nothing to the working tree - it starts a second conversation
+        /// and leaves the first one exactly as it was - so it runs straight away. Anything that
+        /// restores files stops at the confirmation first, which is where the dry run is shown.
+        /// </summary>
+        public async Task BeginRewindAsync(RewindPoint point, RewindAction action)
+        {
+            IsRewindPickerVisible = false;
+            _pendingRewindPoint = point;
+            _pendingRewindAction = action;
+
+            if (action == RewindAction.Fork)
+            {
+                ApplyFork(point);
+                return;
+            }
+
+            RewindConfirmTitle = action == RewindAction.ForkAndRewindCode ? "Fork and rewind" : "Rewind code";
+            RewindConfirmButtonText = action == RewindAction.ForkAndRewindCode ? "Continue" : "Rewind";
+            ShowRewindForkNote = action == RewindAction.ForkAndRewindCode;
+            RewindTargetPreview = point.PromptText;
+            RewindFilesChanged.Clear();
+            RewindChangeSummary = "";
+            RewindHasChanges = false;
+            RewindPreviewError = null;
+            CanConfirmRewind = false;
+            IsRewindPreviewLoading = true;
+            IsRewindConfirmVisible = true;
+
+            await LoadRewindPreviewAsync(point, action).ConfigureAwait(true);
+        }
+
+        private async Task LoadRewindPreviewAsync(RewindPoint point, RewindAction action)
+        {
+            if (_session == null || !_session.IsRunning)
+            {
+                IsRewindPreviewLoading = false;
+                RewindPreviewError = "The Claude Code session is not running, so its checkpoints cannot be read.";
+                return;
+            }
+
+            ControlResponseEvent? response =
+                await _session.RewindFilesAsync(point.MessageUuid, dryRun: true).ConfigureAwait(true);
+
+            IsRewindPreviewLoading = false;
+
+            if (response == null)
+            {
+                RewindPreviewError = "The CLI did not answer the checkpoint query in time.";
+                return;
+            }
+
+            if (!response.IsSuccess)
+            {
+                RewindPreviewError = response.Error ?? "The CLI refused the checkpoint query.";
+                return;
+            }
+
+            bool canRewind = response.Response.Value<bool?>("canRewind") ?? false;
+            string? error = response.Response.Value<string>("error");
+
+            if (!string.IsNullOrEmpty(error))
+                RewindPreviewError = error;
+
+            if (response.Response["filesChanged"] is JArray files)
+            {
+                foreach (JToken file in files)
+                {
+                    string path = file.Value<string>() ?? "";
+                    if (path.Length > 0)
+                        RewindFilesChanged.Add(DescribeRewindPath(path));
+                }
+            }
+
+            RewindHasChanges = RewindFilesChanged.Count > 0;
+
+            if (RewindHasChanges)
+            {
+                int insertions = response.Response.Value<int?>("insertions") ?? 0;
+                int deletions = response.Response.Value<int?>("deletions") ?? 0;
+                string count = RewindFilesChanged.Count == 1
+                    ? "1 file will be restored"
+                    : $"{RewindFilesChanged.Count} files will be restored";
+                RewindChangeSummary = $"{count}  +{insertions} −{deletions}";
+            }
+
+            // Forking is still worth doing when no file changed; restoring code is not. This is
+            // baseline's rule and it is the right one - a "Rewind" button that would demonstrably
+            // do nothing should not be clickable.
+            CanConfirmRewind = canRewind && (RewindHasChanges || action == RewindAction.ForkAndRewindCode);
+        }
+
+        /// <summary>Paths come back absolute; show them relative to the working directory when they are under it.</summary>
+        private string DescribeRewindPath(string absolutePath)
+        {
+            if (_workingDirectory.Length == 0)
+                return absolutePath;
+
+            string root = _workingDirectory.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            return absolutePath.StartsWith(root, StringComparison.OrdinalIgnoreCase)
+                ? absolutePath.Substring(root.Length)
+                : absolutePath;
+        }
+
+        public void CancelRewind()
+        {
+            IsRewindConfirmVisible = false;
+            _pendingRewindPoint = null;
+        }
+
+        /// <summary>Runs the confirmed rewind: files first, then the fork if one was asked for.</summary>
+        public async Task ConfirmRewindAsync()
+        {
+            RewindPoint? point = _pendingRewindPoint;
+            RewindAction action = _pendingRewindAction;
+            IsRewindConfirmVisible = false;
+            if (point == null)
+                return;
+
+            if (_session == null || !_session.IsRunning)
+            {
+                AddSystemNotice("Failed to rewind code: the Claude Code session is not running.", isError: true);
+                return;
+            }
+
+            ControlResponseEvent? response =
+                await _session.RewindFilesAsync(point.MessageUuid, dryRun: false).ConfigureAwait(true);
+
+            if (response == null || !response.IsSuccess)
+            {
+                AddSystemNotice(
+                    "Failed to rewind code: " + (response?.Error ?? "the CLI did not answer in time."),
+                    isError: true);
+                return;
+            }
+
+            if (!(response.Response.Value<bool?>("canRewind") ?? false))
+            {
+                AddSystemNotice(
+                    "Failed to rewind code: " + (response.Response.Value<string>("error") ?? "no checkpoint was found."),
+                    isError: true);
+                return;
+            }
+
+            int skipped = response.Response.Value<int?>("skippedLinks") ?? 0;
+            AddSystemNotice(DescribeRewindOutcome(skipped), isError: false);
+
+            if (action == RewindAction.ForkAndRewindCode)
+                ApplyFork(point);
+        }
+
+        /// <summary>
+        /// Baseline's own wording for the outcome, including the explanation of what "skipped"
+        /// means - which is worth carrying verbatim, because a count with no explanation reads as
+        /// data loss when it is usually a symlink.
+        /// </summary>
+        internal static string DescribeRewindOutcome(int skippedLinks)
+        {
+            if (skippedLinks <= 0)
+                return "Code rewind successful";
+
+            string files = skippedLinks == 1 ? "file was" : "files were";
+            return $"Code rewind completed, but {skippedLinks} {files} skipped: the tracked path is (or became) " +
+                   "a link or other non-regular file, its directory changed since the checkpoint, or its backup " +
+                   "could not be safely read";
+        }
+
+        // Consumed and cleared by the next StartSession - see the comment on ClaudeCodeSession.Start
+        // for why these do not live on the shared options object.
+        private bool _forkOnNextStart;
+        private string? _forkResumeAt;
+
+        private void ApplyFork(RewindPoint point)
+        {
+            TruncateMessagesFrom(point);
+
+            if (point.IsFirstMessage)
+            {
+                // Nothing precedes it, so there is no truncated conversation to resume - baseline
+                // starts a fresh session with the message prefilled, and so do we.
+                NewSession();
+            }
+            else
+            {
+                string? sessionId = CurrentSessionId;
+                if (string.IsNullOrEmpty(sessionId))
+                {
+                    AddSystemNotice("Failed to fork conversation: this session has no id yet.", isError: true);
+                    return;
+                }
+
+                _lastSessionId = sessionId;
+                _forkOnNextStart = true;
+                _forkResumeAt = point.ResumeAtUuid;
+                _pendingSessionTitle = null;
+                RawOutput.Clear();
+                _sessionPermissions.Clear();
+                _sessionTurns = 0;
+                _sessionCostUsd = 0;
+                _sessionInputTokens = 0;
+                _sessionOutputTokens = 0;
+                OnPropertyChanged(nameof(SessionUsageText));
+                OnPropertyChanged(nameof(SessionTokensShortText));
+                StartSession();
+            }
+
+            AddSystemNotice("Forked the conversation from here — the session it was forked from is unchanged.",
+                            isError: false);
+            InputPrefillRequested?.Invoke(this, point.PromptText);
+        }
+
+        /// <summary>
+        /// Drops the forked-from message and everything after it from the visible transcript.
+        ///
+        /// If the positional join does not land - which
+        /// <see cref="TryResolveRewindPoint"/> guards against for the per-message path but the
+        /// picker cannot, since its entries come from the transcript rather than the screen - the
+        /// list is left alone and the discrepancy is said out loud. A view that quietly disagrees
+        /// with the conversation the CLI is actually holding is worse than one that admits it.
+        /// </summary>
+        private void TruncateMessagesFrom(RewindPoint point)
+        {
+            int seen = 0, cutIndex = -1;
+            for (int i = 0; i < Messages.Count; i++)
+            {
+                if (Messages[i].Role != ChatRole.User) continue;
+                if (seen == point.UserOrdinal) { cutIndex = i; break; }
+                seen++;
+            }
+
+            if (cutIndex < 0)
+            {
+                AddSystemNotice("The conversation was forked, but this view could not be trimmed to match — " +
+                                "reopen the session from History to see it as the CLI has it.", isError: true);
+                return;
+            }
+
+            while (Messages.Count > cutIndex)
+                Messages.RemoveAt(Messages.Count - 1);
+        }
 
         // ─── Session history ──────────────────────────────────────────────────────
 
