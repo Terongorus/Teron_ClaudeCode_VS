@@ -585,7 +585,8 @@ namespace TeronClaudeCodeVS.ViewModels
         /// whitespace, matching the CLI's own "comma or space-separated" acceptance.
         /// </summary>
         public void SetAdvancedOptions(string additionalDirectories, string allowedTools, string disallowedTools,
-            string appendSystemPrompt, string systemPrompt, string mcpConfigPaths, bool strictMcpConfig)
+            string appendSystemPrompt, string systemPrompt, string mcpConfigPaths, bool strictMcpConfig,
+            bool switchModelsAutomatically = false, string fallbackModel = "")
         {
             _advancedOptions = new ClaudeSessionStartOptions
             {
@@ -595,7 +596,13 @@ namespace TeronClaudeCodeVS.ViewModels
                 AppendSystemPrompt = string.IsNullOrWhiteSpace(appendSystemPrompt) ? null : appendSystemPrompt,
                 SystemPrompt = string.IsNullOrWhiteSpace(systemPrompt) ? null : systemPrompt,
                 McpConfigPaths = SplitLines(mcpConfigPaths),
-                StrictMcpConfig = strictMcpConfig
+                StrictMcpConfig = strictMcpConfig,
+                // FEAT-7. The flag is only emitted when the user turned the behaviour on *and*
+                // named something to switch to - "on with nothing to fall back to" is not a state
+                // the CLI has, so it must not become an empty --fallback-model on the command line.
+                FallbackModel = switchModelsAutomatically && !string.IsNullOrWhiteSpace(fallbackModel)
+                    ? fallbackModel.Trim()
+                    : null
             };
         }
 
@@ -788,6 +795,7 @@ namespace TeronClaudeCodeVS.ViewModels
             session.SessionInitialized += (s, e) => Post(() => OnSessionInitialized(e));
             session.StatusChanged += (s, e) => Post(() => OnStatusChanged(e));
             session.CompactBoundary += (s, e) => Post(() => OnCompactBoundary(e));
+            session.ModelFallback += (s, e) => Post(() => OnModelFallback(e));
             session.MessageStarted += (s, e) => Post(OnMessageStarted);
             session.BlockStarted += (s, e) => Post(() => OnBlockStarted(e));
             session.TextDelta += (s, e) => Post(() => OnTextDelta(e));
@@ -851,6 +859,22 @@ namespace TeronClaudeCodeVS.ViewModels
         {
             string freed = e.TokensFreed.HasValue ? FormatTokenCount(e.TokensFreed.Value) : "some";
             AddSystemNotice($"Compacted chat · {e.Trigger} · {freed} tokens freed", isError: false);
+        }
+
+        /// <summary>
+        /// FEAT-7. Announces a mid-session model switch, using the CLI's own sentence rather than
+        /// one reassembled from the parts - see <see cref="ModelFallbackEvent"/> for why all four
+        /// subtypes are surfaced regardless of our own fallback setting.
+        ///
+        /// The visible model chip is deliberately left alone. Assigning
+        /// <see cref="SelectedModel"/> restarts the session (see its setter), which would throw
+        /// away the very turn the CLI just rescued; and a `model_fallback` switch is turn-scoped
+        /// anyway - the CLI re-tries the primary on the next user turn, so the chip would be
+        /// telling the truth for exactly one turn and lying afterwards.
+        /// </summary>
+        private void OnModelFallback(ModelFallbackEvent e)
+        {
+            AddSystemNotice(e.NoticeText, isError: e.IsFailure);
         }
 
         /// <summary>

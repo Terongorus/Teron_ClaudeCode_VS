@@ -38,6 +38,14 @@ namespace TeronClaudeCodeVS.Core
 
         /// <summary>Only use MCP servers from <see cref="McpConfigPaths"/>, via --strict-mcp-config.</summary>
         public bool StrictMcpConfig { get; set; }
+
+        /// <summary>
+        /// FEAT-7. Model, or comma-separated chain of models, to fall back to when the selected one
+        /// is overloaded or unavailable - via --fallback-model. Null or blank leaves the flag off.
+        /// The CLI's own help is explicit that this flag "only works with --print", which is the
+        /// mode this session always runs in.
+        /// </summary>
+        public string? FallbackModel { get; set; }
     }
 
     /// <summary>A dropped text/code file (raw text content) or PDF (base64) attached to an outgoing user message.</summary>
@@ -74,6 +82,7 @@ namespace TeronClaudeCodeVS.Core
         public event EventHandler<InitMessage>? SessionInitialized;
         public event EventHandler<StatusMessage>? StatusChanged;
         public event EventHandler<CompactBoundaryEvent>? CompactBoundary;
+        public event EventHandler<ModelFallbackEvent>? ModelFallback;
         public event EventHandler<MessageStartEvent>? MessageStarted;
         public event EventHandler<ContentBlockStartEvent>? BlockStarted;
         public event EventHandler<TextDeltaEvent>? TextDelta;
@@ -153,6 +162,12 @@ namespace TeronClaudeCodeVS.Core
             {
                 args.Add("--model");
                 args.Add(model!);
+            }
+
+            if (!string.IsNullOrWhiteSpace(options?.FallbackModel))
+            {
+                args.Add("--fallback-model");
+                args.Add(options!.FallbackModel!);
             }
 
             if (!string.IsNullOrWhiteSpace(resumeSessionId))
@@ -629,6 +644,10 @@ namespace TeronClaudeCodeVS.Core
 
                 case CompactBoundaryEvent compact:
                     CompactBoundary?.Invoke(this, compact);
+                    break;
+
+                case ModelFallbackEvent fallback:
+                    ModelFallback?.Invoke(this, fallback);
                     break;
 
                 case MessageStartEvent start:

@@ -81,7 +81,8 @@ namespace TeronClaudeCodeVS.Core
                 _vm.SetAdvancedOptions(
                     options.AdditionalDirectories, options.AllowedTools, options.DisallowedTools,
                     options.AppendSystemPrompt, options.SystemPrompt,
-                    options.McpConfigPaths, options.StrictMcpConfig);
+                    options.McpConfigPaths, options.StrictMcpConfig,
+                    options.SwitchModelsAutomatically, options.FallbackModel);
             }
 
             // UX-6: resolved before the first await in this handler. The call touches DTE, which
@@ -350,6 +351,7 @@ namespace TeronClaudeCodeVS.Core
             AccountUsagePopup.IsOpen = false;
             McpPopup.IsOpen = false;
             PluginsPopup.IsOpen = false;
+            AddMenuPopup.IsOpen = false;
         }
 
         private void OnPaletteMenuClicked(object sender, RoutedEventArgs e)
@@ -833,7 +835,16 @@ namespace TeronClaudeCodeVS.Core
             }
         }
 
-        private void OnInputTextChanged(object sender, TextChangedEventArgs e)
+        private void OnInputTextChanged(object sender, TextChangedEventArgs e) => UpdateInputPickers();
+
+        /// <summary>
+        /// Opens or closes the @-mention and /-command pickers for whatever is in the input now.
+        /// Split out of the TextChanged handler because a programmatic insert (FEAT-6's "Add
+        /// context") sets Text and CaretIndex as two separate assignments - TextChanged fires on
+        /// the first, while the caret is still where it was, so the picker has to be asked again
+        /// once both have landed.
+        /// </summary>
+        private void UpdateInputPickers()
         {
             string text = InputBox.Text;
             int caret = InputBox.CaretIndex;
@@ -1066,7 +1077,7 @@ namespace TeronClaudeCodeVS.Core
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 foreach (string path in (string[])e.Data.GetData(DataFormats.FileDrop))
-                    await ImportDroppedFileAsync(path);
+                    await ImportAttachmentAsync(path);
             }
             else if (e.Data.GetDataPresent(DataFormats.Bitmap) && e.Data.GetData(DataFormats.Bitmap) is BitmapSource bitmap)
             {
@@ -1074,11 +1085,17 @@ namespace TeronClaudeCodeVS.Core
             }
         }
 
-        private async Task ImportDroppedFileAsync(string path)
+        /// <summary>
+        /// Stages one file as an attachment. Returns false when the file is not a type the CLI
+        /// can be handed - which the two callers treat differently: a drag-and-drop of a folder
+        /// full of mixed files skips them quietly, as baseline's own webview does, while a file
+        /// the user explicitly picked in a dialog gets said out loud (FEAT-6).
+        /// </summary>
+        private async Task<bool> ImportAttachmentAsync(string path)
         {
             try
             {
-                if (!File.Exists(path)) return;
+                if (!File.Exists(path)) return false;
 
                 string fileName = Path.GetFileName(path);
                 string ext = Path.GetExtension(path).TrimStart('.');
@@ -1108,12 +1125,162 @@ namespace TeronClaudeCodeVS.Core
                     string text = await Task.Run(() => File.ReadAllText(path));
                     _vm.AddPendingFile(fileName, isPdf: false, text);
                 }
-                // else: unsupported type - matches the real extension's own silent skip-and-log.
+                else
+                {
+                    // Not a type the CLI can be handed. Reported by the dialog caller, skipped
+                    // silently by the drop caller - the real extension's own behaviour there.
+                    return false;
+                }
+
+                return true;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debugger.Log(0, "TeronClaudeCodeVS", $"[TeronClaudeCodeVS] Failed to import dropped file '{path}': {ex.Message}\n");
+                System.Diagnostics.Debugger.Log(0, "TeronClaudeCodeVS", $"[TeronClaudeCodeVS] Failed to import file '{path}': {ex.Message}\n");
+                return false;
             }
+        }
+
+        // ─── FEAT-6: the + add menu ─────────────────────────────────────────────
+
+        private void OnAddMenuClicked(object sender, RoutedEventArgs e)
+        {
+            bool willOpen = !AddMenuPopup.IsOpen;
+            CloseAllMenuPopups();
+
+            // The web box is a follow-up to one entry, not a standing part of the menu; a fresh
+            // open should look the same every time rather than remembering the last visit.
+            WebQueryPanel.Visibility = Visibility.Collapsed;
+            WebQueryBox.Clear();
+
+            AddMenuPopup.IsOpen = willOpen;
+        }
+
+        /// <summary>
+        /// FEAT-6, "Upload from computer". The same staging path as a drag-and-drop, reached
+        /// through a file dialog, with one deliberate difference: a picked file the CLI cannot be
+        /// handed is named in the transcript rather than dropped on the floor. Silence is right for
+        /// a drop of twenty mixed files; for a file someone chose by hand it just looks broken.
+        /// </summary>
+#pragma warning disable VSTHRD100 // WPF Click handlers are void by contract.
+        private async void OnUploadFromComputerClicked(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            AddMenuPopup.IsOpen = false;
+
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Attach files",
+                Multiselect = true,
+                CheckFileExists = true,
+                InitialDirectory = Directory.Exists(_solutionDirectory) ? _solutionDirectory : "",
+                // Built from the same extension allowlists the drop path classifies against, so the
+                // dialog cannot offer a file that staging would then turn away.
+                Filter = BuildAttachmentFilter(),
+            };
+
+            if (dialog.ShowDialog() != true) return;
+
+            List<string> rejected = new List<string>();
+            foreach (string path in dialog.FileNames)
+            {
+                if (!await ImportAttachmentAsync(path))
+                    rejected.Add(Path.GetFileName(path));
+            }
+
+            if (rejected.Count > 0)
+            {
+                _vm.AddSystemNotice(
+                    rejected.Count == 1
+                        ? $"Couldn't attach {rejected[0]} - only images, PDFs, and text files can be sent."
+                        : $"Couldn't attach {rejected.Count} files ({string.Join(", ", rejected)}) - only images, PDFs, and text files can be sent.",
+                    isError: true);
+            }
+        }
+
+        /// <summary>
+        /// The dialog's own filter, derived from the classifier the staging path uses, so the two
+        /// can never drift apart. "All supported files" leads because that is the common case.
+        /// </summary>
+        private static string BuildAttachmentFilter()
+        {
+            string images = string.Join(";", s_imageExtensions.OrderBy(x => x).Select(x => "*." + x));
+            string text = string.Join(";", s_textExtensions.OrderBy(x => x).Select(x => "*." + x));
+            return $"All supported files|{images};*.pdf;{text}"
+                 + $"|Images|{images}"
+                 + "|PDF|*.pdf"
+                 + $"|Text and code|{text}"
+                 + "|All files|*.*";
+        }
+
+        /// <summary>
+        /// FEAT-6, "Add context". Baseline's own entry does exactly this - its webview inserts the
+        /// literal "@" and lets the mention picker take over - so this inserts "@" into the input
+        /// and lets ours do the same, rather than building a second, parallel file browser.
+        /// </summary>
+        private void OnAddContextClicked(object sender, RoutedEventArgs e)
+        {
+            AddMenuPopup.IsOpen = false;
+            InsertAtCaret("@", trailingSpace: false);
+
+            // The picker is driven by OnInputTextChanged, which only fires for real edits; a
+            // programmatic insert has to ask for it. Focus first so the popup's own key handling
+            // (Up/Down/Enter) has somewhere to arrive.
+            Keyboard.Focus(InputBox);
+            UpdateInputPickers();
+        }
+
+        private void OnBrowseTheWebClicked(object sender, RoutedEventArgs e)
+        {
+            WebQueryPanel.Visibility = Visibility.Visible;
+            WebQueryBox.Focus();
+        }
+
+        private void OnWebQueryKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key != Key.Enter) return;
+            e.Handled = true;
+            ApplyWebContext();
+        }
+
+        private void OnAddWebContextClicked(object sender, RoutedEventArgs e)
+        {
+            ApplyWebContext();
+        }
+
+        private void ApplyWebContext()
+        {
+            string? line = WebContextComposer.Compose(WebQueryBox.Text);
+            if (line == null)
+            {
+                // Nothing typed. Leaving the box open with the caret in it says "still waiting on
+                // you" without an error for something that is not one.
+                WebQueryBox.Focus();
+                return;
+            }
+
+            AddMenuPopup.IsOpen = false;
+            WebQueryPanel.Visibility = Visibility.Collapsed;
+            WebQueryBox.Clear();
+
+            InsertAtCaret(line, trailingSpace: true);
+            Keyboard.Focus(InputBox);
+        }
+
+        /// <summary>
+        /// Inserts text at the input caret, keeping the caret after it. Replaces any selection,
+        /// which is what every other editor does with a paste-like insert.
+        /// </summary>
+        private void InsertAtCaret(string text, bool trailingSpace)
+        {
+            string insertion = trailingSpace ? text + " " : text;
+            int start = InputBox.SelectionStart;
+            int length = InputBox.SelectionLength;
+
+            InputBox.Text = InputBox.Text.Substring(0, start)
+                          + insertion
+                          + InputBox.Text.Substring(start + length);
+            InputBox.CaretIndex = start + insertion.Length;
         }
 
         // Scrolls to the owning message rather than the exact block - MessageList only generates

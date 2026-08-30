@@ -1513,6 +1513,91 @@
                 </Grid.RowDefinitions>
 
                 <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,6">
+                    <!--
+                        FEAT-6. Baseline's own add menu, read out of its webview bundle: three
+                        entries, in this order, with these labels and these tooltips (its "title"
+                        attributes). Upload attaches files; Add context inserts "@" and lets the
+                        mention picker take over; Browse the web is baseline's Chrome-tab
+                        integration, which is not reproducible here - see WebContextComposer for
+                        what it does instead and why.
+                    -->
+                    <Button x:Name="AddMenuButton" Click="OnAddMenuClicked"
+                            Style="{StaticResource ChipButtonStyle}" Margin="0,0,6,0" Padding="10,3"
+                            ToolTip="Add"
+                            AutomationProperties.AutomationId="AddMenuButton">
+                        <TextBlock Text="+" FontWeight="SemiBold"/>
+                    </Button>
+                    <Popup x:Name="AddMenuPopup" PlacementTarget="{Binding ElementName=AddMenuButton}"
+                           Placement="Top" StaysOpen="False" AllowsTransparency="True"
+                           AutomationProperties.AutomationId="AddMenuPopup">
+                        <Border Style="{StaticResource PopupCardStyle}" MinWidth="280" MaxWidth="340"
+                                Margin="0,0,0,4">
+                            <StackPanel Margin="2,4">
+                                <TextBlock Text="ADD" Style="{StaticResource MenuSectionHeaderStyle}"/>
+
+                                <Button Style="{StaticResource MenuRowButtonStyle}" Click="OnUploadFromComputerClicked"
+                                        ToolTip="Attach files from your computer"
+                                        AutomationProperties.AutomationId="UploadFromComputerRow">
+                                    <StackPanel>
+                                        <TextBlock Text="Upload from computer"/>
+                                        <TextBlock Text="Images, PDFs, and text files"
+                                                   FontSize="{StaticResource FontSizeChrome}"
+                                                   Opacity="0.6" TextWrapping="Wrap" Margin="0,1,0,0"/>
+                                    </StackPanel>
+                                </Button>
+
+                                <Button Style="{StaticResource MenuRowButtonStyle}" Click="OnAddContextClicked"
+                                        ToolTip="Add files or folders to the conversation"
+                                        AutomationProperties.AutomationId="AddContextRow">
+                                    <StackPanel>
+                                        <TextBlock Text="Add context"/>
+                                        <TextBlock Text="Mention a file from this solution with @"
+                                                   FontSize="{StaticResource FontSizeChrome}"
+                                                   Opacity="0.6" TextWrapping="Wrap" Margin="0,1,0,0"/>
+                                    </StackPanel>
+                                </Button>
+
+                                <Button Style="{StaticResource MenuRowButtonStyle}" Click="OnBrowseTheWebClicked"
+                                        ToolTip="Add web content to the conversation"
+                                        AutomationProperties.AutomationId="BrowseTheWebRow">
+                                    <StackPanel>
+                                        <TextBlock Text="Browse the web"/>
+                                        <TextBlock Text="Fetch a URL or search, via Claude's own web tools"
+                                                   FontSize="{StaticResource FontSizeChrome}"
+                                                   Opacity="0.6" TextWrapping="Wrap" Margin="0,1,0,0"/>
+                                    </StackPanel>
+                                </Button>
+
+                                <!--
+                                    Revealed by the row above rather than shown outright: a text box
+                                    sitting open in a three-item menu reads as the menu's subject
+                                    instead of one entry's follow-up.
+                                -->
+                                <StackPanel x:Name="WebQueryPanel" Visibility="Collapsed" Margin="8,2,8,4"
+                                            AutomationProperties.AutomationId="WebQueryPanel">
+                                    <Border BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
+                                            CornerRadius="{StaticResource RadiusControl}" Padding="6,3">
+                                        <TextBox x:Name="WebQueryBox" BorderThickness="0" Background="Transparent"
+                                                 AcceptsReturn="False" MinHeight="20"
+                                                 KeyDown="OnWebQueryKeyDown"
+                                                 Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                                 CaretBrush="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                                 FontSize="{StaticResource FontSizeBody}"
+                                                 AutomationProperties.AutomationId="WebQueryBox"/>
+                                    </Border>
+                                    <TextBlock Text="A URL is fetched; anything else is searched for."
+                                               FontSize="{StaticResource FontSizeChrome}" Opacity="0.55"
+                                               TextWrapping="Wrap" Margin="1,4,0,0"
+                                               Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                    <Button Content="Add" Click="OnAddWebContextClicked"
+                                            Style="{StaticResource PrimaryButtonStyle}" Padding="12,4"
+                                            HorizontalAlignment="Right" Margin="0,6,0,0"
+                                            AutomationProperties.AutomationId="AddWebContextButton"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+
                     <Button Content="Active File" Click="OnAddActiveFileClicked"
                             Style="{StaticResource ChipButtonStyle}" Margin="0,0,6,0"
                             ToolTip="Insert a reference to the active file"

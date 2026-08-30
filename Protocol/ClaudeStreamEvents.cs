@@ -94,6 +94,36 @@ namespace TeronClaudeCodeVS.Protocol
                 };
             }
 
+            // FEAT-7. The CLI announces a model switch as one of four `system` subtypes, all of
+            // which carry a ready-made human sentence in `content` (schemas and message builders
+            // read out of the shipped binary, v2.1.251, 2026-08-30). That sentence is what gets
+            // shown - the CLI knows why it switched and words it better than a reconstruction
+            // from the parts would.
+            if (subtype == ModelFallbackEvent.ModelFallback ||
+                subtype == ModelFallbackEvent.ConsentFallback ||
+                subtype == ModelFallbackEvent.RefusalFallback ||
+                subtype == ModelFallbackEvent.RefusalNoFallback)
+            {
+                string content = root.Value<string>("content") ?? "";
+                string original = root.Value<string>("original_model") ?? "";
+                string? fallback = root.Value<string>("fallback_model");
+
+                // A subtype with neither a sentence nor the models it moved between says nothing
+                // a reader could act on; better no notice than an empty one.
+                if (content.Length == 0 && original.Length == 0 && string.IsNullOrEmpty(fallback))
+                    return null;
+
+                return new ModelFallbackEvent
+                {
+                    Subtype = subtype!,
+                    Content = content,
+                    OriginalModel = original,
+                    FallbackModel = fallback,
+                    Trigger = root.Value<string>("trigger"),
+                    Scope = root.Value<string>("scope"),
+                };
+            }
+
             if (subtype == "compact_boundary")
             {
                 var meta = root["compact_metadata"] as JObject;
@@ -330,6 +360,78 @@ namespace TeronClaudeCodeVS.Protocol
         public long? PreTokens { get; set; }
         public long? PostTokens { get; set; }
         public long? TokensFreed { get; set; }
+    }
+
+    /// <summary>
+    /// FEAT-7. The CLI switched models mid-session, or refused to and said so.
+    ///
+    /// <para>Four <c>system</c> subtypes carry this, all of them with a finished sentence in
+    /// <c>content</c>. Read out of the shipped CLI binary's own schemas (v2.1.251, 2026-08-30):</para>
+    /// <list type="bullet">
+    ///   <item><c>model_fallback</c> - the configured <c>--fallback-model</c> took over for this
+    ///     turn because the primary failed. <c>trigger</c> is one of <c>model_not_found</c>,
+    ///     <c>permission_denied</c>, <c>overloaded</c>, <c>server_error</c>, <c>last_resort</c>,
+    ///     <c>model_blocked</c>. Turn-scoped - the primary is re-tried on the next user turn.</item>
+    ///   <item><c>model_refusal_fallback</c> - the primary ended the stream with
+    ///     <c>stop_reason: "refusal"</c> and the turn was retried on the fallback. Driven by the
+    ///     CLI's own <c>switchModelsOnFlag</c> setting, which is <b>on by default</b> and is not
+    ///     ours to set - so this one can arrive even with our own fallback option turned off.</item>
+    ///   <item><c>model_consent_fallback</c> - the account reached a usage-credit boundary and the
+    ///     user consented to continue on a cheaper model. This is the path behind the
+    ///     <c>Switched to claude-haiku-4-5-20251001</c> line the 2026-08-28 audit saw baseline
+    ///     print near its weekly limit; the audit attributed that to <c>switchModelsOnFlag</c>,
+    ///     but that setting covers safeguard refusals - it is this subtype whose own wording
+    ///     ("... requires usage credits ...") matches what was observed.</item>
+    ///   <item><c>model_refusal_no_fallback</c> - a refusal with no retry, because nothing was
+    ///     configured to fall back to. <see cref="FallbackModel"/> is null here, and this is the
+    ///     only one of the four that is bad news rather than a status report.</item>
+    /// </list>
+    /// </summary>
+    public sealed class ModelFallbackEvent : ClaudeMessage
+    {
+        public const string ModelFallback = "model_fallback";
+        public const string ConsentFallback = "model_consent_fallback";
+        public const string RefusalFallback = "model_refusal_fallback";
+        public const string RefusalNoFallback = "model_refusal_no_fallback";
+
+        /// <summary>Which of the four subtypes above this is.</summary>
+        public string Subtype { get; set; } = "";
+
+        /// <summary>The CLI's own finished sentence, e.g. "Switched to haiku due to high demand for opus".</summary>
+        public string Content { get; set; } = "";
+
+        public string OriginalModel { get; set; } = "";
+
+        /// <summary>The model taken up instead - null for <c>model_refusal_no_fallback</c>.</summary>
+        public string? FallbackModel { get; set; }
+
+        /// <summary>Why, for <c>model_fallback</c>; "refusal" for the refusal subtypes; else null.</summary>
+        public string? Trigger { get; set; }
+
+        /// <summary>"session" or "local" on the refusal subtypes; absent on older CLIs, null elsewhere.</summary>
+        public string? Scope { get; set; }
+
+        /// <summary>True only for a refusal that had nowhere to fall back to.</summary>
+        public bool IsFailure => Subtype == RefusalNoFallback;
+
+        /// <summary>
+        /// What to show in the transcript. Prefers the CLI's sentence; falls back to naming the
+        /// two models only when an older CLI sent none.
+        /// </summary>
+        public string NoticeText
+        {
+            get
+            {
+                if (Content.Length > 0) return Content;
+                if (!string.IsNullOrEmpty(FallbackModel))
+                    return OriginalModel.Length > 0
+                        ? $"Switched to {FallbackModel} from {OriginalModel}"
+                        : $"Switched to {FallbackModel}";
+                return OriginalModel.Length > 0
+                    ? $"{OriginalModel} refused this turn and no fallback model is configured"
+                    : "The model refused this turn and no fallback model is configured";
+            }
+        }
     }
 
     public sealed class MessageStartEvent : ClaudeMessage { }

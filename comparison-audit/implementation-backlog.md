@@ -471,6 +471,115 @@ instance and are deferred to TEST-1 with the rest.
 
 ---
 
+### Phase H notes (2026-08-30)
+
+**Verification changed in this phase, and the change applies backwards.** Phases G and H were built
+with headless harnesses only — reflection against the built assembly, plus the real CLI driven out
+of process. That covered the parsers and the view models and covered them well, but it never put a
+single one of these panels on screen. Phase H therefore also carries the pass Phase G should have
+had: `phase-h-live.ps1` drives the **MCP and Plugins panels** in a real experimental instance
+alongside FEAT-6's own menu. Both were fine — but "were fine" was not something anyone knew before
+it was run, and one Phase H defect (below) was invisible to every headless check.
+
+---
+
+#### FEAT-6 — the `+` add menu
+
+**What baseline's menu actually does**, read out of the shipped VS Code extension's webview bundle
+(v2.1.251) rather than inferred from the screenshot:
+
+| Entry | Baseline's tooltip | What it does |
+|---|---|---|
+| Upload from computer | Attach files from your computer | calls the host's attach handler |
+| Add context | Add files or folders to the conversation | inserts the literal `@` and lets the mention picker take over |
+| Browse the web | Add browser tabs to the conversation | inserts the literal `@browser:` |
+
+Two of the three are reproduced exactly, including the hand-off to the mention picker — that is
+genuinely what baseline does, not a convenient reading of it.
+
+**"Browse the web" is the one real divergence, and it is a hard one.** `@browser:` is not a CLI
+feature. Its expander calls the *VS Code extension's own* `ensureChromeMcpEnabled()` and
+`createNewBrowserTab()`, and the menu entry is gated on `browserIntegrationSupported`, which that
+extension defines as `authMethod === "claudeai"`. It is the Claude-in-Chrome integration: a browser
+extension plus that host's MCP bridge. There is no flag we can pass the CLI to obtain it, and no
+amount of implementation effort on our side reaches it.
+
+What the CLI *does* give every session is `WebFetch` and `WebSearch`. So the entry keeps baseline's
+label and position and delivers the same outcome — web content as conversation context — by the
+route that exists here: a small box that composes one line of prompt text, a fetch instruction for a
+URL and a search instruction for anything else. `WebContextComposer` carries the whole explanation
+at the top of the file so a later reader does not "fix" it back toward `@browser:`.
+
+**One behavioural difference from a drag-and-drop, on purpose.** The staging path is shared, but a
+file type the CLI cannot be handed is skipped *silently* on a drop (twenty mixed files, baseline's
+own behaviour) and *named in the transcript* when it came from the file dialog — a file someone
+picked by hand and then saw nothing happen to just looks broken.
+
+---
+
+#### FEAT-7 — automatic model fallback
+
+`--fallback-model <model>` is real, takes a comma-separated chain, and its help says explicitly
+"only works with --print" — which is the mode every session here already runs in.
+
+**The audit's attribution was wrong, and the binary says so.** The backlog records the observed
+`Switched to claude-haiku-4-5-20251001` as "driven by its *Switch models when a message is flagged*
+toggle". That setting is `switchModelsOnFlag`, and the CLI's own description of it is *"When
+safeguards flag a message, automatically switch to a different model to keep chatting"* — safeguard
+refusals, not usage. The line seen near a weekly limit matches a different subtype entirely, whose
+own text reads `Switched to {model} … · {original} requires usage credits · /model to change`. Worth
+recording because it changes what had to be built: not one event, four.
+
+**The four subtypes, with their real fields and their real sentences** (schemas and message builders
+both read out of the binary):
+
+| Subtype | When | Notes |
+|---|---|---|
+| `model_fallback` | primary overloaded / not found / blocked / unretryable | `trigger` ∈ {model_not_found, permission_denied, overloaded, server_error, last_resort, model_blocked}; **turn-scoped** — the primary is retried next turn |
+| `model_refusal_fallback` | `stop_reason: "refusal"`, retried on the fallback | driven by `switchModelsOnFlag`, **on by default and not ours to set** |
+| `model_consent_fallback` | usage-credit boundary, user consented | the subtype behind the line the audit saw |
+| `model_refusal_no_fallback` | refusal with nothing to fall back to | no `fallback_model`; the only one that is bad news |
+
+All four carry a finished `content` sentence, so the transcript shows the CLI's own words. All four
+are surfaced regardless of our setting — the refusal path is governed by a CLI-side setting we do
+not own, so gating our display on our own flag would hide events that still happen.
+
+**The model chip is deliberately not updated** on a switch. Assigning `SelectedModel` restarts the
+session, which would discard the very turn the CLI just rescued; and a `model_fallback` switch lasts
+one turn, so the chip would be right once and wrong afterwards.
+
+---
+
+#### Verification — 140 checks, of which 54 are against a live IDE
+
+| Script | Checks | What it establishes |
+|---|---|---|
+| `scripts/phase-h-unit.ps1` | 86 | The composer (URL vs. search, and the narrow host test that keeps `src/Program.cs` from becoming a URL); all four fallback subtypes parsed from lines built out of the binary's own builders; older-CLI lines with no `content`; the "says nothing" line that is dropped; that the flag is emitted only when the toggle is on *and* a model is named, exercised on the real view model rather than re-implemented. |
+| `scripts/phase-h-live.ps1` | 36 | **A real experimental instance.** The MCP and Plugins panels open, render, and switch tabs (Phase G's missing pass); the `+` menu shows baseline's three entries; "Browse the web" composes a real fetch line into the real input box; "Add context" inserts `@` **and the mention picker actually opens on it**; "Upload from computer" opens a real file dialog with the real filter, which is then cancelled. |
+| `scripts/phase-h-live-fallback.ps1` | 18 | **FEAT-7 end to end, no model call.** Both settings on the real Tools ▸ Options page with the declared defaults; the flag absent from the real spawned `claude.exe` command line with the toggle off; present, with the configured model, after turning it on in the real UI and reloading; and the CLI accepting it — proven by the session reaching "Ready", which only happens after it has parsed its flags and emitted `init`. The setting is restored afterwards. |
+
+No prompt was ever sent to the model, so none of this consumed quota.
+
+**Two harness defects this run, both caught by the rule that a failing check is a hypothesis about
+technique before it is a hypothesis about the product:**
+
+* *"No file dialog opened."* Two real "Attach files" dialogs were on screen at the time. A Win32
+  common dialog raised by a VS extension is an **owned** window: in the UIA tree it hangs off the VS
+  main window, so it is a Descendant of the desktop and never a Child of it. The desktop-Children-
+  by-process-id idiom that finds tool windows finds nothing here. Now documented in the script.
+* *"The flag is absent with the toggle off"* failed against a session process that had been started
+  earlier, while the toggle was on. A running session is evidence about the setting **as it was when
+  that session started**, not as it is now; the script reloads the tool window before reading.
+
+**Not covered, and stated rather than glossed:** no `model_fallback` event has been seen arrive from
+a live CLI. Producing one needs a real overload, a real refusal, or a real credit boundary, none of
+which can be arranged on demand. The parsing is tested against the binary's own schemas and the
+notice's rendering path is the one every other system notice already uses; the join between them —
+`OnModelFallback` calling `AddSystemNotice` — is three lines and is the only part of FEAT-7 nothing
+has executed.
+
+---
+
 ## Tier 0 — Correctness (do first; this is a real defect)
 
 | ID | Item | Size | Evidence | Done when |

@@ -44,6 +44,17 @@ namespace TeronClaudeCodeVS.Core
         [Editor(typeof(MultilineStringEditor), typeof(UITypeEditor))]
         public string AdditionalDirectories { get; set; } = "";
 
+        [Category("Defaults")]
+        [DisplayName("Switch Models Automatically")]
+        [Description("When the selected model is overloaded, unavailable, or refuses a turn, let the CLI continue on the fallback model below instead of failing the turn (--fallback-model). The switch is announced in the transcript. Note that the CLI has its own separate, on-by-default setting for safeguard refusals, so a switch can still be announced with this turned off.")]
+        public bool SwitchModelsAutomatically { get; set; } = false;
+
+        [Category("Defaults")]
+        [DisplayName("Fallback Model")]
+        [Description("Model to fall back to when 'Switch Models Automatically' is on: an alias (haiku, sonnet, opus, fable) or a full model name. Accepts a comma-separated list to try each in order. Ignored while the setting above is off.")]
+        [TypeConverter(typeof(ModelConverter))]
+        public string FallbackModel { get; set; } = "haiku";
+
         // ─── Input ──────────────────────────────────────────────────────────────
 
         [Category("Input")]
