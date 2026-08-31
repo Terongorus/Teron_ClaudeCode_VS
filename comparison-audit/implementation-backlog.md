@@ -55,6 +55,15 @@ Updated as each phase of the Phase 7 parity build lands on `dev`. Commit SHAs ar
 | **GAP-2** | ✅ done | D | Launches Windows Terminal in the solution directory. External, not in-frame — see below. |
 | **GAP-3** | ✅ done | D | Measured extension-injected, then built: `/btw`, `/feedback`, `/remote-control` (+ `/rc`). |
 | **FEAT-2** | ✅ done | E | Native VS diff tab, auto-opened on an edit prompt. Accept/revert stay on the card — see below. |
+| **FEAT-3** | ✅ done | F | Generated short titles read from the CLI's own `ai-title` records, plus per-row rename and delete. |
+| **FEAT-4** | ⚠ built, handlers undriven | G | Panel and empty state verified; the six `Click` handlers and the rendered layout need a live pass — see **A4/A5**. |
+| **FEAT-5** | ⚠ built, handlers undriven | G | As FEAT-4: Plugins/Marketplaces tabs and rows are unpressed — see **A4/A5**. |
+| **FEAT-6** | ✅ done | H | `+` add menu: upload, add context, browse the web. |
+| **FEAT-7** | ⚠ built, one join unexecuted | H | `--fallback-model` and its parsing are tested; **no real fallback event has ever arrived** — see **D1**. |
+| **FEAT-1** | ✅ done | I | Rewind and fork, both surfaces, driven live. One refusal branch untested — see **D2**. |
+| **FEAT-8** | ⚠ built, never spoken to | J | Offline dictation. Pipeline proven with a synthesised `.wav`; **no human voice, and no hold gesture** — see **C1–C4**. |
+| **FEAT-9** | ✅ done (2 of 3 parts) | J | Running sessions and cloud-by-ID both live-verified. Enumerating an account's cloud sessions is **not possible** — the CLI exposes no such command. Cloud hand-off unclicked — see **E1**. |
+| **UX-9** | ⚠ built, unverified | C | Repeated here so the ⚠ rows sit together — see **A1–A3**. |
 
 **ST-4 measurement (Phase B, VS 18 Experimental instance, 2026-08-29).** Sampled from
 `PrintWindow` captures, not judged by eye:
@@ -77,6 +86,81 @@ byte-identical across them - which is what ST-4 asks for. Evidence:
 > They are kept as separately-named tokens (`GlyphSize`, `GlyphSizeSmall`, `RadiusCircle`,
 > `RadiusPill`) rather than folded into the scale, so that the two-value rule stays a real
 > constraint on the type and corner scales instead of being quietly widened to four.
+
+## Needs a human — the consolidated manual-verification checklist
+
+Every item below was already recorded in its own phase's notes; this section exists because six
+paragraphs scattered through a long document is not something anyone can work from. **Nothing here
+is a known defect.** Each is a path that shipped without being executed, and the reason it was not
+executed is the useful part — it decides whether the item is ever going to be automated, or is
+permanently a person's job.
+
+Grouped by *why* it is unautomated, hardest-to-automate last.
+
+### A. Deferred to TEST-1 — automatable, just not built yet
+
+These need the WM_DROPFILES / clipboard-format harness that TEST-1 exists to build. They are not
+permanent human work.
+
+| # | What to check | Item | Where it came from |
+|---|---|---|---|
+| A1 | Paste an image from the clipboard into the composer; a chip appears naming it, with pixel dimensions and a type glyph | **UX-9** | already flagged `⚠ built, unverified` in the status table |
+| A2 | Drag a file from Solution Explorer / Explorer onto the composer; same chip behaviour | **UX-9**, TEST-1 | our WPF path is real OLE `IDropTarget`, which webview techniques never reached |
+| A3 | The `✕` on a pending-file chip removes it | UX-9 | rendering was never driven |
+| A4 | MCP servers panel and Manage plugins panel: open both, switch the Plugins/Marketplaces tabs, click every row | **FEAT-4, FEAT-5** | Phase G's six `Click` handlers are three lines each and no live run has pressed them |
+| A5 | Both panels' layout, tab-strip underline and modal shadow look right | FEAT-4, FEAT-5 | UIA reads structure, never appearance |
+
+### B. Visual judgement — I can read the tree, not the picture
+
+UI Automation reports that an element exists, its name, and whether it is enabled. It reports
+nothing about whether the result *looks* right. Phase B is the one exception: its colours were
+sampled from real `PrintWindow` captures rather than judged, and the numbers are in the ST-4 table
+above.
+
+| # | What to check | Item |
+|---|---|---|
+| B1 | Flip VS between light and dark **with the panel already open** — every surface re-derives without a reload, and the terracotta accent stays constant | ST-1..ST-4. Both themes were captured and pixel-sampled (see the ST-4 table), but as two separate runs with the theme changed between them. `phase-b-verify.ps1` does not switch the theme itself, so *live* re-derivation — the plan's actual Phase B must-pass wording — has not been watched |
+| B2 | The mic button sits correctly beside Send and does not crowd it at a narrow dock width | FEAT-8 |
+| B3 | The dictation status line appearing does not make the composer jump | FEAT-8 |
+| B4 | The Running tab's rows read well when a `cwd` is very long, and when the list is long enough to scroll | FEAT-9 |
+| B5 | The rewind picker and its confirmation are legible at a narrow dock width | FEAT-1 |
+
+### C. Real human input — no harness will ever do these
+
+| # | What to check | Item |
+|---|---|---|
+| C1 | **Speak into the microphone.** The headless check proves the pipeline by feeding it a synthesised `.wav`; nobody has spoken to it. Accuracy on your voice, your mic and your accent is unknown, and the desktop recognizer is weak by design | FEAT-8 |
+| C2 | **Hold** the mic button down, talk, release — recording should stop on release. Only the *tap* path has been driven (via InvokePattern, which cannot express a hold) | FEAT-8 |
+| C3 | `Ctrl+D` with focus in the composer toggles dictation, and VS's own `Ctrl+D` does not also fire | FEAT-8 — the handler is unit-checked, the real keystroke is not |
+| C4 | Dictate into the *middle* of a half-written message; the text should land at the caret with sensible spacing | FEAT-8 |
+
+### D. States that cannot be arranged on demand
+
+| # | What to check | Item | Why it cannot be provoked |
+|---|---|---|---|
+| D1 | A usage-limit model fallback prints its notice in the transcript | **FEAT-7** | needs a real overload, refusal or credit boundary. Parsing is tested against the binary's own schemas; the three-line join `OnModelFallback` → `AddSystemNotice` is the only part nothing has executed |
+| D2 | A rewind that must **refuse** a path — a symlink, or a file whose directory moved since the checkpoint — shows the skipped-file explanation | **FEAT-1** | the live run's working tree was this repo, which has neither. Exercised through fixtures only |
+| D3 | The mic disables itself with a readable reason on a machine with **no speech recognizer** | FEAT-8 | this machine has one. The unavailable shape is constructed and asserted, never provoked |
+| D4 | Same, with **no microphone attached** | FEAT-8 | as above |
+
+### E. Things I deliberately did not do without asking
+
+| # | What to check | Item | Why I stopped |
+|---|---|---|---|
+| E1 | Paste a **real** cloud session id or `claude.ai/code` link into the Cloud tab and press **Open in terminal** | **FEAT-9** | I have no real cloud session, and creating one is an outward-facing action on your account. The command it builds is unit-tested, and that exact command line was run against the CLI directly — which answered with a genuine server-side rejection — but the click itself is unexercised |
+| E2 | The Running tab's **Terminal** button on a live background agent (`claude attach <id>`) and on a finished one (`claude --resume <id>`) | FEAT-9 | pressing it opens a terminal window, which takes the foreground away from whatever you are doing. Both argument lists are unit-tested |
+| E3 | The five Customize hand-off cards each launch their slash command in a terminal | GAP-1 | same reason |
+
+### F. Still open as written test debt
+
+| ID | State |
+|---|---|
+| **TEST-1** | **not started.** Blocks A1–A5. Needs the `WM_DROPFILES` / clipboard-format equivalents of the existing `Send-WmChar` / `Send-WmClick` helpers in `scripts/uia-lib.ps1` |
+| **TEST-2** | **not started.** IDE MCP tools beyond `getDiagnostics` — open editors, selection, dirty-state, save — are transport-tested only, never driven against real VS SDK objects |
+| **TEST-3** | **not started.** Fold the real-hover technique (`Input.dispatchMouseEvent`) into `cdp-lib.ps1` |
+| *(new)* | **Rewrite the headless `phase-*-unit.ps1` suites as xUnit tests.** Requested 2026-08-31. Needs `InternalsVisibleTo` on the VSIX; the FEAT-8 dictation round-trip should be a *skippable* fact since it depends on a recognizer being installed. The live UIA scripts stay in PowerShell — nothing in xUnit can drive a real `devenv` |
+
+---
 
 ### Phase C notes (2026-08-29)
 
