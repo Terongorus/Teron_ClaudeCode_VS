@@ -677,9 +677,18 @@ word PONG — which also appears in the prompt that asked for it. It passed whet
 was ever hydrated. It now requires the word in a document that is *not* the prompt, and the run
 prints both documents so the claim is legible.
 
-**A note on two version numbers.** `claude --version` prints **2.1.246**; the same binary's embedded
-`VERSION` constant reads **2.1.251**. Phase I's notes quote the latter. Neither is wrong — they
-disagree, and both are recorded so a future reader is not left reconciling them.
+**A note on CLI versions — corrected 2026-08-31.** An earlier draft of these notes claimed one
+binary reported two different versions. It does not; each binary's `--version` agrees exactly with
+its own embedded `VERSION` constant. What actually happened is more useful to know: **the
+standalone CLI at `~/.local/bin/claude.exe` auto-updates, and it did so twice during this phase** —
+`--version` said 2.1.246 early on, a later grep of the same path found 2.1.251, and by the end of
+the session it was 2.1.252 with a file 33 MB smaller than the one measured at the start.
+
+This matters for reproducing any of the measurements above. There are **two** CLIs on this machine:
+the drifting standalone, and the one pinned inside the VS Code extension
+(`anthropic.claude-code-2.1.251-win32-x64/resources/native-binary/claude.exe`). `ClaudeCliLocator.Find(null)`
+resolves to the **bundled** one, so that is what the extension actually runs — and it is the stable
+reference. Quote a version by binary, and prefer the bundled one when a measurement has to hold.
 
 **Not covered, stated rather than glossed:** the Cloud tab's button is never pressed in the live run,
 because launching a terminal takes the foreground away from whatever the user is doing. The command
