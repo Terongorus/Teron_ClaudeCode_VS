@@ -2328,11 +2328,199 @@ namespace TeronClaudeCodeVS.ViewModels
             SessionHistoryStore.Save(_allSessions);
         }
 
+        #region FEAT-9: running and cloud sessions
+
+        /// <summary>Which pane of the history overlay is showing. Baseline's is a Local/Web pair.</summary>
+        public enum HistoryTab
+        {
+            /// <summary>Sessions this extension has run, from its own store.</summary>
+            Local,
+
+            /// <summary>Every Claude Code session on this machine, from `claude agents --json --all`.</summary>
+            Running,
+
+            /// <summary>A cloud session entered by id or URL - the only cloud surface the CLI exposes.</summary>
+            Cloud,
+        }
+
+        private HistoryTab _historyTab = HistoryTab.Local;
+
+        public HistoryTab SelectedHistoryTab
+        {
+            get => _historyTab;
+            set
+            {
+                if (!SetField(ref _historyTab, value)) return;
+                OnPropertyChanged(nameof(IsLocalTab));
+                OnPropertyChanged(nameof(IsRunningTab));
+                OnPropertyChanged(nameof(IsCloudTab));
+            }
+        }
+
+        public bool IsLocalTab => SelectedHistoryTab == HistoryTab.Local;
+        public bool IsRunningTab => SelectedHistoryTab == HistoryTab.Running;
+        public bool IsCloudTab => SelectedHistoryTab == HistoryTab.Cloud;
+
+        /// <summary>FEAT-9. Sessions running on this machine, read from the CLI on demand.</summary>
+        public AgentSessionsViewModel AgentSessions { get; } = new AgentSessionsViewModel();
+
+        /// <summary>
+        /// Re-reads the running-session list. Called each time the tab is shown rather than cached:
+        /// the whole point of the list is which sessions are alive *now*, and a stale one is worse
+        /// than a brief spinner.
+        /// </summary>
+        public Task RefreshAgentSessionsAsync() =>
+            AgentSessions.RefreshAsync(_claudePath, _workingDirectory);
+
+        /// <summary>
+        /// Resumes a running-tab session in this panel, by handing it to the same path the history
+        /// list uses. Guarded by the entry's own rules - see AgentSessionEntry.CanOpenHere.
+        /// </summary>
+        public void OpenAgentSessionHere(AgentSessionEntry entry)
+        {
+            if (!entry.CanOpenHere)
+            {
+                AddSystemNotice(entry.OpenHereBlockedReason ?? "That session cannot be opened here.", isError: true);
+                return;
+            }
+
+            ResumeSessionEntry(new SessionHistoryEntry
+            {
+                SessionId = entry.SessionId,
+                Title = entry.Name,
+                WorkingDirectory = entry.Cwd,
+                LastUsed = entry.StartedUtc,
+            });
+        }
+
+        public void OpenAgentSessionInTerminal(AgentSessionEntry entry)
+        {
+            IReadOnlyList<string>? args = entry.TerminalArgs;
+            if (args == null)
+            {
+                AddSystemNotice(entry.TerminalCommandText, isError: true);
+                return;
+            }
+
+            string? error = TerminalLauncher.OpenClaudeWithArgs(_claudePath, entry.Cwd, args);
+            if (error != null) AddSystemNotice(error, isError: true);
+        }
+
+        private string _cloudSessionInput = "";
+
+        /// <summary>What the user pasted into the Cloud tab. Never rewritten under them.</summary>
+        public string CloudSessionInput
+        {
+            get => _cloudSessionInput;
+            set
+            {
+                if (!SetField(ref _cloudSessionInput, value)) return;
+                OnPropertyChanged(nameof(CloudHintText));
+                OnPropertyChanged(nameof(CanOpenCloudSession));
+            }
+        }
+
+        public string CloudHintText => AgentSessionsViewModel.DescribeCloudInput(_cloudSessionInput);
+
+        public bool CanOpenCloudSession => AgentSessionsViewModel.NormalizeCloudId(_cloudSessionInput) != null;
+
+        /// <summary>
+        /// Opens the pasted cloud session in a terminal.
+        ///
+        /// <b>Not in this panel, and that is measured rather than assumed.</b> `claude --cloud
+        /// &lt;id&gt; --print --output-format stream-json` is refused by the CLI in as many words -
+        /// "--cloud &lt;session_id&gt; does not support --output-format stream-json" - and
+        /// stream-json is the only protocol this panel speaks. What the user typed is passed
+        /// through unchanged so that a rejection comes back in the CLI's own words.
+        /// </summary>
+        public void OpenCloudSession()
+        {
+            string id = _cloudSessionInput.Trim();
+            if (id.Length == 0) return;
+
+            string? error = TerminalLauncher.OpenClaudeWithArgs(
+                _claudePath, _workingDirectory, new List<string> { "--cloud", id });
+
+            if (error != null) AddSystemNotice(error, isError: true);
+        }
+
+        #endregion
+
+        #region FEAT-8: voice dictation
+
+        private VoiceAvailability _voice = VoiceAvailability.Unavailable("Dictation has not been checked yet.");
+
+        /// <summary>
+        /// Probed once, on the UI thread, at initialize time. Cheap - it reads the SAPI registry and
+        /// never opens the microphone; the device is only asked for when recording actually starts.
+        /// </summary>
+        public void ProbeVoiceAvailability()
+        {
+            _voice = VoiceInput.Probe();
+            OnPropertyChanged(nameof(IsVoiceAvailable));
+            OnPropertyChanged(nameof(VoiceTooltipText));
+        }
+
+        public bool IsVoiceAvailable => _voice.IsAvailable;
+
+        /// <summary>
+        /// Baseline's own tooltip when the mic works, and the reason it does not when it does not.
+        /// A disabled control with no explanation is the thing this is avoiding.
+        /// </summary>
+        public string VoiceTooltipText =>
+            _voice.IsAvailable
+                ? "Tap or hold to record · Ctrl+D"
+                : _voice.Reason ?? "Dictation is unavailable.";
+
+        private bool _isDictating;
+
+        public bool IsDictating
+        {
+            get => _isDictating;
+            set
+            {
+                if (!SetField(ref _isDictating, value)) return;
+                OnPropertyChanged(nameof(VoiceStatusText));
+                OnPropertyChanged(nameof(HasVoiceStatus));
+            }
+        }
+
+        private string _voiceHypothesis = "";
+
+        /// <summary>The recognizer's running guess, shown while listening so the mic is visibly live.</summary>
+        public string VoiceHypothesis
+        {
+            get => _voiceHypothesis;
+            set
+            {
+                if (!SetField(ref _voiceHypothesis, value)) return;
+                OnPropertyChanged(nameof(VoiceStatusText));
+                OnPropertyChanged(nameof(HasVoiceStatus));
+            }
+        }
+
+        public bool HasVoiceStatus => IsDictating;
+
+        public string VoiceStatusText
+        {
+            get
+            {
+                if (!IsDictating) return "";
+                return _voiceHypothesis.Length > 0 ? "🎤 " + _voiceHypothesis : "🎤 Listening…";
+            }
+        }
+
+        #endregion
+
+        #region Lifetime
+
         public void Dispose()
         {
             _elapsedTimer.Stop();
             PlanCommentRegistry.CommentSubmitted -= OnPlanCommentSubmitted;
             StopSessionCore();
         }
+
+        #endregion
     }
 }

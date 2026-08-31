@@ -35,6 +35,11 @@
     <Reference Include="System.Xaml" />
     <!-- UX-10: XDocument, used to read the version out of extension.vsixmanifest. -->
     <Reference Include="System.Xml.Linq" />
+    <!--
+      FEAT-8: SAPI dictation. A .NET Framework assembly, so recognition is local and offline and
+      there is nothing to ship alongside it - see Core/VoiceInput.cs for why that tradeoff was made.
+    -->
+    <Reference Include="System.Speech" />
   </ItemGroup>
 
   <ItemGroup>

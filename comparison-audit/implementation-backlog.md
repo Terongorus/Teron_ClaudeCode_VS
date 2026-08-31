@@ -471,6 +471,141 @@ instance and are deferred to TEST-1 with the rest.
 
 ---
 
+### Phase J notes (2026-08-31)
+
+FEAT-8 (L) and FEAT-9 (XL, and recorded in this backlog as "out of scope for a near-term plan").
+Both are shipped; FEAT-9 ships as **two of its three parts**, with the third stated as a gap in the
+UI rather than faked.
+
+#### FEAT-8 — dictation, offline
+
+`System.Speech.Recognition` (a .NET Framework assembly wrapping SAPI), so recognition happens on
+this machine with nothing to configure and no audio leaving it. Baseline's mic sends audio
+somewhere; ours does not, and the tradeoff — the desktop recognizer is much weaker than a hosted
+model — is stated rather than hidden.
+
+Baseline's tooltip is carried verbatim, **"Tap or hold to record · Ctrl+D"**, and both halves of it
+are real: a tap toggles, a hold (>400 ms) records only while held, and `Ctrl+D` is handled in the
+composer's own key handler ahead of the pickers, since a modifier chord cannot collide with their
+arrow/Enter/Escape navigation.
+
+Two things it refuses to do quietly:
+
+* **A disabled mic always says why.** Availability is two independent questions — is a recognizer
+  installed, and is there an audio device — and they fail at different moments. The first is probed
+  at load without touching the microphone; the second can only be discovered by asking for the
+  device, so it surfaces on the first press and is reported then.
+* **It works without a mouse.** The button carries a `Click` handler as well as the mouse pair, so
+  a keyboard, a screen reader and UI Automation can all press it. A flag keeps the two paths from
+  cancelling each other, since a press raises all three events.
+
+#### FEAT-9 — the three parts, and which two exist
+
+| Part | State | Why |
+|---|---|---|
+| Sessions running on this machine | **built** | `claude agents --json --all` prints every session, interactive and background, and its help says it "does not require a TTY" — which is what makes it usable from a tool window |
+| A cloud session by ID or URL | **built, as a terminal hand-off** | `claude --cloud <id>` works, but see below |
+| Listing the account's cloud sessions | **not possible** | there is no such command |
+
+**The `agents --json` field set changes with the session's state**, and that was established by
+watching one agent through its whole life rather than by reading a schema:
+
+```
+interactive, alive:      pid, cwd, kind, startedAt, sessionId, name
+background,  alive:      pid, id, cwd, kind, startedAt, sessionId, name, status, state
+background,  stopped:         id, cwd, kind, startedAt, sessionId, name,         state
+```
+
+So `pid` present means "a process is running it right now", `id` present means "this is a background
+agent and has the short id `claude attach|logs|stop` accept", and `status` only ever accompanies a
+live background one. Both captures are kept as fixtures precisely because a parser that required any
+of them passes one and fails the other.
+
+**`--all` was measured, not taken on faith.** With the agent alive, both `claude agents --json` and
+`--json --all` returned it; only after `claude stop` did the plain form drop it while `--all` kept
+it. `--all` means "include agents whose process has exited".
+
+**Sorting rather than filtering.** `claude agents --cwd <path>` exists and matches a whole subtree,
+but using it would make a session in a sibling project silently vanish instead of being listed as
+what it is. The panel lists everything and sorts sessions from the open folder first.
+
+**Each row's actions are the CLI's own constraints, not caution.** A live background agent gets
+`claude attach <id>` in a terminal — the CLI's own command, whose help says it opens the session "in
+this terminal". Anything not running gets `claude --resume <sessionId>`, started in its own
+directory. A live *interactive* session gets nothing, because no command joins one and a second
+process on one conversation is exactly what should not happen. Opening a session **in this panel**
+additionally requires it to belong to the folder open in the IDE — that folder is where `--resume`
+looks for the transcript, what `@`-references resolve against, and what the IDE companion server
+reports, so silently re-pointing the panel elsewhere would break all three. Every refusal states its
+own reason on the row.
+
+**Why cloud sessions hand off to a terminal.** Not a shortcut — the CLI refuses, in as many words:
+
+```
+Error: --cloud <session_id> does not support --output-format stream-json
+```
+
+and stream-json is the entire protocol this chat panel speaks. Measured alongside it: the CLI accepts
+`session_…`, `cse_…` and `https://claude.ai/code/<id>`; its own validator is a `session_`/`cse_`
+prefix, `[A-Za-z0-9_-]` only, and a non-empty remainder; a bare uuid is rejected outright. That rule
+is transcribed into the paste box to catch a typo *before* a terminal opens — but what the user typed
+is passed through unchanged, so a rejection comes back in the CLI's words.
+
+**And why there is no list.** The complete command list is agents, auth, auto-mode, doctor, gateway,
+import, install, mcp, plugin, project, setup-token, ultrareview and update; the only cloud-facing
+flags anywhere in `--help` are `--cloud` and `--environment`, and neither enumerates. Baseline's
+History ▸ Web tab lists sessions by machine name because the extension talks to an account endpoint
+the CLI does not expose. The Cloud tab says so on its face.
+
+#### Verification — 139 checks, 45 of them against a live IDE
+
+| Script | Checks | What it establishes |
+|---|---|---|
+| `scripts/phase-j-unit.ps1` | 94 | The session parser against **two real captures** of the same agent, alive and stopped; the per-row action rules with a control that re-parses the same capture as though the IDE were open on the agent's own folder; the cloud id rule including the uuid rejection; and **dictation actually running** — a sentence synthesised to a .wav and fed through VoiceInput's real pipeline, with a silence control proving the check can fail. |
+| `scripts/phase-j-live.ps1` | 45 | A real experimental instance. The mic's tooltip and its start/stop transitions driven through **InvokePattern**; the three tabs; the Running list built from real sessions with one row enabled and six refusing *with reasons*; the Cloud tab's validation and its stated gap; and the must-pass — a real background agent, started in the solution folder, **opened in the panel from its row**, with its prompt and its answer read back out of the rendered documents. |
+
+Costs one short Haiku turn per live run, spent outside the IDE to create that agent. Nothing is sent
+through the chat panel.
+
+**Five harness defects, every one of them found by a check disagreeing with something already
+proven** — and three were checks that reported a *false failure*, which is the mirror of Phase I's
+lesson and just as expensive:
+
+* *`@($json | ConvertFrom-Json)` does not give you rows.* Piping a string in emits ONE object that
+  is the array, so `$_` in a later `Where-Object` is the whole array and `$_.id -eq $x` evaluates as
+  an array filter that comes back non-empty — every row "matched", and the agent's name printed as
+  all seven names concatenated.
+* *A `-Action` block does not share this script's `$script:` scope.* The first dictation harness
+  looked like it was collecting recognitions and was collecting nothing, reporting a working feature
+  as broken.
+* *A scriptblock cast to a delegate and invoked from a thread with no runspace took the whole
+  process down* with a StackOverflowException. Subscribing with **no** `-Action` and draining
+  `Get-Event` is the one form that is safe across threads.
+* *Automation elements captured before a list is rebuilt are stale handles.* A trip through the
+  Cloud tab and back tore down the row list; searching the old handles found nothing while the list
+  on screen was perfectly correct.
+* *A background agent inherits the shell's directory.* One was created in the scripts folder, which
+  the panel then correctly refused to open — and the check fell through to whatever other row
+  happened to be enabled and read an unrelated transcript.
+
+**And one check that passed when it should not have.** "The agent's answer came back" matched the
+word PONG — which also appears in the prompt that asked for it. It passed whether or not the reply
+was ever hydrated. It now requires the word in a document that is *not* the prompt, and the run
+prints both documents so the claim is legible.
+
+**A note on two version numbers.** `claude --version` prints **2.1.246**; the same binary's embedded
+`VERSION` constant reads **2.1.251**. Phase I's notes quote the latter. Neither is wrong — they
+disagree, and both are recorded so a future reader is not left reconciling them.
+
+**Not covered, stated rather than glossed:** the Cloud tab's button is never pressed in the live run,
+because launching a terminal takes the foreground away from whatever the user is doing. The command
+it builds is unit-tested, and that exact command line was run directly against the CLI, which
+answered with a real server-side rejection — but the click itself is unexercised. Equally, the
+"no recognizer installed" and "no microphone" branches are constructed and asserted, never
+provoked: this machine has both.
+
+---
+
 ### Phase I notes (2026-08-30)
 
 FEAT-1 was the backlog's one XL item and its "largest genuine feature gap". It came in far smaller

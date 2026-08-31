@@ -1,0 +1,29 @@
+[
+  {
+    "pid": 31592,
+    "cwd": "d:\\Projects\\Visual Studio Projects\\Teron_Extensions",
+    "kind": "interactive",
+    "startedAt": 1788205055343,
+    "sessionId": "2f3176be-124d-4da5-8cae-f7d9d63c1827",
+    "name": "teron-extensions-dc"
+  },
+  {
+    "pid": 2340,
+    "cwd": "d:\\Projects\\Visual Studio Projects\\Teron_Extensions",
+    "kind": "interactive",
+    "startedAt": 1788205059898,
+    "sessionId": "a0084635-226d-4e83-a751-65bdbaa155fd",
+    "name": "teron-extensions-81"
+  },
+  {
+    "pid": 25328,
+    "id": "e6e765fd",
+    "cwd": "C:\\Users\\kkole\\AppData\\Local\\Temp\\claude\\d--Projects-Visual-Studio-Projects-Teron-Extensions\\a0084635-226d-4e83-a751-65bdbaa155fd\\scratchpad\\bgtest",
+    "kind": "background",
+    "startedAt": 1788205201603,
+    "sessionId": "e6e765fd-504e-4db7-9f41-5b3c0e44d6ce",
+    "name": "reply to pong",
+    "status": "idle",
+    "state": "done"
+  }
+]

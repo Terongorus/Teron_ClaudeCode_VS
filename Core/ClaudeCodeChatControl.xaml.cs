@@ -109,14 +109,195 @@ namespace TeronClaudeCodeVS.Core
             if (_vm.Initialize(overridePath, _solutionDirectory))
                 _vm.StartSession();
 
+            // FEAT-8: asks the SAPI registry whether dictation is possible at all; never opens the
+            // microphone, so it is safe on the load path.
+            _vm.ProbeVoiceAvailability();
+
             UpdateSendStopVisibility();
             Keyboard.Focus(InputBox);
         }
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
+            StopDictation();
+            _voice?.Dispose();
+            _voice = null;
             _vm.Dispose();
         }
+
+        #region FEAT-9: history tabs, running sessions, cloud
+
+        private void OnHistoryLocalTabClicked(object sender, RoutedEventArgs e)
+        {
+            _vm.SelectedHistoryTab = ChatSessionViewModel.HistoryTab.Local;
+        }
+
+#pragma warning disable VSTHRD100
+        private async void OnHistoryRunningTabClicked(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            _vm.SelectedHistoryTab = ChatSessionViewModel.HistoryTab.Running;
+            await _vm.RefreshAgentSessionsAsync();
+        }
+
+        private void OnHistoryCloudTabClicked(object sender, RoutedEventArgs e)
+        {
+            _vm.SelectedHistoryTab = ChatSessionViewModel.HistoryTab.Cloud;
+        }
+
+#pragma warning disable VSTHRD100
+        private async void OnRefreshAgentSessionsClicked(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            await _vm.RefreshAgentSessionsAsync();
+        }
+
+        private void OnOpenAgentSessionHereClicked(object sender, RoutedEventArgs e)
+        {
+            if (((FrameworkElement)sender).Tag is AgentSessionEntry entry)
+                _vm.OpenAgentSessionHere(entry);
+        }
+
+        private void OnOpenAgentSessionInTerminalClicked(object sender, RoutedEventArgs e)
+        {
+            if (((FrameworkElement)sender).Tag is AgentSessionEntry entry)
+                _vm.OpenAgentSessionInTerminal(entry);
+        }
+
+        private void OnOpenCloudSessionClicked(object sender, RoutedEventArgs e)
+        {
+            _vm.OpenCloudSession();
+        }
+
+        #endregion
+
+        #region FEAT-8: dictation
+
+        private VoiceInput? _voice;
+
+        /// <summary>When the mic press began, so a tap can be told from a hold. See OnMicButtonUp.</summary>
+        private DateTime _micPressedUtc;
+
+        /// <summary>
+        /// A press below this is a tap and toggles; anything longer is a hold and records only while
+        /// held. 400ms is above a deliberate click and below the shortest usable utterance, so the
+        /// two gestures do not overlap in practice.
+        /// </summary>
+        private static readonly TimeSpan MicTapThreshold = TimeSpan.FromMilliseconds(400);
+
+        /// <summary>
+        /// Set by the mouse gesture so the Click that follows it does not undo it.
+        ///
+        /// A press-and-release raises MouseDown, MouseUp *and* Click, and all three are wanted:
+        /// the mouse pair is what makes hold-to-talk possible, and Click is what makes the button
+        /// work for a keyboard (Space/Enter), a screen reader and UI Automation's InvokePattern -
+        /// none of which raise a mouse event at all. Without this flag the two paths would fight,
+        /// with the Click stopping what the press had just started.
+        /// </summary>
+        private bool _micGestureHandled;
+
+        private void OnMicButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _micPressedUtc = DateTime.UtcNow;
+            _micGestureHandled = true;
+            if (!_vm.IsDictating) StartDictation();
+        }
+
+        /// <summary>The keyboard and automation path - see <see cref="_micGestureHandled"/>.</summary>
+        private void OnMicClicked(object sender, RoutedEventArgs e)
+        {
+            if (_micGestureHandled)
+            {
+                _micGestureHandled = false;
+                return;
+            }
+
+            if (_vm.IsDictating) StopDictation();
+            else StartDictation();
+        }
+
+        /// <summary>
+        /// Completes the gesture baseline's tooltip promises - "Tap or hold to record".
+        ///
+        /// Both gestures start recording on the way down, so the mic is live from the first
+        /// millisecond either way; what the release decides is whether recording *continues*. A
+        /// quick tap leaves it running (press again to stop); a hold ends it here.
+        /// </summary>
+        private void OnMicButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            bool wasHeld = DateTime.UtcNow - _micPressedUtc >= MicTapThreshold;
+            if (wasHeld) StopDictation();
+        }
+
+        private void StartDictation()
+        {
+            if (!_vm.IsVoiceAvailable) return;
+
+            if (_voice == null)
+            {
+                _voice = new VoiceInput();
+                _voice.TextRecognized += OnVoiceTextRecognized;
+                _voice.TextHypothesized += OnVoiceTextHypothesized;
+                _voice.ListeningChanged += OnVoiceListeningChanged;
+                _voice.Failed += OnVoiceFailed;
+            }
+
+            string? error = _voice.Start();
+            if (error != null)
+            {
+                // The "no microphone" case, which cannot be known until the device is asked for.
+                _vm.AddSystemNotice(error, isError: true);
+                _vm.IsDictating = false;
+            }
+        }
+
+        private void StopDictation()
+        {
+            _voice?.Stop();
+            _vm.VoiceHypothesis = "";
+        }
+
+        // Every one of these arrives on a recognition worker thread - see VoiceInput's remarks -
+        // so each hops to the dispatcher before touching the view model or the composer.
+#pragma warning disable VSTHRD001, VSTHRD110
+        private void OnVoiceTextRecognized(object sender, string text) =>
+            Dispatcher.BeginInvoke(new Action(() => AppendDictatedText(text)));
+
+        private void OnVoiceTextHypothesized(object sender, string text) =>
+            Dispatcher.BeginInvoke(new Action(() => _vm.VoiceHypothesis = text));
+
+        private void OnVoiceListeningChanged(object sender, bool listening) =>
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                _vm.IsDictating = listening;
+                if (!listening) _vm.VoiceHypothesis = "";
+            }));
+
+        private void OnVoiceFailed(object sender, string reason) =>
+            Dispatcher.BeginInvoke(new Action(() => _vm.AddSystemNotice(reason, isError: true)));
+#pragma warning restore VSTHRD001, VSTHRD110
+
+        /// <summary>
+        /// Inserts a recognised phrase at the caret rather than appending at the end, so dictating
+        /// into a half-written message puts the words where the user was looking. The space rule is
+        /// the one a person would apply by hand: separate from what precedes it, unless there is
+        /// nothing or whitespace already.
+        /// </summary>
+        private void AppendDictatedText(string text)
+        {
+            _vm.VoiceHypothesis = "";
+            if (text.Length == 0) return;
+
+            int caret = Math.Max(0, Math.Min(InputBox.CaretIndex, InputBox.Text.Length));
+            bool needsSpace = caret > 0 && !char.IsWhiteSpace(InputBox.Text[caret - 1]);
+            string insert = needsSpace ? " " + text : text;
+
+            InputBox.Text = InputBox.Text.Insert(caret, insert);
+            InputBox.CaretIndex = caret + insert.Length;
+            InputBox.Focus();
+        }
+
+        #endregion
 
 #pragma warning disable VSTHRD001, VSTHRD110
         private void OnPermissionRequestAdded(object sender, EventArgs e)
@@ -242,6 +423,9 @@ namespace TeronClaudeCodeVS.Core
             else
             {
                 SessionSearchBox.Text = "";
+                // FEAT-9: the overlay now has three panes, so it opens on a known one rather than
+                // wherever it was left - a Cloud paste box is not what "History" should show first.
+                _vm.SelectedHistoryTab = ChatSessionViewModel.HistoryTab.Local;
                 _vm.OpenSessionHistory();
             }
         }
@@ -828,6 +1012,19 @@ namespace TeronClaudeCodeVS.Core
         private async void OnInputPreviewKeyDown(object sender, KeyEventArgs e)
 #pragma warning restore VSTHRD100
         {
+            // FEAT-8. Baseline's mic advertises Ctrl+D and this is the chord it advertises. Handled
+            // ahead of the pickers deliberately: it is a modifier chord, so it cannot collide with
+            // their arrow/Enter/Escape navigation, and dictating with a picker open is legitimate.
+            // Marked handled either way when dictation is available, so VS's own Ctrl+D never sees
+            // it while focus is in this box.
+            if (e.Key == Key.D && Keyboard.Modifiers == ModifierKeys.Control && _vm.IsVoiceAvailable)
+            {
+                if (_vm.IsDictating) StopDictation();
+                else StartDictation();
+                e.Handled = true;
+                return;
+            }
+
             if (FilePickerPopup.IsOpen)
             {
                 if (e.Key == Key.Down || e.Key == Key.Up)

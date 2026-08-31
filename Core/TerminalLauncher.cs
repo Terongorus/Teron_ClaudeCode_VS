@@ -29,15 +29,30 @@ namespace TeronClaudeCodeVS.Core
         /// <returns>null on success, or a human-readable reason it could not be launched.</returns>
         public static string? OpenClaude(string claudePath, string workingDirectory, string? initialPrompt)
         {
+            var args = new List<string>();
+            if (!string.IsNullOrWhiteSpace(initialPrompt))
+                args.Add(initialPrompt!);
+
+            return OpenClaudeWithArgs(claudePath, workingDirectory, args);
+        }
+
+        /// <summary>
+        /// The same launcher, with the CLI's own arguments rather than a prompt.
+        ///
+        /// FEAT-9 needs two commands that are interactive by nature and so cannot run in the chat
+        /// panel: `claude attach &lt;id&gt;`, which the CLI describes as opening the background
+        /// session "in this terminal", and `claude --cloud &lt;id&gt;`, which refuses the
+        /// stream-json output format this panel is built on. Both are real hand-offs rather than
+        /// gaps, and both want the terminal that already exists for GAP-2.
+        /// </summary>
+        /// <returns>null on success, or a human-readable reason it could not be launched.</returns>
+        public static string? OpenClaudeWithArgs(string claudePath, string workingDirectory, IReadOnlyList<string> args)
+        {
             if (string.IsNullOrWhiteSpace(claudePath) || !File.Exists(claudePath))
                 return "The Claude Code CLI could not be located, so there is nothing to open.";
 
             if (string.IsNullOrWhiteSpace(workingDirectory) || !Directory.Exists(workingDirectory))
                 workingDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-
-            var args = new List<string>();
-            if (!string.IsNullOrWhiteSpace(initialPrompt))
-                args.Add(initialPrompt!);
 
             string? wt = FindWindowsTerminal();
             try

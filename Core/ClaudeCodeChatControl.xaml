@@ -1334,6 +1334,8 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
+                        <!-- FEAT-9: the Local/Running/Cloud tab strip. -->
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
@@ -1351,9 +1353,50 @@
                                 AutomationProperties.AutomationId="CloseHistoryButton"/>
                     </Grid>
 
-                    <Border Grid.Row="1" Margin="10,0,10,8"
+
+                    <!--
+                        FEAT-9. Baseline's history has a Local/Web pair. Ours splits Web into the two
+                        things the CLI can actually do - see AgentSessionsViewModel for why there is
+                        no third thing, and why the Cloud tab hands off rather than streaming.
+                        Same underline-marks-the-active-tab idiom as the plugins panel (FEAT-5).
+                    -->
+                    <Border Grid.Row="1" BorderBrush="{StaticResource HairlineBrush}"
+                            BorderThickness="0,0,0,1" Margin="10,0,10,6">
+                        <StackPanel Orientation="Horizontal">
+                            <Grid Margin="0,0,4,0">
+                                <Button Style="{StaticResource ChipButtonStyle}" Click="OnHistoryLocalTabClicked"
+                                        BorderThickness="0" Background="Transparent"
+                                        AutomationProperties.AutomationId="HistoryLocalTabButton">
+                                    <TextBlock Text="Local"/>
+                                </Button>
+                                <Border Height="2" VerticalAlignment="Bottom" Background="{StaticResource ClaudeAccentBrush}"
+                                        Visibility="{Binding IsLocalTab, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                            </Grid>
+                            <Grid Margin="0,0,4,0">
+                                <Button Style="{StaticResource ChipButtonStyle}" Click="OnHistoryRunningTabClicked"
+                                        BorderThickness="0" Background="Transparent"
+                                        AutomationProperties.AutomationId="HistoryRunningTabButton">
+                                    <TextBlock Text="Running"/>
+                                </Button>
+                                <Border Height="2" VerticalAlignment="Bottom" Background="{StaticResource ClaudeAccentBrush}"
+                                        Visibility="{Binding IsRunningTab, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                            </Grid>
+                            <Grid>
+                                <Button Style="{StaticResource ChipButtonStyle}" Click="OnHistoryCloudTabClicked"
+                                        BorderThickness="0" Background="Transparent"
+                                        AutomationProperties.AutomationId="HistoryCloudTabButton">
+                                    <TextBlock Text="Cloud"/>
+                                </Button>
+                                <Border Height="2" VerticalAlignment="Bottom" Background="{StaticResource ClaudeAccentBrush}"
+                                        Visibility="{Binding IsCloudTab, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Row="2" Margin="10,0,10,8"
                             Background="{StaticResource CardBackgroundBrush}"
-                            BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusControl}">
+                            BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1" CornerRadius="{StaticResource RadiusControl}"
+                            Visibility="{Binding IsLocalTab, Converter={StaticResource BoolToVisibilityConverter}}">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
@@ -1387,8 +1430,9 @@
                         </Grid>
                     </Border>
 
-                    <ListBox Grid.Row="2" x:Name="SessionListBox"
+                    <ListBox Grid.Row="3" x:Name="SessionListBox"
                              ItemsSource="{Binding SessionHistory}"
+                             Visibility="{Binding IsLocalTab, Converter={StaticResource BoolToVisibilityConverter}}"
                              BorderThickness="0" Background="Transparent"
                              Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -1481,6 +1525,168 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
+
+                    <!-- ============ FEAT-9: Running ============ -->
+                    <Grid Grid.Row="3" Margin="10,0,10,0"
+                          Visibility="{Binding IsRunningTab, Converter={StaticResource BoolToVisibilityConverter}}">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0" Margin="0,0,0,6">
+                            <TextBlock Opacity="0.7" TextWrapping="Wrap" FontSize="{StaticResource FontSizeChrome}"
+                                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                       Text="Every Claude Code session on this machine."
+                                       AutomationProperties.AutomationId="RunningSessionsBlurb"/>
+                            <Button Content="Refresh" Style="{StaticResource ChipButtonStyle}"
+                                    HorizontalAlignment="Right" Click="OnRefreshAgentSessionsClicked"
+                                    AutomationProperties.AutomationId="RefreshAgentSessionsButton"/>
+                        </Grid>
+
+                        <TextBlock Grid.Row="1" Text="Loading&#8230;" Opacity="0.6" VerticalAlignment="Top"
+                                   FontSize="{StaticResource FontSizeChrome}"
+                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                   Visibility="{Binding AgentSessions.IsLoading, Converter={StaticResource BoolToVisibilityConverter}}"
+                                   AutomationProperties.AutomationId="AgentSessionsLoading"/>
+
+                        <TextBlock Grid.Row="1" Text="{Binding AgentSessions.LoadError}" TextWrapping="Wrap"
+                                   VerticalAlignment="Top" FontSize="{StaticResource FontSizeChrome}"
+                                   Foreground="{StaticResource ErrorBrush}"
+                                   Visibility="{Binding AgentSessions.LoadError, Converter={StaticResource NullToVisibilityConverter}}"
+                                   AutomationProperties.AutomationId="AgentSessionsError"/>
+
+                        <TextBlock Grid.Row="1" VerticalAlignment="Top" TextWrapping="Wrap" Opacity="0.7"
+                                   FontSize="{StaticResource FontSizeChrome}"
+                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                   Text="No other Claude Code sessions are running on this machine."
+                                   Visibility="{Binding AgentSessions.IsEmpty, Converter={StaticResource BoolToVisibilityConverter}}"
+                                   AutomationProperties.AutomationId="AgentSessionsEmptyState"/>
+
+                        <ListBox Grid.Row="1" x:Name="AgentSessionsList"
+                                 ItemsSource="{Binding AgentSessions.Sessions}"
+                                 BorderThickness="0" Background="Transparent"
+                                 Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ItemContainerStyle="{StaticResource SessionListItemStyle}"
+                                 AutomationProperties.AutomationId="AgentSessionsList">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type vm:AgentSessionEntry}">
+                                    <Grid Margin="0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
+                                                       FontSize="{StaticResource FontSizeBody}"/>
+                                            <TextBlock Text="{Binding DetailLine}" Opacity="0.6"
+                                                       FontSize="{StaticResource FontSizeChrome}"/>
+                                            <TextBlock Text="{Binding Cwd}" Opacity="0.45" ToolTip="{Binding Cwd}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       FontFamily="Consolas" FontSize="{StaticResource FontSizeChrome}">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsCurrentFolder}" Value="True">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
+
+                                        <Button Grid.Column="1" Content="Open here" Style="{StaticResource ChipButtonStyle}"
+                                                Margin="6,0,0,0" VerticalAlignment="Center"
+                                                Click="OnOpenAgentSessionHereClicked" Tag="{Binding}"
+                                                IsEnabled="{Binding CanOpenHere}"
+                                                ToolTip="{Binding OpenHereBlockedReason}"
+                                                AutomationProperties.AutomationId="OpenAgentSessionHereButton"/>
+
+                                        <Button Grid.Column="2" Content="Terminal" Style="{StaticResource ChipButtonStyle}"
+                                                Margin="4,0,0,0" VerticalAlignment="Center"
+                                                Click="OnOpenAgentSessionInTerminalClicked" Tag="{Binding}"
+                                                IsEnabled="{Binding CanOpenInTerminal}"
+                                                ToolTip="{Binding TerminalCommandText}"
+                                                AutomationProperties.AutomationId="OpenAgentSessionTerminalButton"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+
+                    <!-- ============ FEAT-9: Cloud ============ -->
+                    <StackPanel Grid.Row="3" Margin="10,0,10,0" VerticalAlignment="Top"
+                                Visibility="{Binding IsCloudTab, Converter={StaticResource BoolToVisibilityConverter}}">
+
+                        <TextBlock TextWrapping="Wrap" Opacity="0.75" Margin="0,0,0,8"
+                                   FontSize="{StaticResource FontSizeChrome}"
+                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                   Text="Open a cloud session by ID or link."
+                                   AutomationProperties.AutomationId="CloudSessionBlurb"/>
+
+                        <Border Background="{StaticResource CardBackgroundBrush}"
+                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
+                                CornerRadius="{StaticResource RadiusControl}" Margin="0,0,0,6">
+                            <Grid>
+                                <TextBox x:Name="CloudSessionBox" BorderThickness="0" Background="Transparent"
+                                         Padding="6,5" FontSize="{StaticResource FontSizeBody}" FontFamily="Consolas"
+                                         Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                         CaretBrush="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                         Text="{Binding CloudSessionInput, UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.AutomationId="CloudSessionBox"/>
+                                <TextBlock IsHitTestVisible="False" Text="session_&#8230; &#183; cse_&#8230; &#183; claude.ai/code link"
+                                           Opacity="0.4" Margin="6,5" VerticalAlignment="Center"
+                                           FontSize="{StaticResource FontSizeBody}"
+                                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Text, ElementName=CloudSessionBox}" Value="">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </Border>
+
+                        <TextBlock Text="{Binding CloudHintText}" TextWrapping="Wrap" Opacity="0.6" Margin="0,0,0,8"
+                                   FontSize="{StaticResource FontSizeChrome}"
+                                   Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                   AutomationProperties.AutomationId="CloudHintText"/>
+
+                        <Button Content="Open in terminal" Style="{StaticResource ChipButtonStyle}"
+                                HorizontalAlignment="Left" Click="OnOpenCloudSessionClicked"
+                                IsEnabled="{Binding CanOpenCloudSession}"
+                                AutomationProperties.AutomationId="OpenCloudSessionButton"/>
+
+                        <!--
+                            The gap, stated rather than papered over. Baseline lists an account's
+                            cloud sessions by machine name; the CLI exposes no command that
+                            enumerates them, so this tab takes an ID instead of pretending to a
+                            list it cannot build.
+                        -->
+                        <Border Margin="0,14,0,0" Padding="8" CornerRadius="{StaticResource RadiusControl}"
+                                Background="{StaticResource CardBackgroundBrush}"
+                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Why there is no list" FontWeight="SemiBold" Margin="0,0,0,4"
+                                           FontSize="{StaticResource FontSizeChrome}"
+                                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
+                                <TextBlock TextWrapping="Wrap" Opacity="0.7" FontSize="{StaticResource FontSizeChrome}"
+                                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                                           Text="The CLI has no command that lists your cloud sessions, and it refuses the streaming output format this panel reads &#8212; so a cloud session opens in a terminal, and is entered by ID."
+                                           AutomationProperties.AutomationId="CloudGapNote"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
                 </Grid>
             </Border>
         </Grid>
@@ -1538,6 +1744,8 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <!-- FEAT-8: the dictation status line, collapsed unless the mic is live. -->
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
@@ -2623,17 +2831,67 @@
                         </Border>
                     </Popup>
 
-                    <Button Grid.Column="1" x:Name="SendButton" Style="{StaticResource AccentButtonStyle}"
-                            Click="OnSendClicked" Margin="6,0,0,0" ToolTip="Send (Enter)"
-                            AutomationProperties.AutomationId="SendButton">
-                        <TextBlock Text="➤" FontSize="{StaticResource GlyphSize}"/>
-                    </Button>
-                    <Button Grid.Column="1" x:Name="StopButton" Style="{StaticResource StopButtonStyle}"
-                            Click="OnStopClicked" Margin="6,0,0,0" Visibility="Collapsed" ToolTip="Stop"
-                            AutomationProperties.AutomationId="StopButton">
-                        <TextBlock Text="■" FontSize="{StaticResource GlyphSize}"/>
-                    </Button>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+
+                        <!--
+                            FEAT-8. Baseline's tooltip verbatim - "Tap or hold to record · Ctrl+D" -
+                            but only when dictation can actually work; when it cannot, the tooltip is
+                            the reason instead, because a greyed-out mic that explains nothing is the
+                            thing worth avoiding. Both strings come from the view model, which owns
+                            the availability probe (see VoiceInput.Probe).
+
+                            Tap and hold are one control: a quick click toggles, and holding the
+                            button records only while it is held. The code-behind tells them apart
+                            by how long the press lasted - see OnMicButtonUp.
+                        -->
+                        <Button x:Name="MicButton" Style="{StaticResource ChipButtonStyle}"
+                                Margin="0,0,4,0" VerticalAlignment="Center"
+                                IsEnabled="{Binding IsVoiceAvailable}"
+                                ToolTip="{Binding VoiceTooltipText}"
+                                PreviewMouseLeftButtonDown="OnMicButtonDown"
+                                PreviewMouseLeftButtonUp="OnMicButtonUp"
+                                Click="OnMicClicked"
+                                AutomationProperties.AutomationId="MicButton"
+                                AutomationProperties.Name="Dictate">
+                            <TextBlock x:Name="MicGlyph" Text="🎤" FontSize="{StaticResource GlyphSize}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsDictating}" Value="True">
+                                                <Setter Property="Foreground" Value="{StaticResource ErrorBrush}"/>
+                                                <Setter Property="Text" Value="⏺"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Button>
+
+                        <Grid>
+                            <Button x:Name="SendButton" Style="{StaticResource AccentButtonStyle}"
+                                    Click="OnSendClicked" Margin="6,0,0,0" ToolTip="Send (Enter)"
+                                    AutomationProperties.AutomationId="SendButton">
+                                <TextBlock Text="➤" FontSize="{StaticResource GlyphSize}"/>
+                            </Button>
+                            <Button x:Name="StopButton" Style="{StaticResource StopButtonStyle}"
+                                    Click="OnStopClicked" Margin="6,0,0,0" Visibility="Collapsed" ToolTip="Stop"
+                                    AutomationProperties.AutomationId="StopButton">
+                                <TextBlock Text="■" FontSize="{StaticResource GlyphSize}"/>
+                            </Button>
+                        </Grid>
+                    </StackPanel>
                 </Grid>
+
+                <!--
+                    FEAT-8. What the recognizer currently thinks it heard, so the mic is visibly
+                    live rather than just red. Committed text goes into the composer; this line is
+                    the in-flight guess and is discarded when the phrase resolves.
+                -->
+                <TextBlock Grid.Row="4" Text="{Binding VoiceStatusText}" Margin="2,4,0,0"
+                           FontSize="{StaticResource FontSizeChrome}" Opacity="0.7" TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                           Visibility="{Binding HasVoiceStatus, Converter={StaticResource BoolToVisibilityConverter}}"
+                           AutomationProperties.AutomationId="VoiceStatusText"/>
             </Grid>
         </Border>
     </Grid>
