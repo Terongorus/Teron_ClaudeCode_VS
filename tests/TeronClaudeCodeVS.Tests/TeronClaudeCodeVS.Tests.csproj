@@ -1,0 +1,79 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The headless half of the verification suite, as real xUnit tests (Phase K).
+
+    WHY THIS REFERENCES A BUILT DLL AND NOT THE PROJECT. The extension is a VSIX: its build runs
+    Microsoft.VSSDK.BuildTools targets that only full MSBuild can execute. A ProjectReference would
+    drag those targets into `dotnet test`, which cannot run them. Referencing the compiled assembly
+    keeps this project buildable by the .NET SDK and mirrors exactly what the PowerShell harnesses
+    in ../../docs/comparison-audit/scripts/ already do - they load the same built DLL. The cost is an
+    ordering requirement, enforced below: build the extension first, or this project refuses to
+    build with an explanation rather than a missing-reference error.
+
+    WHAT DID NOT MOVE HERE. The live `phase-*-live.ps1` / `phase-*-verify.ps1` scripts stay in
+    PowerShell. They drive a real running devenv.exe over UI Automation; nothing in xUnit reaches
+    another process's WPF tree, and pretending otherwise would replace a real check with a fake one.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net481</TargetFramework>
+    <RootNamespace>TeronClaudeCodeVS.Tests</RootNamespace>
+    <AssemblyName>TeronClaudeCodeVS.Tests</AssemblyName>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <UseWPF>true</UseWPF>
+    <!-- The extension is AnyCPU but is only ever loaded by a 64-bit devenv. Match it. -->
+    <PlatformTarget>x64</PlatformTarget>
+    <!-- xUnit's own analyzers are useful here; the VSSDK ones are not, and are not referenced. -->
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <ExtensionBinDir>$(MSBuildThisFileDirectory)..\..\bin\$(Configuration)\net481\</ExtensionBinDir>
+    <ExtensionAssemblyPath>$(ExtensionBinDir)TeronClaudeCodeVS.dll</ExtensionAssemblyPath>
+  </PropertyGroup>
+
+  <Target Name="RequireExtensionBuild" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(ExtensionAssemblyPath)')"
+           Text="The extension has not been built for $(Configuration). These tests load the compiled assembly (see the comment at the top of this file), so build it first:%0A    msbuild &quot;$(MSBuildThisFileDirectory)..\..\TeronClaudeCodeVS.csproj&quot; /p:Configuration=$(Configuration)%0AExpected: $(ExtensionAssemblyPath)" />
+  </Target>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <!-- Same version the extension itself uses; its public surface is on our test seams. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="TeronClaudeCodeVS">
+      <HintPath>$(ExtensionAssemblyPath)</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="WindowsBase" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="System.Xml.Linq" />
+    <!-- FEAT-8's dictation round trip synthesises its own audio; both halves live here. -->
+    <Reference Include="System.Speech" />
+    <!-- Phase I reads a spawned claude.exe's real command line via WMI (Win32_Process). -->
+    <Reference Include="System.Management" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\docs\comparison-audit\fixtures\**\*" Link="fixtures\%(RecursiveDir)%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
