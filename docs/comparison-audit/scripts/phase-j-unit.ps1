@@ -16,7 +16,7 @@
 param(
     [string]$BinDir   = 'd:\Projects\Visual Studio Projects\Teron_Extensions\Teron_ClaudeCode_VS\bin\Debug\net481',
     [string]$Root     = 'd:\Projects\Visual Studio Projects\Teron_Extensions\Teron_ClaudeCode_VS',
-    [string]$Fixtures = 'd:\Projects\Visual Studio Projects\Teron_Extensions\Teron_ClaudeCode_VS\comparison-audit\fixtures'
+    [string]$Fixtures = 'd:\Projects\Visual Studio Projects\Teron_Extensions\Teron_ClaudeCode_VS\docs\comparison-audit\fixtures'
 )
 $ErrorActionPreference = 'Stop'
 $OutputEncoding = [System.Text.UTF8Encoding]::new($false)

@@ -16,7 +16,7 @@
 # never to attach anything.
 param(
     [Parameter(Mandatory = $true)][int]$ProcessId,
-    [string]$OutDir = 'd:\Projects\Visual Studio Projects\Teron_Extensions\Teron_ClaudeCode_VS\comparison-audit\screenshots\our-extension'
+    [string]$OutDir = 'd:\Projects\Visual Studio Projects\Teron_Extensions\Teron_ClaudeCode_VS\docs\comparison-audit\screenshots\our-extension'
 )
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
