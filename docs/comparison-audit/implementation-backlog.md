@@ -47,7 +47,7 @@ Updated as each phase of the Phase 7 parity build lands on `dev`. Commit SHAs ar
 | **UX-6** | ✅ done | C | Picker footers, permission-card key hints, and a placeholder naming the real focus chord. |
 | **UX-7** | ✅ done | C | Per-turn grouped annotation; observed rendering `2 tool calls · 1 failed`. |
 | **UX-8** | ✅ done | C | Copy button per fenced block, as a FlowDocument `Floater`. |
-| **UX-9** | ⚠ built, unverified | C | Chips show name + pixel dimensions + a type glyph. Rendering not yet driven — needs the paste/drop harness from **TEST-1**. |
+| **UX-9** | ✅ done | C | Chips show name + pixel dimensions + a type glyph. Driven live via `AttachmentTests` (Phase 17) — see **A1–A3**. |
 | **UX-10** | ✅ done | C | `v0.3.0` in the palette footer, read from the shipped VSIX manifest. |
 | **UX-11** | ✅ done | C | Designed empty state on a new session. |
 | **UX-12** | ✅ done | C | One `PopupCardStyle` behind every popup, plus shared hint/footer styles. |
@@ -56,14 +56,14 @@ Updated as each phase of the Phase 7 parity build lands on `dev`. Commit SHAs ar
 | **GAP-3** | ✅ done | D | Measured extension-injected, then built: `/btw`, `/feedback`, `/remote-control` (+ `/rc`). |
 | **FEAT-2** | ✅ done | E | Native VS diff tab, auto-opened on an edit prompt. Accept/revert stay on the card — see below. |
 | **FEAT-3** | ✅ done | F | Generated short titles read from the CLI's own `ai-title` records, plus per-row rename and delete. |
-| **FEAT-4** | ⚠ built, handlers undriven | G | Panel and empty state verified; the six `Click` handlers and the rendered layout need a live pass — see **A4/A5**. |
-| **FEAT-5** | ⚠ built, handlers undriven | G | As FEAT-4: Plugins/Marketplaces tabs and rows are unpressed — see **A4/A5**. |
+| **FEAT-4** | ✅ done | G | Panel, empty state, and all six `Click` handlers driven live in Phase L — see **A4/A5**. |
+| **FEAT-5** | ✅ done | G | As FEAT-4: Plugins/Marketplaces tabs and rows driven live in Phase L against a real marketplace — see **A4/A5**. |
 | **FEAT-6** | ✅ done | H | `+` add menu: upload, add context, browse the web. |
 | **FEAT-7** | ⚠ built, one join unexecuted | H | `--fallback-model` and its parsing are tested; **no real fallback event has ever arrived** — see **D1**. |
 | **FEAT-1** | ✅ done | I | Rewind and fork, both surfaces, driven live. One refusal branch untested — see **D2**. |
 | **FEAT-8** | ⚠ built, never spoken to | J | Offline dictation. Pipeline proven with a synthesised `.wav`; **no human voice, and no hold gesture** — see **C1–C4**. |
 | **FEAT-9** | ✅ done (2 of 3 parts) | J | Running sessions and cloud-by-ID both live-verified. Enumerating an account's cloud sessions is **not possible** — the CLI exposes no such command. Cloud hand-off unclicked — see **E1**. |
-| **UX-9** | ⚠ built, unverified | C | Repeated here so the ⚠ rows sit together — see **A1–A3**. |
+| **UX-9** | ✅ done | C | Repeated here for visibility; see the C-tier row above and **A1–A3**. |
 
 **ST-4 measurement (Phase B, VS 18 Experimental instance, 2026-08-29).** Sampled from
 `PrintWindow` captures, not judged by eye:
@@ -99,16 +99,17 @@ Grouped by *why* it is unautomated, hardest-to-automate last.
 
 ### A. Deferred to TEST-1 — automatable, just not built yet
 
-These need the WM_DROPFILES / clipboard-format harness that TEST-1 exists to build. They are not
-permanent human work.
+~~These need the WM_DROPFILES / clipboard-format harness that TEST-1 exists to build. They are not
+permanent human work.~~ **A1–A5 all resolved.** A1–A3 by TEST-1 itself (Phase 17: `AttachmentTests`
+drives real paste/drop/remove in-process). A4–A5 by the Phase L live pass below.
 
-| # | What to check | Item | Where it came from |
+| # | What to check | Item | Resolution |
 |---|---|---|---|
-| A1 | Paste an image from the clipboard into the composer; a chip appears naming it, with pixel dimensions and a type glyph | **UX-9** | already flagged `⚠ built, unverified` in the status table |
-| A2 | Drag a file from Solution Explorer / Explorer onto the composer; same chip behaviour | **UX-9**, TEST-1 | our WPF path is real OLE `IDropTarget`, which webview techniques never reached |
-| A3 | The `✕` on a pending-file chip removes it | UX-9 | rendering was never driven |
-| A4 | MCP servers panel and Manage plugins panel: open both, switch the Plugins/Marketplaces tabs, click every row | **FEAT-4, FEAT-5** | Phase G's six `Click` handlers are three lines each and no live run has pressed them |
-| A5 | Both panels' layout, tab-strip underline and modal shadow look right | FEAT-4, FEAT-5 | UIA reads structure, never appearance |
+| ~~A1~~ | ~~Paste an image from the clipboard into the composer; a chip appears naming it, with pixel dimensions and a type glyph~~ | **UX-9** | **Resolved, Phase 17.** `AttachmentTests.Pasting_an_image_stages_a_chip_and_swallows_the_paste` |
+| ~~A2~~ | ~~Drag a file from Solution Explorer / Explorer onto the composer; same chip behaviour~~ | **UX-9**, TEST-1 | **Resolved, Phase 17.** `AttachmentTests.Dropping_a_code_file_stages_its_text` and siblings, real `DragEventArgs` in-process |
+| ~~A3~~ | ~~The `✕` on a pending-file chip removes it~~ | UX-9 | **Resolved, Phase 17.** `AttachmentTests.The_close_glyph_on_a_chip_removes_that_chip_and_only_that_chip` |
+| ~~A4~~ | ~~MCP servers panel and Manage plugins panel: open both, switch the Plugins/Marketplaces tabs, click every row~~ | **FEAT-4, FEAT-5** | **Resolved, Phase L (2026-09-01).** All six `Click` handlers driven live against the real CLI/marketplace: `OnMcpServersClicked`, `OnCloseMcpClicked`, `OnManagePluginsClicked`, `OnPluginsTabClicked`, `OnMarketplacesTabClicked`, `OnClosePluginsClicked`. Screenshots: `screenshots/our-extension/phase-l/L01`-`L03` |
+| ~~A5~~ | ~~Both panels' layout, tab-strip underline and modal shadow look right~~ | FEAT-4, FEAT-5 | **Resolved, Phase L.** Judged directly from the same screenshots — card shadow, tab-strip underline, and real data (the account's actual `claude-plugins-official` marketplace and its available-plugin list) all render cleanly |
 
 ### B. Visual judgement — I can read the tree, not the picture
 
@@ -117,13 +118,13 @@ nothing about whether the result *looks* right. Phase B is the one exception: it
 sampled from real `PrintWindow` captures rather than judged, and the numbers are in the ST-4 table
 above.
 
-| # | What to check | Item |
-|---|---|---|
-| B1 | Flip VS between light and dark **with the panel already open** — every surface re-derives without a reload, and the terracotta accent stays constant | ST-1..ST-4. Both themes were captured and pixel-sampled (see the ST-4 table), but as two separate runs with the theme changed between them. `phase-b-verify.ps1` does not switch the theme itself, so *live* re-derivation — the plan's actual Phase B must-pass wording — has not been watched |
-| B2 | The mic button sits correctly beside Send and does not crowd it at a narrow dock width | FEAT-8 |
-| B3 | The dictation status line appearing does not make the composer jump | FEAT-8 |
-| B4 | The Running tab's rows read well when a `cwd` is very long, and when the list is long enough to scroll | FEAT-9 |
-| B5 | The rewind picker and its confirmation are legible at a narrow dock width | FEAT-1 |
+| # | What to check | Item | Status |
+|---|---|---|---|
+| B1 | Flip VS between light and dark **with the panel already open** — every surface re-derives without a reload, and the terracotta accent stays constant | ST-1..ST-4 | **Attempted in Phase L, genuinely blocked, not resolved.** VS 2026's Settings page opens as an in-window tab (not a dialog); its "Color theme" combo was located and confirmed to still be a live, working control (`ExpandCollapsePattern` opens it; the current value `Dark` and every theme name, including `Light`, were read straight off the real dropdown). But every item inside it — checked directly — supports only `SynchronizedInputPattern`: no `Invoke`, `Toggle`, `SelectionItem`, or `LegacyIAccessible`, which is what every background-safe click in this project's whole toolkit depends on. Selecting one without physical mouse coordinates is not possible under the standing no-physical-input rule. This is a real limitation of VS 2026's new Settings UI, not a shortcut. **Still needs a person**, or a themed dry run through the `Applies to:` / "Edit user settings as JSON" link on that same page instead of the dropdown, which was not attempted this pass |
+| B2 | The mic button sits correctly beside Send and does not crowd it at a narrow dock width | FEAT-8 | Not attempted — resizing a docked tool window has no UIA affordance in this toolkit either; still needs a person |
+| B3 | The dictation status line appearing does not make the composer jump | FEAT-8 | Not attempted, same reason as B2 |
+| ~~B4~~ | ~~The Running tab's rows read well when a `cwd` is very long, and when the list is long enough to scroll~~ | FEAT-9 | **Resolved, Phase L.** Screenshot `L04-history-running-tab.png`: real rows including two absolute paths long enough to need `TextTrimming`, a working scrollbar, consistent row spacing throughout |
+| B5 | The rewind picker and its confirmation are legible at a narrow dock width | FEAT-1 | **Partially settled, Phase L.** `L06-rewind-picker.png` confirms the card itself is clean at default dock width (title, close glyph, centred message, key-hint footer). No message had been sent in the scratch session used for this pass, so only the empty state (`RewindEmptyStateText`) was seen — a populated list of real rewind points, and the narrow-width case specifically, are still open |
 
 ### C. Real human input — no harness will ever do these
 
@@ -155,10 +156,10 @@ above.
 
 | ID | State |
 |---|---|
-| **TEST-1** | **not started.** Blocks A1–A5. Needs the `WM_DROPFILES` / clipboard-format equivalents of the existing `Send-WmChar` / `Send-WmClick` helpers in `scripts/uia-lib.ps1` |
+| **TEST-1** | **Done, Phase 17 (2026-09-01).** Not via `WM_DROPFILES` as originally proposed — measured first, and an out-of-process drop hits a real access violation (WPF's `IDropTarget` is an in-process COM pointer). `AttachmentTests` drives real paste/drop/remove in-process instead, closing A1–A5. |
 | **TEST-2** | **not started.** IDE MCP tools beyond `getDiagnostics` — open editors, selection, dirty-state, save — are transport-tested only, never driven against real VS SDK objects |
 | **TEST-3** | **not started.** Fold the real-hover technique (`Input.dispatchMouseEvent`) into `cdp-lib.ps1` |
-| *(new)* | **Rewrite the headless `phase-*-unit.ps1` suites as xUnit tests.** Requested 2026-08-31. Needs `InternalsVisibleTo` on the VSIX; the FEAT-8 dictation round-trip should be a *skippable* fact since it depends on a recognizer being installed. The live UIA scripts stay in PowerShell — nothing in xUnit can drive a real `devenv` |
+| *(new)* | **Done, Phase 17.** The headless `phase-*-unit.ps1`/`phase-*-vm.ps1` suites (Phases E–J) are now real xUnit tests under `tests/TeronClaudeCodeVS.Tests/`, 182 tests. The live UIA/CDP scripts stayed in PowerShell as planned. |
 
 ---
 
