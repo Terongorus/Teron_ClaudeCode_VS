@@ -3,6 +3,50 @@
 All notable changes to the **Claude Code for Visual Studio** extension will be documented in
 this file.
 
+## [0.4.0] - 2026-09-01
+
+A full pass at parity with the official "Claude Code for VS Code" extension, driven by a live
+side-by-side audit against it.
+
+* **New: rewind and fork conversations.** Pick any earlier point in a session and restore your
+  code to how it looked then, continue from there in a new forked conversation, or both — with a
+  preview of exactly which files will change and a confirmation before anything on disk moves.
+* **New: a native side-by-side diff tab.** Alongside the existing inline diff card, a proposed
+  edit now also opens in a real Visual Studio diff editor tab, with Previous/Next-difference
+  navigation built in.
+* **New: real session titles.** History rows now show the same generated title Claude Code itself
+  assigns to a session, instead of a truncated first message. Renaming a session yourself still
+  always wins.
+* **New: MCP servers panel** and **New: Manage plugins panel**, both reachable from Customize,
+  showing your configured MCP servers and installed/available plugins and marketplaces without
+  leaving the IDE.
+* **New: a `+` add menu** on the composer — upload a file from disk, insert `@` to add context, or
+  ask Claude to fetch a URL or search the web.
+* **New: automatic model fallback.** Optionally set a fallback model in Options; when Claude
+  switches models mid-session (due to load, a refusal, or a usage-credit boundary) the transcript
+  now shows a clear notice explaining why.
+* **New: voice dictation.** Tap or hold the new mic button (or `Ctrl+D`) to dictate into the
+  composer using Windows' own offline speech recognizer — nothing is sent anywhere for this.
+* **New: a Running sessions tab** in History, listing other Claude Code sessions active on this
+  machine (including background agents) with the option to open one here or in a terminal; and a
+  **Cloud tab** to hand off to a cloud session by ID or link.
+* **New: terminal hand-off cards** for Memory, Agents, Hooks, Output Styles, and Permissions, and
+  a new **Open Claude in Terminal** command, matching the official extension's Customize menu.
+* **New: `/btw`, `/feedback`, and `/remote-control`** slash commands.
+* **Redesigned visual style** to match the official extension more closely — a consistent type
+  scale and corner radii throughout, and the accent color confined to exactly the surfaces it
+  should be (send button, focus ring, selection, and this extension's own deliberately-kept user
+  message bubble).
+* **Improved: a large batch of UX polish** — model and permission-mode pickers now explain what
+  each option does; permission prompts show the full file path, accept number-key selection
+  (`1`/`2`/`3`), and can redirect Claude with a typed reason instead of just denying; the command
+  palette gained a filter box; tool-call groups summarize count and failures; code blocks in
+  responses gained a copy button; attachment chips show file dimensions and type; and new sessions
+  show a proper empty state instead of a blank panel.
+* **Fixed: the Active File / Selection context chips** silently doing nothing — or, worse,
+  attaching the wrong file — when the active tab was a Markdown Preview tab rather than a code
+  editor.
+
 ## [0.3.0] - 2026-08-26
 
 * **New: IDE companion server.** The extension now runs a local companion server the CLI can
