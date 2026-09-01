@@ -1,23 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="TeronClaudeCodeVS.a873f3b2-b2a2-4f5b-ad1e-8d0f1c3dc271" Version="0.3.0" Language="en-US" Publisher="TeronClaudeCodeVS" />
+    <Identity Id="TeronClaudeCodeVS.a873f3b2-b2a2-4f5b-ad1e-8d0f1c3dc271" Version="0.3.0" Language="en-US" Publisher="Terongorus" />
     <DisplayName>Claude Code for Visual Studio</DisplayName>
     <Description>Run Claude Code directly inside Visual Studio: chat with Claude, review streamed responses and tool calls, approve file edits and commands, and keep your project's context in sync with the Claude Code CLI.</Description>
+    <License>LICENSE.txt</License>
+    <GettingStartedGuide>README.md</GettingStartedGuide>
+    <ReleaseNotes>CHANGELOG.md</ReleaseNotes>
+    <Icon>logo_icon.png</Icon>
   </Metadata>
   <Installation>
     <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.14, )">
       <ProductArchitecture>amd64</ProductArchitecture>
     </InstallationTarget>
+    <InstallationTarget Id="Microsoft.VisualStudio.Pro" Version="[17.14,)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
+    <InstallationTarget Id="Microsoft.VisualStudio.Enterprise" Version="[17.14,)">
+      <ProductArchitecture>amd64</ProductArchitecture>
+    </InstallationTarget>
   </Installation>
   <Dependencies>
-    <Dependency Id="Microsoft.Framework.NDP" DisplayName="Microsoft .NET Framework" d:Source="Manual" Version="[4.5,)" />
+    <Dependency Id="Microsoft.Framework.NDP" DisplayName="Microsoft .NET Framework" Version="[4.5,)" d:Source="Manual" />
   </Dependencies>
   <Prerequisites>
-    <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" Version="[17.14, )" DisplayName="Visual Studio core editor" />
+    <Prerequisite Id="Microsoft.VisualStudio.Component.CoreEditor" DisplayName="Visual Studio core editor" Version="[17.14, )" />
   </Prerequisites>
   <Assets>
-    <Asset Type="Microsoft.VisualStudio.VsPackage" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" />
-    <Asset Type="Microsoft.VisualStudio.MefComponent" d:Source="Project" d:ProjectName="%CurrentProject%" Path="|%CurrentProject%|" />
+    <Asset Type="Microsoft.VisualStudio.VsPackage" Path="|%CurrentProject%;PkgdefProjectOutputGroup|" d:Source="Project" d:ProjectName="%CurrentProject%" />
+    <Asset Type="Microsoft.VisualStudio.MefComponent" Path="|%CurrentProject%|" d:Source="Project" d:ProjectName="%CurrentProject%" />
+    <Asset Type="Microsoft.VisualStudio.Samples" Path=".\README.md" d:Source="Manual" />
+    <Asset Type="Microsoft.VisualStudio.Samples" Path=".\LICENSE.txt" d:Source="Manual" />
+    <Asset Type="Microsoft.VisualStudio.Samples" Path=".\CHANGELOG.md" d:Source="Manual" />
+    <Asset Type="Microsoft.VisualStudio.Samples" Path=".\Resources\logo_icon.png" d:Source="Manual" />
   </Assets>
 </PackageManifest>
