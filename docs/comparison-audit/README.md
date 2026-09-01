@@ -11,7 +11,9 @@ Working folder for the live, automated, side-by-side comparison against the offi
   - [`implementation-backlog.html`](implementation-backlog.html) — the same content as a
     filterable page (tier chips, "quick wins only", keyword search). Published privately as an
     Artifact at <https://claude.ai/code/artifact/b850b357-11d7-4abc-be1a-1ed7f9999ce5>. The
-    Markdown file is the source of truth; regenerate the HTML from it if they diverge.
+    Markdown file is the source of truth; regenerate the HTML from it if they diverge. **Frozen at
+    Phase 6 (2026-08-28) and not kept in sync** — it predates every Phase C-K note and the "needs a
+    human" checklist added since, so treat it as a historical snapshot, not a current mirror.
 - **Narrative + methodology + bugs found:**
   [`../docs/Phase 6 - Live Comparison Audit.md`](../docs/Phase%206%20-%20Live%20Comparison%20Audit.md)
 - **Scannable checklist / audit view:** [`feature-matrix.md`](feature-matrix.md) — organised by
