@@ -5,36 +5,26 @@ using System.Linq;
 namespace TeronClaudeCodeVS.ViewModels
 {
     /// <summary>One entry in the GAP-1 terminal hand-off catalog.</summary>
-    public sealed class TerminalHandoffEntry
+    public sealed class TerminalHandoffEntry(string key, string label, string menuDescription,
+        string dialogTitle, string dialogDescription)
     {
         /// <summary>Menu label, e.g. "Memory".</summary>
-        public string Label { get; }
+        public string Label { get; } = label;
 
         /// <summary>Second line in the menu, e.g. "Manage Claude's memory".</summary>
-        public string MenuDescription { get; }
+        public string MenuDescription { get; } = menuDescription;
 
         /// <summary>Card title, e.g. "Continue in Terminal to edit memory?".</summary>
-        public string DialogTitle { get; }
+        public string DialogTitle { get; } = dialogTitle;
 
         /// <summary>Card body - what happens to the setting once it is changed.</summary>
-        public string DialogDescription { get; }
+        public string DialogDescription { get; } = dialogDescription;
 
         /// <summary>The slash command handed to the CLI as its initial prompt.</summary>
-        public string SlashCommand { get; }
-
-        public TerminalHandoffEntry(string key, string label, string menuDescription,
-            string dialogTitle, string dialogDescription)
-        {
-            Key = key;
-            Label = label;
-            MenuDescription = menuDescription;
-            DialogTitle = dialogTitle;
-            DialogDescription = dialogDescription;
-            SlashCommand = "/" + key;
-        }
+        public string SlashCommand { get; } = "/" + key;
 
         /// <summary>Catalog key - also the slash command name.</summary>
-        public string Key { get; }
+        public string Key { get; } = key;
     }
 
     /// <summary>
@@ -58,8 +48,8 @@ namespace TeronClaudeCodeVS.ViewModels
     /// </summary>
     public static class TerminalHandoffCatalog
     {
-        public static IReadOnlyList<TerminalHandoffEntry> Entries { get; } = new[]
-        {
+        public static IReadOnlyList<TerminalHandoffEntry> Entries { get; } =
+        [
             new TerminalHandoffEntry("memory", "Memory", "Manage Claude's memory",
                 "Continue in Terminal to edit memory?",
                 "Once configured, memories will be picked up by Claude Code here in your IDE."),
@@ -81,7 +71,7 @@ namespace TeronClaudeCodeVS.ViewModels
             new TerminalHandoffEntry("permissions", "Permissions", "Manage permission settings",
                 "Continue in Terminal to manage permissions?",
                 "Permission settings are shared between Terminal and this IDE."),
-        };
+        ];
 
         public static TerminalHandoffEntry? Find(string key) =>
             Entries.FirstOrDefault(e => string.Equals(e.Key, key, StringComparison.OrdinalIgnoreCase));

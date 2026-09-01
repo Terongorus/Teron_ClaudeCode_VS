@@ -28,7 +28,7 @@ namespace TeronClaudeCodeVS.Controls
         {
             if (e.Delta == 0) return;
             e.Handled = true;
-            MouseWheelEventArgs args = new System.Windows.Input.MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+            MouseWheelEventArgs args = new(e.MouseDevice, e.Timestamp, e.Delta)
             {
                 RoutedEvent = System.Windows.UIElement.MouseWheelEvent
             };

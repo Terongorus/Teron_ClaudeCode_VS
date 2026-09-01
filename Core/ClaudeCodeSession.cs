@@ -49,21 +49,14 @@ namespace TeronClaudeCodeVS.Core
     }
 
     /// <summary>A dropped text/code file (raw text content) or PDF (base64) attached to an outgoing user message.</summary>
-    public readonly struct PendingFileContent
+    public readonly struct PendingFileContent(string title, bool isPdf, string content)
     {
-        public string Title { get; }
+        public string Title { get; } = title;
 
         /// <summary>True for a PDF (Content is base64 bytes); false for text/code (Content is raw text).</summary>
-        public bool IsPdf { get; }
+        public bool IsPdf { get; } = isPdf;
 
-        public string Content { get; }
-
-        public PendingFileContent(string title, bool isPdf, string content)
-        {
-            Title = title;
-            IsPdf = isPdf;
-            Content = content;
-        }
+        public string Content { get; } = content;
     }
 
     /// <summary>
@@ -76,7 +69,7 @@ namespace TeronClaudeCodeVS.Core
     {
         private Process? _process;
         private StreamWriter? _stdin;
-        private readonly SemaphoreSlim _writeLock = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim _writeLock = new(1, 1);
         private bool _disposed;
 
         public event EventHandler<InitMessage>? SessionInitialized;
@@ -128,7 +121,7 @@ namespace TeronClaudeCodeVS.Core
                 throw new InvalidOperationException("Session already started.");
 
             string fileName = claudePath;
-            List<string> args = new List<string>();
+            List<string> args = [];
 
             string ext = Path.GetExtension(claudePath);
             if (string.Equals(ext, ".cmd", StringComparison.OrdinalIgnoreCase) ||
@@ -223,7 +216,7 @@ namespace TeronClaudeCodeVS.Core
             // (the rest of the 11-tool surface is used internally by the CLI's own UI-driven flows
             // like openDiff, which already goes through the existing can_use_tool approval this
             // extension already handles for Edit/Write) - see docs/Phase 3 for the full trace.
-            List<string> allowedTools = new List<string>();
+            List<string> allowedTools = [];
             if (ideServer.HasValue)
                 allowedTools.Add("mcp__ide__getDiagnostics");
             if (options?.AllowedTools?.Count > 0)
@@ -263,10 +256,10 @@ namespace TeronClaudeCodeVS.Core
             // work (confirmed end-to-end: mcp_servers:[{"name":"ide","status":"connected"}] in a
             // real init message) once the server also echoes back the "mcp" subprotocol the CLI's
             // WebSocket client requests (see IdeCompanionServer.HandleConnectionAsync).
-            List<string> mcpConfigValues = new List<string>();
+            List<string> mcpConfigValues = [];
             if (ideServer.HasValue)
             {
-                JObject ideServerConfig = new JObject
+                JObject ideServerConfig = new()
                 {
                     ["mcpServers"] = new JObject
                     {
@@ -297,7 +290,7 @@ namespace TeronClaudeCodeVS.Core
                 args.Add("--strict-mcp-config");
             }
 
-            ProcessStartInfo psi = new ProcessStartInfo
+            ProcessStartInfo psi = new()
             {
                 FileName = fileName,
                 Arguments = BuildArguments(args),
@@ -330,7 +323,7 @@ namespace TeronClaudeCodeVS.Core
         /// </summary>
         private static string BuildArguments(IEnumerable<string> args)
         {
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             foreach (var arg in args)
             {
                 if (sb.Length != 0)
@@ -401,7 +394,7 @@ namespace TeronClaudeCodeVS.Core
         public Task SendUserMessageAsync(string text, System.Collections.Generic.IReadOnlyList<string>? imagesBase64Png = null,
             System.Collections.Generic.IReadOnlyList<PendingFileContent>? files = null)
         {
-            JArray content = new JArray();
+            JArray content = [];
 
             if (imagesBase64Png != null)
             {
@@ -438,7 +431,7 @@ namespace TeronClaudeCodeVS.Core
             if (!string.IsNullOrEmpty(text))
                 content.Add(new JObject { ["type"] = "text", ["text"] = text });
 
-            JObject payload = new JObject
+            JObject payload = new()
             {
                 ["type"] = "user",
                 ["message"] = new JObject
@@ -453,11 +446,11 @@ namespace TeronClaudeCodeVS.Core
         /// <summary>Answers an `ask_user_question` control request with the user's selections.</summary>
         public Task RespondToAskUserQuestionAsync(string requestId, System.Collections.Generic.Dictionary<string, string> answers)
         {
-            JObject answersObj = new JObject();
+            JObject answersObj = [];
             foreach (var kv in answers)
                 answersObj[kv.Key] = kv.Value;
 
-            JObject payload = new JObject
+            JObject payload = new()
             {
                 ["type"] = "control_response",
                 ["response"] = new JObject
@@ -480,7 +473,7 @@ namespace TeronClaudeCodeVS.Core
             if (allow && updatedInput != null)
                 response["updatedInput"] = updatedInput;
 
-            JObject payload = new JObject
+            JObject payload = new()
             {
                 ["type"] = "control_response",
                 ["response"] = new JObject
@@ -501,7 +494,7 @@ namespace TeronClaudeCodeVS.Core
         /// </summary>
         public Task<ControlResponseEvent?> SendInterruptAsync(bool cancelQueued = false, int timeoutMs = 5000)
         {
-            JObject request = new JObject { ["subtype"] = "interrupt" };
+            JObject request = new() { ["subtype"] = "interrupt" };
             if (cancelQueued)
                 request["cancel_queued"] = true;
 
@@ -521,13 +514,13 @@ namespace TeronClaudeCodeVS.Core
         public async Task<ControlResponseEvent?> SendControlRequestAsync(JObject request, int timeoutMs)
         {
             string requestId = Guid.NewGuid().ToString();
-            TaskCompletionSource<ControlResponseEvent> tcs = new TaskCompletionSource<ControlResponseEvent>(TaskCreationOptions.RunContinuationsAsynchronously);
+            TaskCompletionSource<ControlResponseEvent> tcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
             lock (_pendingControlResponses)
             {
                 _pendingControlResponses[requestId] = tcs;
             }
 
-            JObject payload = new JObject
+            JObject payload = new()
             {
                 ["type"] = "control_request",
                 ["request_id"] = requestId,
@@ -568,7 +561,7 @@ namespace TeronClaudeCodeVS.Core
         /// </summary>
         public Task<ControlResponseEvent?> RewindFilesAsync(string userMessageId, bool dryRun, int timeoutMs = 60000)
         {
-            JObject request = new JObject
+            JObject request = new()
             {
                 ["subtype"] = "rewind_files",
                 ["user_message_id"] = userMessageId,
@@ -583,7 +576,7 @@ namespace TeronClaudeCodeVS.Core
         /// </summary>
         public Task<ControlResponseEvent?> SendSideQuestionAsync(string question, int timeoutMs = 300000)
         {
-            JObject request = new JObject
+            JObject request = new()
             {
                 ["subtype"] = "side_question",
                 ["question"] = question
@@ -597,7 +590,7 @@ namespace TeronClaudeCodeVS.Core
         /// </summary>
         public Task<ControlResponseEvent?> SubmitFeedbackAsync(string description, int timeoutMs = 60000)
         {
-            JObject request = new JObject
+            JObject request = new()
             {
                 ["subtype"] = "submit_feedback",
                 ["description"] = description,
@@ -614,7 +607,7 @@ namespace TeronClaudeCodeVS.Core
         /// </summary>
         public Task<ControlResponseEvent?> SetRemoteControlAsync(bool enabled, int timeoutMs = 60000)
         {
-            JObject request = new JObject
+            JObject request = new()
             {
                 ["subtype"] = "remote_control",
                 ["enabled"] = enabled

@@ -78,7 +78,7 @@ namespace TeronClaudeCodeVS.ViewModels
 
         private void RefreshToolCallSummary()
         {
-            ToolCallViewModel[] calls = Blocks.OfType<ToolCallViewModel>().ToArray();
+            ToolCallViewModel[] calls = [.. Blocks.OfType<ToolCallViewModel>()];
             int failed = calls.Count(c => c.Status == ToolCallStatus.Error);
 
             if (calls.Length < 2 && failed == 0)

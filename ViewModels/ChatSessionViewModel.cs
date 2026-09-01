@@ -13,12 +13,12 @@ using System.Windows.Threading;
 
 namespace TeronClaudeCodeVS.ViewModels
 {
-    public sealed class ModelOption
+    public sealed class ModelOption(string displayName, string? value, string? description = null)
     {
-        public string DisplayName { get; }
+        public string DisplayName { get; } = displayName;
 
         /// <summary>Value passed to `--model`, or null to let the CLI pick its default.</summary>
-        public string? Value { get; }
+        public string? Value { get; } = value;
 
         /// <summary>
         /// UX-1: one-line decision-support subtitle shown under the name in the model picker.
@@ -26,24 +26,17 @@ namespace TeronClaudeCodeVS.ViewModels
         /// rather than invented here, so the cost and credit implications a user sees in this
         /// window are the same ones the CLI itself states. Null hides the line.
         /// </summary>
-        public string? Description { get; }
-
-        public ModelOption(string displayName, string? value, string? description = null)
-        {
-            DisplayName = displayName;
-            Value = value;
-            Description = description;
-        }
+        public string? Description { get; } = description;
 
         public override string ToString() => DisplayName;
     }
 
-    public sealed class PermissionModeOption
+    public sealed class PermissionModeOption(string displayName, string? value, string? description = null)
     {
-        public string DisplayName { get; }
+        public string DisplayName { get; } = displayName;
 
         /// <summary>Value passed to `--permission-mode`, or null to omit the flag (CLI default).</summary>
-        public string? Value { get; }
+        public string? Value { get; } = value;
 
         /// <summary>
         /// UX-2: one-line explanation of what the mode actually does, taken from the CLI's own
@@ -51,30 +44,17 @@ namespace TeronClaudeCodeVS.ViewModels
         /// distinction matters most for "Don't Ask", whose name reads like auto-approve but whose
         /// real behaviour is to deny anything not already pre-approved. Null hides the line.
         /// </summary>
-        public string? Description { get; }
-
-        public PermissionModeOption(string displayName, string? value, string? description = null)
-        {
-            DisplayName = displayName;
-            Value = value;
-            Description = description;
-        }
+        public string? Description { get; } = description;
 
         public override string ToString() => DisplayName;
     }
 
-    public sealed class ThinkingLevelOption
+    public sealed class ThinkingLevelOption(string displayName, string? effortArg)
     {
-        public string DisplayName { get; }
+        public string DisplayName { get; } = displayName;
 
         /// <summary>Value passed to the CLI's <c>--effort</c> flag, or null to omit the flag (CLI default).</summary>
-        public string? EffortArg { get; }
-
-        public ThinkingLevelOption(string displayName, string? effortArg)
-        {
-            DisplayName = displayName;
-            EffortArg = effortArg;
-        }
+        public string? EffortArg { get; } = effortArg;
 
         public override string ToString() => DisplayName;
     }
@@ -95,31 +75,25 @@ namespace TeronClaudeCodeVS.ViewModels
         Verbose
     }
 
-    public sealed class TranscriptModeOption
+    public sealed class TranscriptModeOption(string displayName, TranscriptViewMode value)
     {
-        public string DisplayName { get; }
-        public TranscriptViewMode Value { get; }
-
-        public TranscriptModeOption(string displayName, TranscriptViewMode value)
-        {
-            DisplayName = displayName;
-            Value = value;
-        }
+        public string DisplayName { get; } = displayName;
+        public TranscriptViewMode Value { get; } = value;
 
         public override string ToString() => DisplayName;
     }
 
     /// <summary>A pasted screenshot staged in the input box, waiting to be sent with the next message.</summary>
-    public sealed class PendingImageAttachment
+    public sealed class PendingImageAttachment(string base64Png, BitmapSource thumbnail, string name)
     {
         /// <summary>Full-resolution PNG data sent to the CLI as an `image`/`base64` content block.</summary>
-        public string Base64Png { get; }
+        public string Base64Png { get; } = base64Png;
 
         /// <summary>Same bitmap, used for the small chip preview above the input box.</summary>
-        public BitmapSource Thumbnail { get; }
+        public BitmapSource Thumbnail { get; } = thumbnail;
 
         /// <summary>UX-9: file name for a dropped image, or a stand-in label for a clipboard paste.</summary>
-        public string Name { get; }
+        public string Name { get; } = name;
 
         /// <summary>
         /// UX-9: pixel size of the image as staged, e.g. "1920\u00D71080". Read off the bitmap
@@ -128,34 +102,20 @@ namespace TeronClaudeCodeVS.ViewModels
         /// not the display size of the chip.
         /// </summary>
         public string DimensionsText => $"{Thumbnail.PixelWidth}\u00D7{Thumbnail.PixelHeight}";
-
-        public PendingImageAttachment(string base64Png, BitmapSource thumbnail, string name)
-        {
-            Base64Png = base64Png;
-            Thumbnail = thumbnail;
-            Name = name;
-        }
     }
 
     /// <summary>A dropped file (not an image) staged in the input box, waiting to be sent with the next message.</summary>
-    public sealed class PendingFileAttachment
+    public sealed class PendingFileAttachment(string title, bool isPdf, string content)
     {
-        public string Title { get; }
+        public string Title { get; } = title;
 
         /// <summary>True for a PDF (Content is base64 bytes); false for text/code (Content is raw text).</summary>
-        public bool IsPdf { get; }
+        public bool IsPdf { get; } = isPdf;
 
-        public string Content { get; }
+        public string Content { get; } = content;
 
         /// <summary>UX-9: glyph distinguishing a PDF from a text/code file at a glance.</summary>
         public string Icon => IsPdf ? "\U0001F4D5" : "\U0001F4C4";
-
-        public PendingFileAttachment(string title, bool isPdf, string content)
-        {
-            Title = title;
-            IsPdf = isPdf;
-            Content = content;
-        }
     }
 
     /// <summary>
@@ -180,13 +140,13 @@ namespace TeronClaudeCodeVS.ViewModels
         private readonly Dictionary<string, ToolCallViewModel> _toolCallsByUseId = [];
 
         // Tools the user has chosen to allow for the remainder of the current session.
-        private readonly HashSet<string> _sessionPermissions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _sessionPermissions = new(StringComparer.OrdinalIgnoreCase);
 
         // Pending plan-approval cards, keyed by the CLI-written plan file path, so a comment
         // submitted from that file's native-tab adornment (see Controls/PlanCommentAdornment.cs)
         // can be routed back to the right chat card via AddPlanComment.
         private readonly Dictionary<string, PlanApprovalViewModel> _planApprovalsByFilePath =
-            new Dictionary<string, PlanApprovalViewModel>(StringComparer.OrdinalIgnoreCase);
+            new(StringComparer.OrdinalIgnoreCase);
 
         // Session history
         private readonly List<SessionHistoryEntry> _allSessions;
@@ -194,7 +154,7 @@ namespace TeronClaudeCodeVS.ViewModels
 
         // Advanced CLI-flag settings, read once from Options at startup (no live chat-UI toggle
         // for these, unlike model/permission-mode/effort) - see SetAdvancedOptions.
-        private ClaudeSessionStartOptions _advancedOptions = new ClaudeSessionStartOptions();
+        private ClaudeSessionStartOptions _advancedOptions = new();
 
         public ObservableCollection<ChatMessageViewModel> Messages { get; } = [];
         public ObservableCollection<string> SlashCommands { get; } = [];
@@ -310,8 +270,8 @@ namespace TeronClaudeCodeVS.ViewModels
         // "~2\u00D7 usage vs Sonnet" and "Requires usage credits" notes are shown unconditionally
         // because the account's plan is not visible from here, whereas the CLI shows them
         // plan-conditionally. Over-warning about cost is the safe direction to be wrong in.
-        public IReadOnlyList<ModelOption> Models { get; } = new[]
-        {
+        public IReadOnlyList<ModelOption> Models { get; } =
+        [
             new ModelOption("Default", null,
                 "Use the model your CLI is already configured for"),
             new ModelOption("Sonnet", "sonnet",
@@ -322,14 +282,14 @@ namespace TeronClaudeCodeVS.ViewModels
                 "Haiku 4.5 \u00B7 Fastest for quick answers"),
             new ModelOption("Fable", "fable",
                 "Fable 5 \u00B7 Most capable for your hardest and longest-running tasks \u00B7 Requires usage credits"),
-        };
+        ];
 
         // UX-2: descriptions for all seven modes. The five baseline also exposes use baseline's
         // exact wording; "CLI Default" and "Don't Ask" are ours, written from the CLI's own
         // documented semantics - "dontAsk" means do not prompt and deny anything not already
         // pre-approved - because baseline ships no picker entry for either.
-        public IReadOnlyList<PermissionModeOption> PermissionModes { get; } = new[]
-        {
+        public IReadOnlyList<PermissionModeOption> PermissionModes { get; } =
+        [
             new PermissionModeOption("CLI Default", null,
                 "Standard behaviour \u2014 prompts before dangerous operations"),
             new PermissionModeOption("Accept Edits", "acceptEdits",
@@ -344,25 +304,25 @@ namespace TeronClaudeCodeVS.ViewModels
                 "Claude will approve actions that pass a safety check and pause for anything risky"),
             new PermissionModeOption("Bypass Permissions", "bypassPermissions",
                 "Claude will not ask for approval before running potentially dangerous commands"),
-        };
+        ];
 
-        public IReadOnlyList<ThinkingLevelOption> ThinkingLevels { get; } = new[]
-        {
+        public IReadOnlyList<ThinkingLevelOption> ThinkingLevels { get; } =
+        [
             new ThinkingLevelOption("Auto (CLI default)", null),
             new ThinkingLevelOption("Low", "low"),
             new ThinkingLevelOption("Medium", "medium"),
             new ThinkingLevelOption("High", "high"),
             new ThinkingLevelOption("X-High", "xhigh"),
             new ThinkingLevelOption("Max", "max"),
-        };
+        ];
 
-        public IReadOnlyList<TranscriptModeOption> TranscriptModes { get; } = new[]
-        {
+        public IReadOnlyList<TranscriptModeOption> TranscriptModes { get; } =
+        [
             new TranscriptModeOption("Summary", TranscriptViewMode.Summary),
             new TranscriptModeOption("Normal", TranscriptViewMode.Normal),
             new TranscriptModeOption("Thinking", TranscriptViewMode.Thinking),
             new TranscriptModeOption("Verbose", TranscriptViewMode.Verbose),
-        };
+        ];
 
         private TranscriptModeOption _currentTranscriptMode;
         public TranscriptModeOption CurrentTranscriptMode
@@ -610,7 +570,7 @@ namespace TeronClaudeCodeVS.ViewModels
         private static IReadOnlyList<string> SplitLines(string text) =>
             string.IsNullOrWhiteSpace(text)
                 ? []
-                : text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                : text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries)
                     .Select(s => s.Trim())
                     .Where(s => s.Length > 0)
                     .ToArray();
@@ -745,7 +705,7 @@ namespace TeronClaudeCodeVS.ViewModels
             if (_session == null || !_session.IsRunning)
                 StartSession();
 
-            ChatMessageViewModel userMessage = new ChatMessageViewModel(ChatRole.User);
+            ChatMessageViewModel userMessage = new(ChatRole.User);
             foreach (PendingImageAttachment image in PendingImages)
                 userMessage.Blocks.Add(new ImageAttachmentViewModel(image.Thumbnail));
             foreach (PendingFileAttachment file in PendingFiles)
@@ -755,14 +715,13 @@ namespace TeronClaudeCodeVS.ViewModels
             Messages.Add(userMessage);
 
             // Record the first message as the session title.
-            if (_pendingSessionTitle == null)
-                _pendingSessionTitle = text.Length <= 60 ? text : text.Substring(0, 57) + "…";
+            _pendingSessionTitle ??= text.Length <= 60 ? text : text.Substring(0, 57) + "…";
 
             _lastSentText = text;
 
-            List<string>? imagesBase64Png = hasImages ? PendingImages.Select(p => p.Base64Png).ToList() : null;
+            List<string>? imagesBase64Png = hasImages ? [.. PendingImages.Select(p => p.Base64Png)] : null;
             List<PendingFileContent>? files = hasFiles
-                ? PendingFiles.Select(f => new PendingFileContent(f.Title, f.IsPdf, f.Content)).ToList()
+                ? [.. PendingFiles.Select(f => new PendingFileContent(f.Title, f.IsPdf, f.Content))]
                 : null;
             PendingImages.Clear();
             PendingFiles.Clear();
@@ -1205,7 +1164,7 @@ namespace TeronClaudeCodeVS.ViewModels
             }
             else if (e.BlockType == "tool_use")
             {
-                ToolCallViewModel call = new ToolCallViewModel(e.ToolUseId ?? "", e.ToolName ?? "Tool")
+                ToolCallViewModel call = new(e.ToolUseId ?? "", e.ToolName ?? "Tool")
                 {
                     IsExpanded = mode is TranscriptViewMode.Verbose,
                     OwnerMessage = _currentAssistantMessage
@@ -1281,8 +1240,7 @@ namespace TeronClaudeCodeVS.ViewModels
                 EnsureAssistantMessage();
 
                 _toolCallsByUseId.TryGetValue(e.ToolUseId ?? "", out ToolCallViewModel? call);
-                if (call != null)
-                    call.Status = ToolCallStatus.AwaitingApproval;
+                call?.Status = ToolCallStatus.AwaitingApproval;
 
                 // The built-in AskUserQuestion tool's can_use_tool request is flagged
                 // requires_user_interaction - confirmed live (2026-08-26) it's not a plain
@@ -1308,13 +1266,13 @@ namespace TeronClaudeCodeVS.ViewModels
                 // If the user previously chose "Allow for session" for this tool, auto-allow silently.
                 if (_sessionPermissions.Contains(e.ToolName))
                 {
-                    if (call != null) call.Status = ToolCallStatus.Running;
+                    call?.Status = ToolCallStatus.Running;
                     _ = RespondToPermissionAsync(e, allow: true);
                     return;
                 }
 
                 string title = e.Title ?? $"Allow {ToolPresentation.GetDisplayName(e.ToolName)}?";
-                PermissionRequestViewModel request = new PermissionRequestViewModel(e.ToolName, title, e.Input,
+                PermissionRequestViewModel request = new(e.ToolName, title, e.Input,
                     (allow, forSession, denyMessage) =>
                     {
                         if (allow && forSession)
@@ -1431,7 +1389,7 @@ namespace TeronClaudeCodeVS.ViewModels
                 EnsureAssistantMessage();
 
                 var questions = ClaudeMessage.ParseQuestions(e.Input["questions"] as JArray);
-                AskUserQuestionViewModel vm = new AskUserQuestionViewModel(questions,
+                AskUserQuestionViewModel vm = new(questions,
                     async answers => await RespondToAskUserQuestionToolAsync(e, answers).ConfigureAwait(false));
 
                 _currentAssistantMessage!.Blocks.Add(vm);
@@ -1461,7 +1419,7 @@ namespace TeronClaudeCodeVS.ViewModels
             if (allow)
             {
                 updatedInput = (JObject)e.Input.DeepClone();
-                JObject answersObj = new JObject();
+                JObject answersObj = [];
                 foreach (var kv in answers)
                     answersObj[kv.Key] = kv.Value;
                 updatedInput["answers"] = answersObj;
@@ -1486,7 +1444,7 @@ namespace TeronClaudeCodeVS.ViewModels
                 string plan = e.Input["plan"]?.ToString() ?? "";
                 string? planFilePath = e.Input["planFilePath"]?.ToString();
 
-                PlanApprovalViewModel vm = new PlanApprovalViewModel(plan, planFilePath ?? "",
+                PlanApprovalViewModel vm = new(plan, planFilePath ?? "",
                     async (allow, autoAccept, denyMessage) =>
                         await RespondToExitPlanModeAsync(e, allow, autoAccept, denyMessage).ConfigureAwait(false),
                     () =>
@@ -1564,7 +1522,7 @@ namespace TeronClaudeCodeVS.ViewModels
             {
                 EnsureAssistantMessage();
 
-                AskUserQuestionViewModel vm = new AskUserQuestionViewModel(e.Questions,
+                AskUserQuestionViewModel vm = new(e.Questions,
                     async answers =>
                     {
                         StatusText = "Working…";
@@ -1625,7 +1583,7 @@ namespace TeronClaudeCodeVS.ViewModels
                 _lastSentText = null;
             }
 
-            List<string> parts = new List<string> { result.IsError ? "Error" : "Done", FormatDuration(result.DurationMs) };
+            List<string> parts = [result.IsError ? "Error" : "Done", FormatDuration(result.DurationMs)];
 
             if (result.TotalCostUsd.HasValue)
                 parts.Add($"${result.TotalCostUsd.Value:0.0000}");
@@ -2203,7 +2161,7 @@ namespace TeronClaudeCodeVS.ViewModels
             }
             else
             {
-                SessionHistoryEntry entry = new SessionHistoryEntry
+                SessionHistoryEntry entry = new()
                 {
                     SessionId = sessionId,
                     Title = _pendingSessionTitle ?? "Untitled",
@@ -2279,13 +2237,13 @@ namespace TeronClaudeCodeVS.ViewModels
 
             // Snapshot on the UI thread: _allSessions is mutated here (new sessions, deletes) and
             // must not be enumerated from the background read.
-            SessionHistoryEntry[] snapshot = _allSessions.ToArray();
+            SessionHistoryEntry[] snapshot = [.. _allSessions];
 
             _ = Task.Run(() =>
             {
                 List<SessionHistoryStore.TitleUpdate> updates;
                 try { updates = SessionHistoryStore.ComputeTitleUpdates(snapshot); }
-                catch { updates = new List<SessionHistoryStore.TitleUpdate>(); }
+                catch { updates = []; }
                 Post(() => ApplySessionTitleUpdates(updates));
             });
         }
@@ -2439,7 +2397,7 @@ namespace TeronClaudeCodeVS.ViewModels
             if (id.Length == 0) return;
 
             string? error = TerminalLauncher.OpenClaudeWithArgs(
-                _claudePath, _workingDirectory, new List<string> { "--cloud", id });
+                _claudePath, _workingDirectory, ["--cloud", id]);
 
             if (error != null) AddSystemNotice(error, isError: true);
         }

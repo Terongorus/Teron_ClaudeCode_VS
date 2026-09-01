@@ -24,14 +24,14 @@ namespace TeronClaudeCodeVS.Controls
 
         // Semi-transparent neutral background for code blocks — reads correctly on both VS light and dark themes.
         private static readonly SolidColorBrush s_codeBg = Frozen(Color.FromArgb(0x18, 0x80, 0x80, 0x80));
-        private static readonly FontFamily s_inlineCodeFont = new FontFamily("Consolas");
+        private static readonly FontFamily s_inlineCodeFont = new("Consolas");
 
         // Diff line colors (same hues as GitHub's diff view).
         private static readonly SolidColorBrush s_diffAdd = Frozen(Color.FromArgb(0xFF, 0x3F, 0xB9, 0x50));
         private static readonly SolidColorBrush s_diffRem = Frozen(Color.FromArgb(0xFF, 0xE5, 0x48, 0x4D));
         private static readonly SolidColorBrush s_diffHunk = Frozen(Color.FromArgb(0xFF, 0x79, 0xB8, 0xFF));
 
-        private static SolidColorBrush Frozen(Color c) { SolidColorBrush b = new SolidColorBrush(c); b.Freeze(); return b; }
+        private static SolidColorBrush Frozen(Color c) { SolidColorBrush b = new(c); b.Freeze(); return b; }
 
         public static FlowDocument Render(string markdown)
         {
@@ -42,7 +42,7 @@ namespace TeronClaudeCodeVS.Controls
             {
                 string xaml = Markdig.Wpf.Markdown.ToXaml(markdown, Pipeline);
 
-                using StringReader reader = new StringReader(xaml);
+                using StringReader reader = new(xaml);
                 using XmlReader xml = System.Xml.XmlReader.Create(reader);
 
                 FlowDocument doc = (FlowDocument)XamlReader.Load(xml);
@@ -58,7 +58,7 @@ namespace TeronClaudeCodeVS.Controls
             }
             catch
             {
-                FlowDocument doc = new FlowDocument();
+                FlowDocument doc = new();
                 doc.Blocks.Add(new Paragraph(new Run(markdown)));
                 return doc;
             }
@@ -175,7 +175,7 @@ namespace TeronClaudeCodeVS.Controls
                 string code = new TextRange(para.ContentStart, para.ContentEnd).Text;
                 if (string.IsNullOrWhiteSpace(code)) return;
 
-                Button button = new Button
+                Button button = new()
                 {
                     Content = "Copy",
                     FontSize = 10,
@@ -195,7 +195,7 @@ namespace TeronClaudeCodeVS.Controls
                 button.MouseLeave += (_, __) => button.Opacity = 0.55;
                 button.Click += (_, __) => CopyToClipboard(button, code);
 
-                Floater floater = new Floater(new BlockUIContainer(button)
+                Floater floater = new(new BlockUIContainer(button)
                 {
                     Margin = new Thickness(0),
                     Padding = new Thickness(0),
@@ -225,7 +225,7 @@ namespace TeronClaudeCodeVS.Controls
 
                 // Revert the label so the button does not read "Copied" forever on a block the
                 // user copied ten minutes ago.
-                DispatcherTimer timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.5) };
+                DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(1.5) };
                 timer.Tick += (_, __) => { timer.Stop(); button.Content = "Copy"; };
                 timer.Start();
             }

@@ -104,8 +104,7 @@ namespace TeronClaudeCodeVS.ViewModels
                     if (type == "file-history-snapshot")
                     {
                         if (reachedTarget) continue;
-                        JObject? tracked = (record["snapshot"] as JObject)?["trackedFileBackups"] as JObject;
-                        if (tracked == null) continue;
+                        if ((record["snapshot"] as JObject)?["trackedFileBackups"] is not JObject tracked) continue;
                         foreach (var entry in tracked.Properties())
                         {
                             if (!SamePath(workingDirectory, entry.Name, filePath)) continue;
@@ -191,7 +190,7 @@ namespace TeronClaudeCodeVS.ViewModels
         public static List<RewindPoint> LoadRewindPoints(string workingDirectory, string sessionId)
         {
             string? transcript = TranscriptReplay.FindTranscriptPath(workingDirectory, sessionId);
-            return transcript == null ? new List<RewindPoint>() : ReadRewindPoints(transcript, DateTime.UtcNow);
+            return transcript == null ? [] : ReadRewindPoints(transcript, DateTime.UtcNow);
         }
 
         /// <summary>
@@ -202,7 +201,7 @@ namespace TeronClaudeCodeVS.ViewModels
         /// </summary>
         internal static List<RewindPoint> ReadRewindPoints(string transcript, DateTime now)
         {
-            List<RewindPoint> points = new List<RewindPoint>();
+            List<RewindPoint> points = [];
 
             string? previousChainUuid = null;
             int ordinal = 0;
@@ -275,7 +274,7 @@ namespace TeronClaudeCodeVS.ViewModels
             if (content is not JArray blocks)
                 return "";
 
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             foreach (JToken block in blocks)
             {
                 if (block is not JObject obj) continue;

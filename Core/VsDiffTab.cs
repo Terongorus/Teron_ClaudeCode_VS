@@ -48,7 +48,7 @@ namespace TeronClaudeCodeVS.Core
         /// per edit would bury the editor; re-opening replaces the previous comparison instead.
         /// </summary>
         private static readonly Dictionary<string, IVsWindowFrame> s_frames =
-            new Dictionary<string, IVsWindowFrame>(StringComparer.OrdinalIgnoreCase);
+            new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// Opens the comparison, or returns a human-readable reason why it could not be opened.

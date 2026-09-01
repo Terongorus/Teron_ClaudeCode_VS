@@ -24,14 +24,14 @@ namespace TeronClaudeCodeVS.Core
     {
         // Tab names of diff windows we opened ourselves, so CloseAllDiffTabsAsync can target
         // exactly those rather than guessing which open tabs are "diff tabs".
-        private readonly HashSet<string> _openDiffTabNames = new HashSet<string>(StringComparer.Ordinal);
+        private readonly HashSet<string> _openDiffTabNames = new(StringComparer.Ordinal);
 
         public async Task<JObject> GetWorkspaceFoldersAsync()
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
             string dir = await GetWorkingDirectoryAsync();
-            JObject folder = new JObject
+            JObject folder = new()
             {
                 ["name"] = Path.GetFileName(dir.TrimEnd(Path.DirectorySeparatorChar)),
                 ["uri"] = new Uri(dir).AbsoluteUri,
@@ -133,7 +133,7 @@ namespace TeronClaudeCodeVS.Core
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-            JArray tabs = new JArray();
+            JArray tabs = [];
             var frames = await VS.Windows.GetAllDocumentWindowsAsync();
             foreach (var frame in frames)
             {
@@ -247,7 +247,7 @@ namespace TeronClaudeCodeVS.Core
                 endIdx = endPointLine.End.Position;
             }
 
-            SnapshotSpan span = new SnapshotSpan(snapshot, startIdx, Math.Max(0, Math.Min(endIdx, snapshot.Length) - startIdx));
+            SnapshotSpan span = new(snapshot, startIdx, Math.Max(0, Math.Min(endIdx, snapshot.Length) - startIdx));
             textView.Selection.Select(span, isReversed: false);
             textView.Caret.MoveTo(span.End);
             textView.ViewScroller.EnsureSpanVisible(span);
@@ -308,7 +308,7 @@ namespace TeronClaudeCodeVS.Core
                 catch { filterPath = uri; }
             }
 
-            Dictionary<string, JArray> byFile = new Dictionary<string, JArray>(StringComparer.OrdinalIgnoreCase);
+            Dictionary<string, JArray> byFile = new(StringComparer.OrdinalIgnoreCase);
 
             DTE2? dte = Package.GetGlobalService(typeof(SDTE)) as DTE2;
             var errorItems = dte?.ToolWindows?.ErrorList?.ErrorItems;
@@ -337,7 +337,7 @@ namespace TeronClaudeCodeVS.Core
                 }
             }
 
-            JArray result = new JArray();
+            JArray result = [];
             foreach (var kv in byFile)
             {
                 Uri fileUri;
@@ -378,15 +378,14 @@ namespace TeronClaudeCodeVS.Core
             diffService.OpenComparisonWindow2(leftPath, rightPath, tabName, tabName, "Current", "Proposed", "", "", options);
             _openDiffTabNames.Add(tabName);
 
-            TaskCompletionSource<(string, string)> tcs = new TaskCompletionSource<(string, string)>();
+            TaskCompletionSource<(string, string)> tcs = new();
 
-            InfoBarModel model = new InfoBarModel(
-                new[]
-                {
+            InfoBarModel model = new(
+                [
                     new InfoBarTextSpan($"Claude Code proposes changes to {Path.GetFileName(newFilePath)}. "),
                     new InfoBarHyperlink("Accept"),
                     new InfoBarHyperlink("Reject"),
-                },
+                ],
                 KnownMonikers.StatusInformation,
                 isCloseButtonVisible: true);
 

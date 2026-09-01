@@ -24,48 +24,34 @@ namespace TeronClaudeCodeVS.ViewModels
     /// <c>status</c> only ever accompanies a live background one. Treating any of them as required
     /// produces a parser that works until the first stopped agent.</para>
     /// </summary>
-    public sealed class AgentSessionEntry
+    public sealed class AgentSessionEntry(string sessionId, string? shortId, string name, string cwd, string kind,
+        int? pid, string? status, string? state, DateTime startedUtc, string relativeAge, bool isCurrentFolder)
     {
-        public AgentSessionEntry(string sessionId, string? shortId, string name, string cwd, string kind,
-            int? pid, string? status, string? state, DateTime startedUtc, string relativeAge, bool isCurrentFolder)
-        {
-            SessionId = sessionId;
-            ShortId = shortId;
-            Name = name;
-            Cwd = cwd;
-            Kind = kind;
-            Pid = pid;
-            Status = status;
-            State = state;
-            StartedUtc = startedUtc;
-            RelativeAge = relativeAge;
-            IsCurrentFolder = isCurrentFolder;
-        }
 
         /// <summary>The full session uuid - what `--resume` takes.</summary>
-        public string SessionId { get; }
+        public string SessionId { get; } = sessionId;
 
         /// <summary>The 8-character id `claude attach|logs|stop` take, or null for an interactive session.</summary>
-        public string? ShortId { get; }
+        public string? ShortId { get; } = shortId;
 
         /// <summary>The CLI's own generated name, e.g. "teron-extensions-81" or "reply to pong".</summary>
-        public string Name { get; }
+        public string Name { get; } = name;
 
-        public string Cwd { get; }
+        public string Cwd { get; } = cwd;
 
         /// <summary>"interactive" or "background".</summary>
-        public string Kind { get; }
+        public string Kind { get; } = kind;
 
         /// <summary>Null once the process is gone, which is the only reliable "is it running" signal.</summary>
-        public int? Pid { get; }
+        public int? Pid { get; } = pid;
 
-        public string? Status { get; }
-        public string? State { get; }
-        public DateTime StartedUtc { get; }
-        public string RelativeAge { get; }
+        public string? Status { get; } = status;
+        public string? State { get; } = state;
+        public DateTime StartedUtc { get; } = startedUtc;
+        public string RelativeAge { get; } = relativeAge;
 
         /// <summary>True when this session was started inside the folder open in the IDE.</summary>
-        public bool IsCurrentFolder { get; }
+        public bool IsCurrentFolder { get; } = isCurrentFolder;
 
         public bool IsBackground => string.Equals(Kind, "background", StringComparison.OrdinalIgnoreCase);
         public bool IsRunning => Pid.HasValue;
@@ -92,7 +78,7 @@ namespace TeronClaudeCodeVS.ViewModels
                         ? new List<string> { "attach", ShortId! }
                         : null;
 
-                return new List<string> { "--resume", SessionId };
+                return ["--resume", SessionId];
             }
         }
 
@@ -193,7 +179,7 @@ namespace TeronClaudeCodeVS.ViewModels
         /// </summary>
         private const string CloudIdCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-";
 
-        public ObservableCollection<AgentSessionEntry> Sessions { get; } = new ObservableCollection<AgentSessionEntry>();
+        public ObservableCollection<AgentSessionEntry> Sessions { get; } = [];
 
         private bool _isLoading;
         public bool IsLoading { get => _isLoading; private set => SetField(ref _isLoading, value); }
@@ -253,7 +239,7 @@ namespace TeronClaudeCodeVS.ViewModels
             JArray array = JArray.Parse(json);
             foreach (JToken token in array)
             {
-                if (!(token is JObject row)) continue;
+                if (token is not JObject row) continue;
 
                 string sessionId = (string?)row["sessionId"] ?? "";
                 if (sessionId.Length == 0) continue;
@@ -337,7 +323,7 @@ namespace TeronClaudeCodeVS.ViewModels
                 try
                 {
                     var uri = new Uri(text);
-                    string[] segments = uri.AbsolutePath.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
+                    string[] segments = uri.AbsolutePath.Split(['/'], StringSplitOptions.RemoveEmptyEntries);
                     if (segments.Length == 0) return null;
                     text = segments[segments.Length - 1];
                 }

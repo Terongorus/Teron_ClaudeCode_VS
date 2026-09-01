@@ -26,22 +26,15 @@ namespace TeronClaudeCodeVS.ViewModels
         }
 
         /// <summary>One row's title as re-read from the CLI's transcript. See <see cref="ComputeTitleUpdates"/>.</summary>
-        internal sealed class TitleUpdate
+        internal sealed class TitleUpdate(string sessionId, string? title, string stamp)
         {
-            public TitleUpdate(string sessionId, string? title, string stamp)
-            {
-                SessionId = sessionId;
-                Title = title;
-                Stamp = stamp;
-            }
-
-            public string SessionId { get; }
+            public string SessionId { get; } = sessionId;
 
             /// <summary>The new title, or null when only the stamp moved (transcript grew, title unchanged).</summary>
-            public string? Title { get; }
+            public string? Title { get; } = title;
 
             /// <summary>Transcript identity at the moment it was read, for <see cref="SessionHistoryEntry.TitleStamp"/>.</summary>
-            public string Stamp { get; }
+            public string Stamp { get; } = stamp;
         }
 
         /// <summary>
@@ -52,7 +45,7 @@ namespace TeronClaudeCodeVS.ViewModels
         /// </summary>
         internal static List<TitleUpdate> ComputeTitleUpdates(IEnumerable<SessionHistoryEntry> entries)
         {
-            List<TitleUpdate> updates = new List<TitleUpdate>();
+            List<TitleUpdate> updates = [];
 
             foreach (SessionHistoryEntry entry in entries)
             {
@@ -64,7 +57,7 @@ namespace TeronClaudeCodeVS.ViewModels
                     string? path = TranscriptReplay.FindTranscriptPath(entry.WorkingDirectory, entry.SessionId);
                     if (path == null) continue;
 
-                    FileInfo info = new FileInfo(path);
+                    FileInfo info = new(path);
                     stamp = info.Length + ":" + info.LastWriteTimeUtc.Ticks;
                     if (stamp == entry.TitleStamp) continue;
                 }

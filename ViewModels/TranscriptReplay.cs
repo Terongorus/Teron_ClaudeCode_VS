@@ -28,7 +28,7 @@ namespace TeronClaudeCodeVS.ViewModels
         /// </summary>
         private static string ComputeProjectFolderName(string cwd)
         {
-            StringBuilder sb = new StringBuilder(cwd.Length);
+            StringBuilder sb = new(cwd.Length);
             foreach (char c in cwd)
                 sb.Append(c == ':' || c == '\\' || c == '/' || c == '_' || c == ' ' ? '-' : c);
             return sb.ToString();
@@ -55,13 +55,13 @@ namespace TeronClaudeCodeVS.ViewModels
         /// </summary>
         public static List<ChatMessageViewModel> Load(string workingDirectory, string sessionId)
         {
-            List<ChatMessageViewModel> messages = new List<ChatMessageViewModel>();
+            List<ChatMessageViewModel> messages = [];
 
             string? path = FindTranscriptPath(workingDirectory, sessionId);
             if (path == null)
                 return messages;
 
-            Dictionary<string, ToolCallViewModel> toolCallsByUseId = new Dictionary<string, ToolCallViewModel>();
+            Dictionary<string, ToolCallViewModel> toolCallsByUseId = [];
 
             // Each API round within one turn (tool call, then its result, then a follow-up round
             // of text) is a *separate* "assistant" transcript line, but live mode keeps them all
@@ -99,7 +99,7 @@ namespace TeronClaudeCodeVS.ViewModels
                     // A genuine new user prompt ends whatever assistant turn was in progress.
                     currentAssistantMessage = null;
 
-                    ChatMessageViewModel userMsg = new ChatMessageViewModel(ChatRole.User);
+                    ChatMessageViewModel userMsg = new(ChatRole.User);
                     BuildBlocks(userMsg, content, toolCallsByUseId);
                     if (userMsg.Blocks.Count > 0)
                         messages.Add(userMsg);
@@ -132,7 +132,7 @@ namespace TeronClaudeCodeVS.ViewModels
             if (content is not JArray arr || arr.Count == 0)
                 return false;
 
-            List<JObject> items = arr.OfType<JObject>().ToList();
+            List<JObject> items = [.. arr.OfType<JObject>()];
             if (items.Count == 0 || items.Any(i => i.Value<string>("type") != "tool_result"))
                 return false;
 
@@ -194,7 +194,7 @@ namespace TeronClaudeCodeVS.ViewModels
                     {
                         string id = block.Value<string>("id") ?? "";
                         string name = block.Value<string>("name") ?? "Tool";
-                            ToolCallViewModel call = new ToolCallViewModel(id, name)
+                            ToolCallViewModel call = new(id, name)
                         {
                             Input = block["input"] as JObject,
                             // Optimistic default for history - a matching tool_result (if this

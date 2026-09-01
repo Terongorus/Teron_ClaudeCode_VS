@@ -14,7 +14,7 @@ namespace TeronClaudeCodeVS.ViewModels
     /// </summary>
     public static class PlanCommentRegistry
     {
-        private static readonly HashSet<string> _activePlanFilePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private static readonly HashSet<string> _activePlanFilePaths = new(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>Raised when a comment is submitted from the plan tab's selection adornment: (planFilePath, quotedExcerpt, commentText).</summary>
         public static event Action<string, string, string>? CommentSubmitted;

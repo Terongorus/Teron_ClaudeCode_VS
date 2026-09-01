@@ -116,7 +116,7 @@ namespace TeronClaudeCodeVS.Core
 
         private static string Quote(string arg)
         {
-            if (arg.Length > 0 && arg.IndexOfAny(new[] { ' ', '\t', '"' }) < 0)
+            if (arg.Length > 0 && arg.IndexOfAny([' ', '\t', '"']) < 0)
                 return arg;
 
             var sb = new StringBuilder("\"");

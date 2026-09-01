@@ -41,19 +41,14 @@ namespace TeronClaudeCodeVS.ViewModels
     public static class SessionTitleReader
     {
         /// <summary>A title found on disk, and whether the user had typed it themselves.</summary>
-        public sealed class Result
+        public sealed class Result(string title, bool isCustom)
         {
-            public Result(string title, bool isCustom)
-            {
-                Title = title;
-                IsCustom = isCustom;
-            }
 
             /// <summary>The title text, trimmed and never empty.</summary>
-            public string Title { get; }
+            public string Title { get; } = title;
 
             /// <summary>True for a `custom-title` (typed by the user), false for a generated `ai-title`.</summary>
-            public bool IsCustom { get; }
+            public bool IsCustom { get; } = isCustom;
         }
 
         /// <summary>
@@ -157,31 +152,29 @@ namespace TeronClaudeCodeVS.ViewModels
         /// </summary>
         private static IEnumerable<string> ReadTailLines(string path, out bool truncated)
         {
-            using (FileStream stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            truncated = stream.Length > TailBytes;
+            if (truncated)
+                stream.Seek(-TailBytes, SeekOrigin.End);
+
+            byte[] buffer = new byte[(int)Math.Min(stream.Length, TailBytes)];
+            int read = 0;
+            while (read < buffer.Length)
             {
-                truncated = stream.Length > TailBytes;
-                if (truncated)
-                    stream.Seek(-TailBytes, SeekOrigin.End);
-
-                byte[] buffer = new byte[(int)Math.Min(stream.Length, TailBytes)];
-                int read = 0;
-                while (read < buffer.Length)
-                {
-                    int n = stream.Read(buffer, read, buffer.Length - read);
-                    if (n <= 0) break;
-                    read += n;
-                }
-
-                // Non-throwing decode: a partial leading character goes out with the partial
-                // leading line anyway, and a malformed byte must not take the whole read down.
-                string text = new UTF8Encoding(false, throwOnInvalidBytes: false).GetString(buffer, 0, read);
-                string[] lines = text.Split('\n');
-
-                List<string> result = new List<string>(lines.Length);
-                for (int i = truncated ? 1 : 0; i < lines.Length; i++)
-                    result.Add(lines[i].TrimEnd('\r'));
-                return result;
+                int n = stream.Read(buffer, read, buffer.Length - read);
+                if (n <= 0) break;
+                read += n;
             }
+
+            // Non-throwing decode: a partial leading character goes out with the partial
+            // leading line anyway, and a malformed byte must not take the whole read down.
+            string text = new UTF8Encoding(false, throwOnInvalidBytes: false).GetString(buffer, 0, read);
+            string[] lines = text.Split('\n');
+
+            List<string> result = new(lines.Length);
+            for (int i = truncated ? 1 : 0; i < lines.Length; i++)
+                result.Add(lines[i].TrimEnd('\r'));
+            return result;
         }
     }
 }

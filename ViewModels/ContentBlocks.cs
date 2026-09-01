@@ -43,19 +43,15 @@ namespace TeronClaudeCodeVS.ViewModels
     }
 
     /// <summary>A pasted screenshot attached to a sent user message - shown as a thumbnail.</summary>
-    public sealed class ImageAttachmentViewModel : ContentBlockViewModel
+    public sealed class ImageAttachmentViewModel(ImageSource thumbnail) : ContentBlockViewModel
     {
-        public ImageSource Thumbnail { get; }
-
-        public ImageAttachmentViewModel(ImageSource thumbnail) => Thumbnail = thumbnail;
+        public ImageSource Thumbnail { get; } = thumbnail;
     }
 
     /// <summary>A dropped text/code/PDF file attached to a sent user message - shown as a filename chip.</summary>
-    public sealed class FileAttachmentViewModel : ContentBlockViewModel
+    public sealed class FileAttachmentViewModel(string title) : ContentBlockViewModel
     {
-        public string Title { get; }
-
-        public FileAttachmentViewModel(string title) => Title = title;
+        public string Title { get; } = title;
     }
 
     /// <summary>A streamed "thinking" block - collapsed by default, shown in a muted style.</summary>
@@ -93,10 +89,10 @@ namespace TeronClaudeCodeVS.ViewModels
     }
 
     /// <summary>A tool call card: icon + summary while collapsed, full input/diff/output when expanded.</summary>
-    public sealed class ToolCallViewModel : ContentBlockViewModel, IMarkdownContent
+    public sealed class ToolCallViewModel(string toolUseId, string toolName) : ContentBlockViewModel, IMarkdownContent
     {
-        public string ToolUseId { get; }
-        public string ToolName { get; }
+        public string ToolUseId { get; } = toolUseId;
+        public string ToolName { get; } = toolName;
         public string Icon => ToolPresentation.GetIcon(ToolName);
         public string DisplayName => ToolPresentation.GetDisplayName(ToolName);
 
@@ -228,12 +224,6 @@ namespace TeronClaudeCodeVS.ViewModels
                 ? $"{(int)elapsed.TotalMinutes}m{elapsed.Seconds}s"
                 : $"{elapsed.Seconds}s";
             SetField(ref _elapsedText, text, nameof(ElapsedText));
-        }
-
-        public ToolCallViewModel(string toolUseId, string toolName)
-        {
-            ToolUseId = toolUseId;
-            ToolName = toolName;
         }
     }
 
@@ -385,26 +375,20 @@ namespace TeronClaudeCodeVS.ViewModels
     }
 
     /// <summary>One selectable option inside a question, tracking its own checked state.</summary>
-    public sealed class SelectableOptionViewModel : ObservableObject
+    public sealed class SelectableOptionViewModel(AskQuestionOption option, string radioGroupName) : ObservableObject
     {
-        public AskQuestionOption Option { get; }
+        public AskQuestionOption Option { get; } = option;
         public string Label => Option.Label;
         public string Description => Option.Description;
 
         /// <summary>Shared by every option under the same question, for RadioButton mutual exclusion; unused for checkboxes.</summary>
-        public string RadioGroupName { get; }
+        public string RadioGroupName { get; } = radioGroupName;
 
         private bool _isSelected;
         public bool IsSelected
         {
             get => _isSelected;
             set => SetField(ref _isSelected, value);
-        }
-
-        public SelectableOptionViewModel(AskQuestionOption option, string radioGroupName)
-        {
-            Option = option;
-            RadioGroupName = radioGroupName;
         }
     }
 
@@ -492,7 +476,7 @@ namespace TeronClaudeCodeVS.ViewModels
             if (IsResolved) return;
             IsResolved = true;
 
-            Dictionary<string, string> answers = new Dictionary<string, string>();
+            Dictionary<string, string> answers = [];
             if (!skip)
             {
                 foreach (var qa in QuestionAnswers)
@@ -630,31 +614,19 @@ namespace TeronClaudeCodeVS.ViewModels
     public sealed class InterruptedBlockViewModel : ContentBlockViewModel { }
 
     /// <summary>The small "Done · 1.2s · $0.0012" line at the end of a completed turn.</summary>
-    public sealed class ResultFooterViewModel : ContentBlockViewModel
+    public sealed class ResultFooterViewModel(string text, bool isError) : ContentBlockViewModel
     {
-        public string Text { get; }
-        public bool IsError { get; }
-
-        public ResultFooterViewModel(string text, bool isError)
-        {
-            Text = text;
-            IsError = isError;
-        }
+        public string Text { get; } = text;
+        public bool IsError { get; } = isError;
     }
 
     /// <summary>A turn that failed or was cut off (unexpected process exit, rate limit, ...) - shown
     /// with an explicit "Try again" affordance that resends the original prompt verbatim, so the
     /// model never has to guess what a follow-up "Continue" refers to.</summary>
-    public sealed class RetryNoticeViewModel : ContentBlockViewModel
+    public sealed class RetryNoticeViewModel(string text, Action onRetry) : ContentBlockViewModel
     {
-        public string Text { get; }
-        public ICommand RetryCommand { get; }
-
-        public RetryNoticeViewModel(string text, Action onRetry)
-        {
-            Text = text;
-            RetryCommand = new RelayCommand(onRetry);
-        }
+        public string Text { get; } = text;
+        public ICommand RetryCommand { get; } = new RelayCommand(onRetry);
     }
     /// <summary>
     /// A two-choice card with numbered actions, used wherever we need an in-chat yes/no that is
@@ -758,9 +730,9 @@ namespace TeronClaudeCodeVS.ViewModels
     /// Backed by the CLI's own `side_question` control request, so the answer sees the current
     /// session's context but adds nothing to its transcript.
     /// </summary>
-    public sealed class SideQuestionViewModel : ContentBlockViewModel, IMarkdownContent
+    public sealed class SideQuestionViewModel(string question) : ContentBlockViewModel, IMarkdownContent
     {
-        public string Question { get; }
+        public string Question { get; } = question;
 
         private string _answer = "";
         public string Answer
@@ -790,7 +762,5 @@ namespace TeronClaudeCodeVS.ViewModels
             get => _statusText;
             set => SetField(ref _statusText, value);
         }
-
-        public SideQuestionViewModel(string question) => Question = question;
     }
 }

@@ -19,8 +19,8 @@ namespace TeronClaudeCodeVS.Commands
 
             void Add(uint id, EventHandler handler)
             {
-                CommandID cmdId = new CommandID(GuidList.guidClaudeCodeCmdSet, (int)id);
-                MenuCommand cmd = new MenuCommand(handler, cmdId);
+                CommandID cmdId = new(GuidList.guidClaudeCodeCmdSet, (int)id);
+                MenuCommand cmd = new(handler, cmdId);
                 commandService.AddCommand(cmd);
             }
 

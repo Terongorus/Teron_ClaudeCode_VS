@@ -25,14 +25,14 @@ namespace TeronClaudeCodeVS.Core
 {
     public partial class ClaudeCodeChatControl : UserControl
     {
-        private readonly ChatSessionViewModel _vm = new ChatSessionViewModel();
+        private readonly ChatSessionViewModel _vm = new();
         private string _solutionDirectory = "";
 
         private string[] _projectFiles = [];
         private int _atTokenStart = -1;
         private bool _sendOnCtrlEnter;
 
-        private static readonly HashSet<string> s_excludedDirs = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        private static readonly HashSet<string> s_excludedDirs = new(StringComparer.OrdinalIgnoreCase)
             { ".git", "node_modules", "bin", "obj", ".vs", ".idea", "packages", "__pycache__", ".nuget" };
 
         public ClaudeCodeChatControl()
@@ -338,9 +338,9 @@ namespace TeronClaudeCodeVS.Core
 
         private static string[] EnumerateProjectFiles(string root)
         {
-            List<string> files = new List<string>(512);
+            List<string> files = new(512);
             try { EnumerateRecursive(root, files); } catch { }
-            return files.ToArray();
+            return [.. files];
         }
 
         private static void EnumerateRecursive(string dir, List<string> files)
@@ -1185,9 +1185,7 @@ namespace TeronClaudeCodeVS.Core
             if (text.StartsWith("/", StringComparison.Ordinal) && !text.Contains(" ") && !text.Contains("\n"))
             {
                 string filter = text.Substring(1);
-                List<string> slashMatches = _vm.SlashCommands
-                    .Where(c => c.StartsWith(filter, StringComparison.OrdinalIgnoreCase))
-                    .ToList();
+                List<string> slashMatches = [.. _vm.SlashCommands.Where(c => c.StartsWith(filter, StringComparison.OrdinalIgnoreCase))];
 
                 if (slashMatches.Count > 0)
                 {
@@ -1226,7 +1224,7 @@ namespace TeronClaudeCodeVS.Core
         {
             if (_projectFiles.Length == 0) return [];
 
-            return _projectFiles
+            return [.. _projectFiles
                 .Select(f => GetRelativePath(_solutionDirectory, f))
                 .Where(rel =>
                     string.IsNullOrEmpty(filter) ||
@@ -1239,8 +1237,7 @@ namespace TeronClaudeCodeVS.Core
                     if (fn.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0) return 1;
                     return 2;
                 })
-                .Take(20)
-                .ToArray();
+                .Take(20)];
         }
 
         private void MoveFilePickerSelection(int delta)
@@ -1318,9 +1315,9 @@ namespace TeronClaudeCodeVS.Core
 
         private static string EncodeBitmapToPngBase64(BitmapSource bitmap)
         {
-            PngBitmapEncoder encoder = new PngBitmapEncoder();
+            PngBitmapEncoder encoder = new();
             encoder.Frames.Add(BitmapFrame.Create(bitmap));
-            using MemoryStream ms = new MemoryStream();
+            using MemoryStream ms = new();
             encoder.Save(ms);
             return Convert.ToBase64String(ms.ToArray());
         }
@@ -1416,8 +1413,8 @@ namespace TeronClaudeCodeVS.Core
                 if (s_imageExtensions.Contains(ext))
                 {
                     byte[] bytes = await Task.Run(() => File.ReadAllBytes(path));
-                    BitmapImage thumbnail = new BitmapImage();
-                    using (MemoryStream ms = new MemoryStream(bytes))
+                    BitmapImage thumbnail = new();
+                    using (MemoryStream ms = new(bytes))
                     {
                         thumbnail.BeginInit();
                         thumbnail.CacheOption = BitmapCacheOption.OnLoad;
@@ -1494,7 +1491,7 @@ namespace TeronClaudeCodeVS.Core
 
             if (dialog.ShowDialog() != true) return;
 
-            List<string> rejected = new List<string>();
+            List<string> rejected = [];
             foreach (string path in dialog.FileNames)
             {
                 if (!await ImportAttachmentAsync(path))
@@ -1763,8 +1760,8 @@ namespace TeronClaudeCodeVS.Core
                 if (!baseFull.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal))
                     baseFull += Path.DirectorySeparatorChar;
 
-                Uri baseUri = new Uri(baseFull);
-                Uri fullUri = new Uri(Path.GetFullPath(fullPath));
+                Uri baseUri = new(baseFull);
+                Uri fullUri = new(Path.GetFullPath(fullPath));
 
                 if (baseUri.Scheme != fullUri.Scheme)
                     return fullPath;

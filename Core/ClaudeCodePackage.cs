@@ -66,8 +66,7 @@ namespace TeronClaudeCodeVS.Core
 
             try
             {
-                if (_ideServer == null)
-                    _ideServer = new IdeCompanionServer(new VsIdeToolHandlers(), GetWorkspaceFoldersSync);
+                _ideServer ??= new IdeCompanionServer(new VsIdeToolHandlers(), GetWorkspaceFoldersSync);
 
                 if (!_ideServer.IsRunning)
                     _ideServer.Start();
@@ -91,7 +90,7 @@ namespace TeronClaudeCodeVS.Core
         private static System.Collections.Generic.IReadOnlyList<string> GetWorkspaceFoldersSync()
         {
             string dir = ThreadHelper.JoinableTaskFactory.Run(VsIdeToolHandlers.GetWorkingDirectoryAsync);
-            return new[] { dir };
+            return [dir];
         }
 
         protected override void Dispose(bool disposing)

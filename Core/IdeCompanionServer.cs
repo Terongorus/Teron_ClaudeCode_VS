@@ -21,16 +21,16 @@ namespace TeronClaudeCodeVS.Core
     /// lives here; actual VS SDK calls are delegated to an <see cref="IIdeToolHandlers"/> so this
     /// class can be exercised independent of a running VS host.
     /// </summary>
-    public sealed class IdeCompanionServer : IDisposable
+    public sealed class IdeCompanionServer(IIdeToolHandlers handlers, Func<IReadOnlyList<string>> getWorkspaceFolders) : IDisposable
     {
-        private readonly IIdeToolHandlers _handlers;
-        private readonly Func<IReadOnlyList<string>> _getWorkspaceFolders;
+        private readonly IIdeToolHandlers _handlers = handlers;
+        private readonly Func<IReadOnlyList<string>> _getWorkspaceFolders = getWorkspaceFolders;
 
         private HttpListener? _listener;
         private CancellationTokenSource? _cts;
         private Task? _acceptLoopTask;
         private WebSocket? _activeSocket;
-        private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim _sendLock = new(1, 1);
         private bool _disposed;
 
         public int Port { get; private set; }
@@ -51,12 +51,6 @@ namespace TeronClaudeCodeVS.Core
         private const string AuthHeaderName = "X-Claude-Code-Ide-Authorization";
         private string _authToken = "";
         private string? _lockFilePath;
-
-        public IdeCompanionServer(IIdeToolHandlers handlers, Func<IReadOnlyList<string>> getWorkspaceFolders)
-        {
-            _handlers = handlers;
-            _getWorkspaceFolders = getWorkspaceFolders;
-        }
 
         /// <summary>Starts the server on an OS-assigned loopback port and writes the lockfile. Idempotent while already running.</summary>
         public void Start()
@@ -95,7 +89,7 @@ namespace TeronClaudeCodeVS.Core
 
         private static int GetAvailablePort()
         {
-            TcpListener listener = new TcpListener(IPAddress.Loopback, 0);
+            TcpListener listener = new(IPAddress.Loopback, 0);
             listener.Start();
             int port = ((IPEndPoint)listener.LocalEndpoint).Port;
             listener.Stop();
@@ -113,7 +107,7 @@ namespace TeronClaudeCodeVS.Core
             CleanUpStaleLockFiles();
             _lockFilePath = Path.Combine(LockFileDirectory, $"{Port}.lock");
 
-            JObject json = new JObject
+            JObject json = new()
             {
                 ["pid"] = Process.GetCurrentProcess().Id,
                 ["workspaceFolders"] = new JArray(_getWorkspaceFolders()),
@@ -249,7 +243,7 @@ namespace TeronClaudeCodeVS.Core
         private async Task ReceiveLoopAsync(WebSocket socket, CancellationToken ct)
         {
             var buffer = new byte[16 * 1024];
-            using MemoryStream messageStream = new MemoryStream();
+            using MemoryStream messageStream = new();
 
             try
             {
@@ -329,7 +323,7 @@ namespace TeronClaudeCodeVS.Core
             }
         }
 
-        private static JObject BuildInitializeResult() => new JObject
+        private static JObject BuildInitializeResult() => new()
         {
             ["protocolVersion"] = "2024-11-05",
             ["capabilities"] = new JObject { ["tools"] = new JObject { ["listChanged"] = true } },
@@ -349,11 +343,11 @@ namespace TeronClaudeCodeVS.Core
                     args.Value<string>("new_file_contents") ?? "",
                     args.Value<string>("tab_name") ?? "").ConfigureAwait(false);
 
-                JArray content = new JArray
-                {
+                JArray content =
+                [
                     new JObject { ["type"] = "text", ["text"] = status },
                     new JObject { ["type"] = "text", ["text"] = detail }
-                };
+                ];
                 await SendResultAsync(socket, id, new JObject { ["content"] = content }, ct).ConfigureAwait(false);
                 return;
             }
@@ -379,19 +373,19 @@ namespace TeronClaudeCodeVS.Core
                 _ => throw new InvalidOperationException($"Unknown tool: {name}")
             };
 
-            JArray textContent = new JArray { new JObject { ["type"] = "text", ["text"] = payload.ToString(Newtonsoft.Json.Formatting.Indented) } };
+            JArray textContent = [new JObject { ["type"] = "text", ["text"] = payload.ToString(Newtonsoft.Json.Formatting.Indented) }];
             await SendResultAsync(socket, id, new JObject { ["content"] = textContent }, ct).ConfigureAwait(false);
         }
 
         private Task SendResultAsync(WebSocket socket, JToken? id, JObject result, CancellationToken ct)
         {
-            JObject payload = new JObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = result };
+            JObject payload = new() { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = result };
             return SendAsync(socket, payload, ct);
         }
 
         private Task SendErrorAsync(WebSocket socket, JToken? id, int code, string message, CancellationToken ct)
         {
-            JObject payload = new JObject
+            JObject payload = new()
             {
                 ["jsonrpc"] = "2.0",
                 ["id"] = id,

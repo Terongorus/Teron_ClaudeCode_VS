@@ -157,10 +157,10 @@ namespace TeronClaudeCodeVS.Controls
     /// <summary>Maps a <see cref="ToolCallStatus"/> to an indicator brush.</summary>
     public sealed class ToolStatusToBrushConverter : IValueConverter
     {
-        private static readonly SolidColorBrush Running = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
-        private static readonly SolidColorBrush Awaiting = new SolidColorBrush(Color.FromRgb(0xE5, 0xA5, 0x4B));
-        private static readonly SolidColorBrush Done = new SolidColorBrush(Color.FromRgb(0x3F, 0xB9, 0x50));
-        private static readonly SolidColorBrush Error = new SolidColorBrush(Color.FromRgb(0xE5, 0x48, 0x4D));
+        private static readonly SolidColorBrush Running = new(Color.FromRgb(0x8A, 0x8A, 0x8A));
+        private static readonly SolidColorBrush Awaiting = new(Color.FromRgb(0xE5, 0xA5, 0x4B));
+        private static readonly SolidColorBrush Done = new(Color.FromRgb(0x3F, 0xB9, 0x50));
+        private static readonly SolidColorBrush Error = new(Color.FromRgb(0xE5, 0x48, 0x4D));
 
         static ToolStatusToBrushConverter()
         {
@@ -193,10 +193,10 @@ namespace TeronClaudeCodeVS.Controls
     /// </summary>
     public sealed class McpStatusToBrushConverter : IValueConverter
     {
-        private static readonly SolidColorBrush Neutral = new SolidColorBrush(Color.FromRgb(0x8A, 0x8A, 0x8A));
-        private static readonly SolidColorBrush Warning = new SolidColorBrush(Color.FromRgb(0xE5, 0xA5, 0x4B));
-        private static readonly SolidColorBrush Ok = new SolidColorBrush(Color.FromRgb(0x3F, 0xB9, 0x50));
-        private static readonly SolidColorBrush Bad = new SolidColorBrush(Color.FromRgb(0xE5, 0x48, 0x4D));
+        private static readonly SolidColorBrush Neutral = new(Color.FromRgb(0x8A, 0x8A, 0x8A));
+        private static readonly SolidColorBrush Warning = new(Color.FromRgb(0xE5, 0xA5, 0x4B));
+        private static readonly SolidColorBrush Ok = new(Color.FromRgb(0x3F, 0xB9, 0x50));
+        private static readonly SolidColorBrush Bad = new(Color.FromRgb(0xE5, 0x48, 0x4D));
 
         static McpStatusToBrushConverter()
         {

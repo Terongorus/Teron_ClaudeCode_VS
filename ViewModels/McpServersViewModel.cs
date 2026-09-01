@@ -18,34 +18,25 @@ namespace TeronClaudeCodeVS.ViewModels
     }
 
     /// <summary>One row of `claude mcp list`.</summary>
-    public sealed class McpServerEntry
+    public sealed class McpServerEntry(string name, string target, string transport, string status, string? issue, McpStatusKind kind)
     {
-        public McpServerEntry(string name, string target, string transport, string status, string? issue, McpStatusKind kind)
-        {
-            Name = name;
-            Target = target;
-            Transport = transport;
-            Status = status;
-            Issue = issue;
-            Kind = kind;
-        }
 
         /// <summary>Server name as configured, e.g. "github".</summary>
-        public string Name { get; }
+        public string Name { get; } = name;
 
         /// <summary>The URL for a remote server, or the full command line for a stdio one.</summary>
-        public string Target { get; }
+        public string Target { get; } = target;
 
         /// <summary>"HTTP", "SSE", "stdio", or "" when the CLI printed no transport marker.</summary>
-        public string Transport { get; }
+        public string Transport { get; } = transport;
 
         /// <summary>Status exactly as the CLI printed it, glyph included, e.g. "✓ Connected".</summary>
-        public string Status { get; }
+        public string Status { get; } = status;
 
         /// <summary>The detail the CLI appends after an em dash on a failure, when there is one.</summary>
-        public string? Issue { get; }
+        public string? Issue { get; } = issue;
 
-        public McpStatusKind Kind { get; }
+        public McpStatusKind Kind { get; } = kind;
 
         public bool HasIssue => !string.IsNullOrEmpty(Issue);
         public bool HasTransport => Transport.Length > 0;
@@ -91,7 +82,7 @@ namespace TeronClaudeCodeVS.ViewModels
 
         public const string LearnMoreUrl = "https://code.claude.com/docs/en/mcp";
 
-        public ObservableCollection<McpServerEntry> Servers { get; } = new ObservableCollection<McpServerEntry>();
+        public ObservableCollection<McpServerEntry> Servers { get; } = [];
 
         private bool _isLoading;
         public bool IsLoading { get => _isLoading; private set => SetField(ref _isLoading, value); }

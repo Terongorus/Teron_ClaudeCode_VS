@@ -124,7 +124,7 @@ namespace TeronClaudeCodeVS.Core
             public override bool GetStandardValuesSupported(ITypeDescriptorContext? context) => true;
             public override bool GetStandardValuesExclusive(ITypeDescriptorContext? context) => false;
             public override StandardValuesCollection GetStandardValues(ITypeDescriptorContext? context)
-                => new StandardValuesCollection(new[] { "", "sonnet", "opus", "haiku", "fable" });
+                => new(new[] { "", "sonnet", "opus", "haiku", "fable" });
         }
 
         private sealed class PermissionModeConverter : TypeConverter
@@ -132,7 +132,7 @@ namespace TeronClaudeCodeVS.Core
             public override bool GetStandardValuesSupported(ITypeDescriptorContext? context) => true;
             public override bool GetStandardValuesExclusive(ITypeDescriptorContext? context) => true;
             public override StandardValuesCollection GetStandardValues(ITypeDescriptorContext? context)
-                => new StandardValuesCollection(new[] { "", "manual", "acceptEdits", "dontAsk", "plan", "auto", "bypassPermissions" });
+                => new(new[] { "", "manual", "acceptEdits", "dontAsk", "plan", "auto", "bypassPermissions" });
         }
 
         private sealed class EffortConverter : TypeConverter
@@ -140,7 +140,7 @@ namespace TeronClaudeCodeVS.Core
             public override bool GetStandardValuesSupported(ITypeDescriptorContext? context) => true;
             public override bool GetStandardValuesExclusive(ITypeDescriptorContext? context) => false;
             public override StandardValuesCollection GetStandardValues(ITypeDescriptorContext? context)
-                => new StandardValuesCollection(new[] { "", "low", "medium", "high", "xhigh", "max" });
+                => new(new[] { "", "low", "medium", "high", "xhigh", "max" });
         }
     }
 }

@@ -19,7 +19,7 @@ namespace TeronClaudeCodeVS.Controls
         private static readonly SolidColorBrush s_addGutter  = Frozen(Color.FromArgb(0xFF, 0x3F, 0xB9, 0x50));
         private static readonly SolidColorBrush s_remGutter  = Frozen(Color.FromArgb(0xFF, 0xE5, 0x48, 0x4D));
         private static readonly SolidColorBrush s_hunkGutter = Frozen(Color.FromArgb(0xFF, 0x79, 0xB8, 0xFF));
-        private static readonly FontFamily s_mono = new FontFamily("Consolas");
+        private static readonly FontFamily s_mono = new("Consolas");
 
         public static readonly DependencyProperty RawDiffProperty =
             DependencyProperty.Register(
@@ -47,7 +47,7 @@ namespace TeronClaudeCodeVS.Controls
         {
             if (e.Delta == 0) return;
             e.Handled = true;
-            MouseWheelEventArgs args = new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+            MouseWheelEventArgs args = new(e.MouseDevice, e.Timestamp, e.Delta)
                 { RoutedEvent = MouseWheelEvent };
             RaiseEvent(args);
         }
@@ -95,9 +95,9 @@ namespace TeronClaudeCodeVS.Controls
                 _                    => Brushes.Transparent,
             };
 
-            Border gutter = new Border { Background = gutterBg, Width = 3 };
+            Border gutter = new() { Background = gutterBg, Width = 3 };
 
-            TextBlock tb = new TextBlock
+            TextBlock tb = new()
             {
                 Text = text,
                 FontFamily = s_mono,
@@ -109,7 +109,7 @@ namespace TeronClaudeCodeVS.Controls
             };
             tb.SetResourceReference(ForegroundProperty, VsBrushes.ToolWindowTextKey);
 
-            Grid row = new Grid();
+            Grid row = new();
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(3) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             Grid.SetColumn(gutter, 0);
@@ -124,7 +124,7 @@ namespace TeronClaudeCodeVS.Controls
 
         private static SolidColorBrush Frozen(Color c)
         {
-            SolidColorBrush b = new SolidColorBrush(c);
+            SolidColorBrush b = new(c);
             b.Freeze();
             return b;
         }

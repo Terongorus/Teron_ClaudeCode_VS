@@ -23,10 +23,10 @@ namespace TeronClaudeCodeVS.Core
         public string? RecognizerName { get; }
 
         public static VoiceAvailability Available(string recognizerName) =>
-            new VoiceAvailability(true, null, recognizerName);
+            new(true, null, recognizerName);
 
         public static VoiceAvailability Unavailable(string reason) =>
-            new VoiceAvailability(false, reason, null);
+            new(false, reason, null);
     }
 
     /// <summary>

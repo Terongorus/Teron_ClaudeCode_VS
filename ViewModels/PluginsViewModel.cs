@@ -8,35 +8,25 @@ using TeronClaudeCodeVS.Core;
 namespace TeronClaudeCodeVS.ViewModels
 {
     /// <summary>One installed or available plugin.</summary>
-    public sealed class PluginEntry
+    public sealed class PluginEntry(string name, string marketplace, string version, string? description, string? scope, bool isInstalled, bool isEnabled)
     {
-        public PluginEntry(string name, string marketplace, string version, string? description, string? scope, bool isInstalled, bool isEnabled)
-        {
-            Name = name;
-            Marketplace = marketplace;
-            Version = version;
-            Description = description;
-            Scope = scope;
-            IsInstalled = isInstalled;
-            IsEnabled = isEnabled;
-        }
 
         /// <summary>Plugin name without its marketplace, e.g. "code-review".</summary>
-        public string Name { get; }
+        public string Name { get; } = name;
 
         /// <summary>The marketplace it came from, e.g. "anthropics".</summary>
-        public string Marketplace { get; }
+        public string Marketplace { get; } = marketplace;
 
-        public string Version { get; }
+        public string Version { get; } = version;
 
         /// <summary>Only the marketplace catalog carries descriptions; installed rows have none.</summary>
-        public string? Description { get; }
+        public string? Description { get; } = description;
 
         /// <summary>"user", "project" or "local" for an installed plugin; null for an available one.</summary>
-        public string? Scope { get; }
+        public string? Scope { get; } = scope;
 
-        public bool IsInstalled { get; }
-        public bool IsEnabled { get; }
+        public bool IsInstalled { get; } = isInstalled;
+        public bool IsEnabled { get; } = isEnabled;
 
         public bool HasDescription => !string.IsNullOrWhiteSpace(Description);
 
@@ -59,22 +49,15 @@ namespace TeronClaudeCodeVS.ViewModels
     }
 
     /// <summary>One configured marketplace.</summary>
-    public sealed class MarketplaceEntry
+    public sealed class MarketplaceEntry(string name, string source, string? path)
     {
-        public MarketplaceEntry(string name, string source, string? path)
-        {
-            Name = name;
-            Source = source;
-            Path = path;
-        }
-
-        public string Name { get; }
+        public string Name { get; } = name;
 
         /// <summary>Raw source kind from the CLI, e.g. "directory", "github", "git".</summary>
-        public string Source { get; }
+        public string Source { get; } = source;
 
         /// <summary>Local path or remote URL, when the CLI reported one.</summary>
-        public string? Path { get; }
+        public string? Path { get; } = path;
 
         public string DetailLine
         {
@@ -138,9 +121,9 @@ namespace TeronClaudeCodeVS.ViewModels
 
         public const string LearnMoreUrl = "https://code.claude.com/docs/en/plugins";
 
-        public ObservableCollection<PluginEntry> InstalledPlugins { get; } = new ObservableCollection<PluginEntry>();
-        public ObservableCollection<PluginEntry> AvailablePlugins { get; } = new ObservableCollection<PluginEntry>();
-        public ObservableCollection<MarketplaceEntry> Marketplaces { get; } = new ObservableCollection<MarketplaceEntry>();
+        public ObservableCollection<PluginEntry> InstalledPlugins { get; } = [];
+        public ObservableCollection<PluginEntry> AvailablePlugins { get; } = [];
+        public ObservableCollection<MarketplaceEntry> Marketplaces { get; } = [];
 
         private bool _isLoading;
         public bool IsLoading { get => _isLoading; private set => SetField(ref _isLoading, value); }
@@ -346,7 +329,7 @@ namespace TeronClaudeCodeVS.ViewModels
             try { return JToken.Parse(text); }
             catch { }
 
-            int start = text.IndexOfAny(new[] { '{', '[' });
+            int start = text.IndexOfAny(['{', '[']);
             if (start < 0) return null;
 
             char open = text[start];

@@ -17,7 +17,7 @@ namespace TeronClaudeCodeVS.Core
                     Prop("new_file_path", "string", "Path to the file to show diff for. If not provided, uses active editor."),
                     Prop("new_file_contents", "string", "Contents of the new file."),
                     Prop("tab_name", "string", "Title for the diff tab.")),
-                required: new[] { "old_file_path", "new_file_path", "new_file_contents", "tab_name" }),
+                required: ["old_file_path", "new_file_path", "new_file_contents", "tab_name"]),
 
             Tool("getDiagnostics", "Get language diagnostics from Visual Studio's Error List",
                 Obj(Prop("uri", "string", "Optional file URI to get diagnostics for. If not provided, gets diagnostics for all files.")),
@@ -25,7 +25,7 @@ namespace TeronClaudeCodeVS.Core
 
             Tool("close_tab", null,
                 Obj(Prop("tab_name", "string", null)),
-                required: new[] { "tab_name" }),
+                required: ["tab_name"]),
 
             Tool("closeAllDiffTabs", "Close all diff tabs in the editor", Obj(), required: null),
 
@@ -37,7 +37,7 @@ namespace TeronClaudeCodeVS.Core
                     Prop("endText", "string", "Text marking the end of the range to select"),
                     Prop("selectToEndOfLine", "boolean", "Extend the selection to the end of the line"),
                     Prop("makeFrontmost", "boolean", "Bring the opened editor to the foreground")),
-                required: new[] { "filePath" }),
+                required: ["filePath"]),
 
             Tool("getOpenEditors", "Get information about currently open editors", Obj(), required: null),
 
@@ -46,21 +46,21 @@ namespace TeronClaudeCodeVS.Core
             Tool("getCurrentSelection", "Get the current text selection in the active editor", Obj(), required: null),
 
             Tool("checkDocumentDirty", "Check if a document has unsaved changes (is dirty)",
-                Obj(Prop("filePath", "string", null)), required: new[] { "filePath" }),
+                Obj(Prop("filePath", "string", null)), required: ["filePath"]),
 
             Tool("saveDocument", "Save a document with unsaved changes",
-                Obj(Prop("filePath", "string", null)), required: new[] { "filePath" }),
+                Obj(Prop("filePath", "string", null)), required: ["filePath"]),
 
             Tool("getLatestSelection", "Get the most recent text selection (even if not in the active editor)", Obj(), required: null),
         ];
 
         private static JObject Tool(string name, string? description, JObject properties, string[]? required)
         {
-            JObject inputSchema = new JObject { ["type"] = "object", ["properties"] = properties, ["additionalProperties"] = false };
+            JObject inputSchema = new() { ["type"] = "object", ["properties"] = properties, ["additionalProperties"] = false };
             if (required != null)
                 inputSchema["required"] = new JArray(required);
 
-            JObject tool = new JObject { ["name"] = name, ["inputSchema"] = inputSchema };
+            JObject tool = new() { ["name"] = name, ["inputSchema"] = inputSchema };
             if (description != null)
                 tool["description"] = description;
             return tool;
@@ -68,7 +68,7 @@ namespace TeronClaudeCodeVS.Core
 
         private static JObject Obj(params (string name, JObject schema)[] props)
         {
-            JObject obj = new JObject();
+            JObject obj = [];
             foreach (var (name, schema) in props)
                 obj[name] = schema;
             return obj;
@@ -76,7 +76,7 @@ namespace TeronClaudeCodeVS.Core
 
         private static (string, JObject) Prop(string name, string type, string? description)
         {
-            JObject schema = new JObject { ["type"] = type };
+            JObject schema = new() { ["type"] = type };
             if (description != null)
                 schema["description"] = description;
             return (name, schema);

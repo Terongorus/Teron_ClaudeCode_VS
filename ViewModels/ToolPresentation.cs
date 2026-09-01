@@ -202,7 +202,7 @@ namespace TeronClaudeCodeVS.ViewModels
                 for (int j = m - 1; j >= 0; j--)
                     dp[i, j] = a[i] == b[j] ? dp[i + 1, j + 1] + 1 : Math.Max(dp[i + 1, j], dp[i, j + 1]);
 
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
             int x = 0, y = 0;
             while (x < n && y < m)
             {
@@ -232,7 +232,7 @@ namespace TeronClaudeCodeVS.ViewModels
         public static string? GetDetailMarkdown(string toolName, JObject? input, string? output, bool isError)
         {
             input ??= [];
-            StringBuilder sb = new StringBuilder();
+            StringBuilder sb = new();
 
             switch (toolName)
             {

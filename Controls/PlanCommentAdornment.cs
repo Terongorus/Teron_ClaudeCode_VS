@@ -209,12 +209,12 @@ namespace TeronClaudeCodeVS.Controls
             };
             ApplyToolWindowTheme(_composerTextBox);
 
-            Button addButton = new Button
+            Button addButton = new()
             {
                 Content = "Add Comment", Margin = new Thickness(0, 6, 0, 0),
                 Padding = new Thickness(10, 5, 10, 5), FontSize = 13
             };
-            Button cancelButton = new Button
+            Button cancelButton = new()
             {
                 Content = "Cancel", Margin = new Thickness(0, 6, 8, 0),
                 Padding = new Thickness(10, 5, 10, 5), FontSize = 13
@@ -224,7 +224,7 @@ namespace TeronClaudeCodeVS.Controls
             addButton.Click += (s, e) => SubmitComment(span);
             cancelButton.Click += (s, e) => CloseComposer();
 
-            StackPanel buttonRow = new StackPanel
+            StackPanel buttonRow = new()
             {
                 Orientation = Orientation.Horizontal,
                 HorizontalAlignment = HorizontalAlignment.Right
@@ -232,11 +232,11 @@ namespace TeronClaudeCodeVS.Controls
             buttonRow.Children.Add(cancelButton);
             buttonRow.Children.Add(addButton);
 
-            StackPanel content = new StackPanel { Margin = new Thickness(10) };
+            StackPanel content = new() { Margin = new Thickness(10) };
             content.Children.Add(_composerTextBox);
             content.Children.Add(buttonRow);
 
-            Border border = new Border
+            Border border = new()
             {
                 BorderThickness = new Thickness(1),
                 Child = content
@@ -275,17 +275,14 @@ namespace TeronClaudeCodeVS.Controls
 
         private void CloseComposer()
         {
-            if (_composerPopup != null)
-            {
-                _composerPopup.IsOpen = false;
-                _composerPopup = null;
-            }
+            _composerPopup?.IsOpen = false;
+            _composerPopup = null;
             _composerTextBox = null;
         }
 
         private void AddCommentHighlight(SnapshotSpan span)
         {
-            Border highlight = new Border
+            Border highlight = new()
             {
                 Background = new SolidColorBrush(Color.FromArgb(60, 255, 220, 60)),
                 IsHitTestVisible = false
@@ -300,7 +297,7 @@ namespace TeronClaudeCodeVS.Controls
             try
             {
                 TextBounds startBounds = _view.TextViewLines.GetCharacterBounds(span.Start);
-                SnapshotPoint endPoint = new SnapshotPoint(span.Snapshot,
+                SnapshotPoint endPoint = new(span.Snapshot,
                     Math.Max(span.Start.Position, span.End.Position - 1));
                 TextBounds endBounds = _view.TextViewLines.GetCharacterBounds(endPoint);
 

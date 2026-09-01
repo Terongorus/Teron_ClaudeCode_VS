@@ -15,29 +15,19 @@ namespace TeronClaudeCodeVS.Core
     /// *error* for the second, and the previous helper - AccountUsageViewModel's private
     /// RunCommandAsync - could not tell them apart because every failure path returned "".
     /// </summary>
-    internal sealed class ClaudeCliResult
+    internal sealed class ClaudeCliResult(string stdOut, string stdErr, int? exitCode, bool started, bool timedOut, string? failureReason)
     {
-        public ClaudeCliResult(string stdOut, string stdErr, int? exitCode, bool started, bool timedOut, string? failureReason)
-        {
-            StdOut = stdOut;
-            StdErr = stdErr;
-            ExitCode = exitCode;
-            Started = started;
-            TimedOut = timedOut;
-            FailureReason = failureReason;
-        }
-
-        public string StdOut { get; }
-        public string StdErr { get; }
+        public string StdOut { get; } = stdOut;
+        public string StdErr { get; } = stdErr;
 
         /// <summary>Null when the process never exited within the timeout, or never started.</summary>
-        public int? ExitCode { get; }
+        public int? ExitCode { get; } = exitCode;
 
-        public bool Started { get; }
-        public bool TimedOut { get; }
+        public bool Started { get; } = started;
+        public bool TimedOut { get; } = timedOut;
 
         /// <summary>Human-readable reason the run is unusable, or null when it is usable.</summary>
-        public string? FailureReason { get; }
+        public string? FailureReason { get; } = failureReason;
 
         public bool Succeeded => Started && !TimedOut && ExitCode == 0;
 
@@ -60,7 +50,7 @@ namespace TeronClaudeCodeVS.Core
         }
 
         public static ClaudeCliResult Failure(string reason) =>
-            new ClaudeCliResult("", "", null, started: false, timedOut: false, failureReason: reason);
+            new("", "", null, started: false, timedOut: false, failureReason: reason);
     }
 
     /// <summary>
@@ -83,7 +73,7 @@ namespace TeronClaudeCodeVS.Core
     {
         /// <summary>CSI/OSC escape sequences, in case the CLI ever decides this is a colour terminal.</summary>
         private static readonly Regex AnsiPattern =
-            new Regex(@"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", RegexOptions.Compiled);
+            new(@"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", RegexOptions.Compiled);
 
         public static string StripAnsi(string? text) =>
             string.IsNullOrEmpty(text) ? "" : AnsiPattern.Replace(text!, "");
@@ -189,7 +179,7 @@ namespace TeronClaudeCodeVS.Core
         /// <summary>"plugin marketplace list --json" -> "plugin marketplace list", for messages.</summary>
         private static string FirstWords(string arguments)
         {
-            var words = arguments.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            var words = arguments.Split([' '], StringSplitOptions.RemoveEmptyEntries);
             var kept = new StringBuilder();
             foreach (string word in words)
             {
