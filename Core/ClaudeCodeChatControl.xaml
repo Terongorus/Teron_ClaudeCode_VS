@@ -5,7 +5,8 @@
              xmlns:vm="clr-namespace:TeronClaudeCodeVS.ViewModels"
              xmlns:controls="clr-namespace:TeronClaudeCodeVS.Controls"
              Background="{DynamicResource {x:Static vs:VsBrushes.ToolWindowBackgroundKey}}"
-             Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
+             Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+             MinWidth="220">
 
     <UserControl.Resources>
         <ResourceDictionary>
@@ -2888,7 +2889,8 @@
                     the in-flight guess and is discarded when the phrase resolves.
                 -->
                 <TextBlock Grid.Row="4" Text="{Binding VoiceStatusText}" Margin="2,4,0,0"
-                           FontSize="{StaticResource FontSizeChrome}" Opacity="0.7" TextTrimming="CharacterEllipsis"
+                           FontSize="{StaticResource FontSizeChrome}" Opacity="0.7"
+                           TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="60"
                            Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
                            Visibility="{Binding HasVoiceStatus, Converter={StaticResource BoolToVisibilityConverter}}"
                            AutomationProperties.AutomationId="VoiceStatusText"/>

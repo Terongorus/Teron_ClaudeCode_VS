@@ -5,6 +5,7 @@
              Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
     <FlowDocumentScrollViewer x:Name="Viewer"
                               Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                              Background="Transparent"
                               VerticalScrollBarVisibility="Disabled"
                               HorizontalScrollBarVisibility="Disabled"
                               IsToolBarVisible="False"

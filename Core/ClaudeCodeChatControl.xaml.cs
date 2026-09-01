@@ -199,8 +199,16 @@ namespace TeronClaudeCodeVS.Core
         private void OnMicButtonDown(object sender, MouseButtonEventArgs e)
         {
             _micPressedUtc = DateTime.UtcNow;
+
+            // Only the press that actually starts dictation needs to suppress the Click that
+            // follows it (see _micGestureHandled's remarks - Click would otherwise immediately
+            // undo what this press just started). A press while already dictating does nothing
+            // here, so it must NOT set the flag, or the second tap's Click - the toggle's only
+            // way to stop dictation - gets swallowed the same way and the mic can never be
+            // stopped by clicking it again.
+            if (_vm.IsDictating) return;
             _micGestureHandled = true;
-            if (!_vm.IsDictating) StartDictation();
+            StartDictation();
         }
 
         /// <summary>The keyboard and automation path - see <see cref="_micGestureHandled"/>.</summary>
