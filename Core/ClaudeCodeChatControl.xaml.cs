@@ -375,6 +375,18 @@ namespace TeronClaudeCodeVS.Core
             if (e.PropertyName == nameof(ChatSessionViewModel.IsBusy))
                 UpdateSendStopVisibility();
 
+            // UX-3/GAP-1/GAP-3: the 1/2/3 shortcuts in OnInputPreviewKeyDown only fire while
+            // keyboard focus is inside InputBox, but nothing else puts focus there - it can just
+            // as easily be sitting on whatever button the user last clicked (e.g. a previous
+            // card's own "Continue in Terminal"). Without this, a new card renders with working
+            // mouse buttons but keystrokes that silently do nothing.
+            if (e.PropertyName == nameof(ChatSessionViewModel.PendingPermissionRequest) &&
+                _vm.PendingPermissionRequest != null)
+                InputBox.Focus();
+            if (e.PropertyName == nameof(ChatSessionViewModel.PendingChoiceCard) &&
+                _vm.PendingChoiceCard != null)
+                InputBox.Focus();
+
             // The Model/Permission Mode/Effort dropdowns in the chat header only ever lived in
             // the view model - picking a value there was never written back to the Options page,
             // so it reverted to the "Default *" settings (or the hardcoded ctor defaults) on every

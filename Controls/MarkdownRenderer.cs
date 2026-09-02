@@ -2,6 +2,7 @@ using Markdig;
 using System;
 using System.Linq;
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -136,6 +137,15 @@ namespace TeronClaudeCodeVS.Controls
                 ApplyDiffColors(para.Inlines);
                 AddCopyAffordance(para);
             }
+            else
+            {
+                // Turns a sent "@path#Lstart-Lend" reference (written by
+                // ClaudeCodeChatControl.InsertContextReference) into a clickable link back to that
+                // file/line - never inside a fenced code block, where the same "@word" shape shows
+                // up constantly as a real decorator (@property, @Override, @Injectable()) rather
+                // than a file mention.
+                LinkifyFileReferences(para);
+            }
 
             // Inline `code` spans can come through as a bare Run with its own Background rather
             // than wrapped in a Span - normalize those directly (see FixupSpan for why).
@@ -233,6 +243,88 @@ namespace TeronClaudeCodeVS.Controls
             {
                 // Another process can hold the clipboard open; say so rather than failing silently.
                 button.Content = "Failed";
+            }
+        }
+
+        // Requires a real extension on the path segment (Class1.cs, src/Foo/Bar.tsx) so it never
+        // matches a bare "@word" - the shape of a code decorator (@property, @Override,
+        // @Injectable()) or an @-mention, neither of which is a file reference.
+        private static readonly Regex s_fileRefPattern = new(
+            @"@(?<path>(?:[\w.\-]+[/\\])*[\w.\-]+\.[A-Za-z0-9]{1,10})(?:#L(?<start>\d+)(?:-L(?<end>\d+))?)?",
+            RegexOptions.Compiled);
+
+        /// <summary>
+        /// UX. Turns every "@path#Lstart-Lend" token in a plain-text run into a clickable link,
+        /// so a reference the composer wrote (see ClaudeCodeChatControl.InsertContextReference)
+        /// can be followed back to the file/line it named once the message has been sent, instead
+        /// of only ever being read as inert text.
+        /// </summary>
+        private static void LinkifyFileReferences(Paragraph para)
+        {
+            foreach (Run run in para.Inlines.OfType<Run>().ToList())
+            {
+                // Inline `code` spans are still on their original Markdig light background at
+                // this point (the fixup loop that neutralizes it runs after this one) - skip
+                // them, since matching inside real code is exactly what the regex is guarding
+                // against by requiring an extension.
+                if (IsLightBackground(run.Background)) continue;
+                LinkifyRun(para.Inlines, run);
+            }
+        }
+
+        private static void LinkifyRun(InlineCollection inlines, Run run)
+        {
+            string text = run.Text;
+            MatchCollection matches = s_fileRefPattern.Matches(text);
+            if (matches.Count == 0) return;
+
+            Inline anchor = run;
+            int last = 0;
+
+            foreach (Match m in matches)
+            {
+                if (m.Index > last)
+                    inlines.InsertAfter(anchor, anchor = new Run(text.Substring(last, m.Index - last)));
+
+                string path = m.Groups["path"].Value;
+                int? start = m.Groups["start"].Success ? int.Parse(m.Groups["start"].Value) : null;
+                int? end = m.Groups["end"].Success ? int.Parse(m.Groups["end"].Value) : start;
+
+                Hyperlink link = new(new Run(m.Value))
+                {
+                    ToolTip = start.HasValue ? $"Open {path} at line {start}" : $"Open {path}",
+                };
+                // Fire-and-forget rather than an async lambda: OpenReferenceAsync already
+                // try/catches its entire body, so nothing here can throw unobserved.
+                link.Click += (_, __) => _ = OpenReferenceAsync(path, start, end);
+                inlines.InsertAfter(anchor, anchor = link);
+
+                last = m.Index + m.Length;
+            }
+
+            if (last < text.Length)
+                inlines.InsertAfter(anchor, new Run(text.Substring(last)));
+
+            inlines.Remove(run);
+        }
+
+        private static async System.Threading.Tasks.Task OpenReferenceAsync(string path, int? startLine, int? endLine)
+        {
+            try
+            {
+                string resolved = path;
+                if (!Path.IsPathRooted(resolved))
+                {
+                    string root = await TeronClaudeCodeVS.Core.VsIdeToolHandlers.GetWorkingDirectoryAsync();
+                    resolved = Path.Combine(root, resolved);
+                }
+
+                await TeronClaudeCodeVS.Core.VsIdeToolHandlers.OpenFileAtLineAsync(resolved, startLine, endLine);
+            }
+            catch
+            {
+                // The file may have moved or been deleted since the message was sent - a broken
+                // reference is not worth interrupting the user over.
             }
         }
 

@@ -253,6 +253,43 @@ namespace TeronClaudeCodeVS.Core
             textView.ViewScroller.EnsureSpanVisible(span);
         }
 
+        /// <summary>
+        /// Opens a file and selects a 1-based, inclusive line range - the counterpart to the
+        /// "@path#Lstart-Lend" text ClaudeCodeChatControl.InsertContextReference writes into the
+        /// composer, so clicking that reference once it has been sent lands on the same place the
+        /// mention pointed at. <paramref name="startLine"/> null opens the file without selecting
+        /// anything, matching a whole-file "@path" reference.
+        /// </summary>
+        internal static async Task<bool> OpenFileAtLineAsync(string filePath, int? startLine, int? endLine)
+        {
+            await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
+
+            if (!File.Exists(filePath)) return false;
+
+            var docView = await VS.Documents.OpenAsync(filePath);
+            if (docView?.TextView == null) return false;
+
+            if (startLine.HasValue)
+                SelectByLineRange(docView.TextView, startLine.Value, endLine ?? startLine.Value);
+
+            return true;
+        }
+
+        private static void SelectByLineRange(IWpfTextView textView, int startLineOneBased, int endLineOneBased)
+        {
+            var snapshot = textView.TextBuffer.CurrentSnapshot;
+            int startIdx = Math.Max(0, Math.Min(startLineOneBased - 1, snapshot.LineCount - 1));
+            int endIdx = Math.Max(startIdx, Math.Min(endLineOneBased - 1, snapshot.LineCount - 1));
+
+            ITextSnapshotLine startLine = snapshot.GetLineFromLineNumber(startIdx);
+            ITextSnapshotLine endLine = snapshot.GetLineFromLineNumber(endIdx);
+
+            SnapshotSpan span = new(startLine.Start, endLine.End);
+            textView.Selection.Select(span, isReversed: false);
+            textView.Caret.MoveTo(span.End);
+            textView.ViewScroller.EnsureSpanVisible(span);
+        }
+
         public async Task<JObject> CloseTabAsync(string tabName)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
