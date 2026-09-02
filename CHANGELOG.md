@@ -3,6 +3,22 @@
 All notable changes to the **Claude Code for Visual Studio** extension will be documented in
 this file.
 
+## [0.5.0] - 2026-09-02
+
+Fixes found during a live manual QA pass against the 0.4.0 build, plus one small feature
+requested during that same pass.
+
+* **New: clickable file/line references.** The `@path#Lstart-Lend` references the Active File and
+  Selection chips write into the composer are now live links once a message has been sent —
+  clicking one opens that file and selects the referenced lines.
+* **Fixed: dictation could not be stopped by clicking the mic a second time.** The click that
+  starts dictation was suppressing the click meant to stop it; tap-to-toggle now works both ways.
+* **Fixed: tool-call output blocks rendered with a stark white background in the dark theme.**
+* **Fixed: permission and choice-card keyboard shortcuts (`1`/`2`/`3`) stopped working after a
+  previous card was answered by mouse.** Keyboard focus now returns to the composer whenever a new
+  card appears.
+* **Improved:** the live dictation status line now wraps instead of hard-truncating to one line.
+
 ## [0.4.0] - 2026-09-01
 
 A full pass at parity with the official "Claude Code for VS Code" extension, driven by a live
