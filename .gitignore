@@ -361,3 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+docs/comparison-audit/screenshots/our-extension/phase-20/P20-01-account-usage-text.txt
+.gitignore
+docs/comparison-audit/screenshots/our-extension/phase-20/P20-01-account-usage.png
