@@ -32,6 +32,13 @@ namespace TeronClaudeCodeVS.Core
         private int _atTokenStart = -1;
         private bool _sendOnCtrlEnter;
 
+        // A tool window docked in a shared pane fires WPF's Unloaded/Loaded on every tab switch
+        // between sibling tabs, not just on a real open/close - this control instance (and _vm)
+        // survives that switch. Guards OnLoaded's one-time setup so a tab switch back doesn't
+        // re-run session start (which would restart the live CLI process mid-turn) or re-apply
+        // Options-page defaults over whatever the user has since changed live.
+        private bool _initialized;
+
         private static readonly HashSet<string> s_excludedDirs = new(StringComparer.OrdinalIgnoreCase)
             { ".git", "node_modules", "bin", "obj", ".vs", ".idea", "packages", "__pycache__", ".nuget" };
 
@@ -52,6 +59,15 @@ namespace TeronClaudeCodeVS.Core
         private async void OnLoaded(object sender, RoutedEventArgs e)
 #pragma warning restore VSTHRD100
         {
+            if (_initialized)
+            {
+                // Re-entering after a tab switch, not a fresh open - the session (if any) is
+                // still running and must not be touched. Just restore focus for convenience.
+                Keyboard.Focus(InputBox);
+                return;
+            }
+            _initialized = true;
+
             var options = ClaudeCodePackage.Instance?.GetOptions();
 
             if (options != null)
@@ -119,11 +135,19 @@ namespace TeronClaudeCodeVS.Core
 
         private void OnUnloaded(object sender, RoutedEventArgs e)
         {
+            // NOT real teardown - see the _initialized comment above. A tab switch away from this
+            // tool window's shared pane fires Unloaded even though the tool window stays open, so
+            // the running session must survive it. Only the mic engine (lazily recreated on next
+            // use) is safe to tear down here; the real session lives until DisposeSession() is
+            // called from ClaudeCodeToolWindow's own Dispose override.
             StopDictation();
             _voice?.Dispose();
             _voice = null;
-            _vm.Dispose();
         }
+
+        /// <summary>Real teardown for when the tool window itself is actually closing - called
+        /// from <see cref="ClaudeCodeToolWindow"/>'s Dispose override, never from OnUnloaded.</summary>
+        public void DisposeSession() => _vm.Dispose();
 
         #region FEAT-9: history tabs, running sessions, cloud
 
@@ -1805,12 +1829,29 @@ namespace TeronClaudeCodeVS.Core
 
         private void OnChatScrollChanged(object sender, ScrollChangedEventArgs e)
         {
+            if (_suppressAutoScroll) return;
+
             if (e.ExtentHeightChange > 0)
             {
                 bool wasAtBottom = e.VerticalOffset + e.ViewportHeight >= e.ExtentHeight - e.ExtentHeightChange - 1;
                 if (wasAtBottom)
                     ChatScrollViewer.ScrollToEnd();
             }
+        }
+
+        private bool _suppressAutoScroll;
+
+        /// <summary>
+        /// A tool-call/thinking-block Expander toggle grows or shrinks its card, which the
+        /// ScrollViewer reports as the same ExtentHeightChange as a brand-new message arriving -
+        /// OnChatScrollChanged can't tell the two apart on its own, so this suppresses the
+        /// resulting ScrollChanged(s) for exactly this local UI toggle rather than treating it as
+        /// "new content arrived, snap to bottom."
+        /// </summary>
+        private void OnCardExpanderToggled(object sender, RoutedEventArgs e)
+        {
+            _suppressAutoScroll = true;
+            Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(() => _suppressAutoScroll = false));
         }
     }
 }

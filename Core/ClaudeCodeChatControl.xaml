@@ -568,6 +568,7 @@
         <DataTemplate x:Key="ThinkingBlockTemplate" DataType="{x:Type vm:ThinkingBlockViewModel}">
             <Expander IsExpanded="{Binding IsExpanded}" Margin="0,2,0,2" Opacity="0.75"
                       Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                      Expanded="OnCardExpanderToggled" Collapsed="OnCardExpanderToggled"
                       Visibility="{Binding DataContext.CurrentTranscriptMode.Value,
                                    RelativeSource={RelativeSource AncestorType=ItemsControl, AncestorLevel=2},
                                    Converter={StaticResource HiddenInSummaryModeConverter}}">
@@ -584,7 +585,8 @@
                     BorderBrush="{StaticResource HairlineBrush}"
                     BorderThickness="1" CornerRadius="{StaticResource RadiusControl}" Margin="0,3,0,3">
                 <Expander IsExpanded="{Binding IsExpanded}" Padding="2"
-                          Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}">
+                          Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"
+                          Expanded="OnCardExpanderToggled" Collapsed="OnCardExpanderToggled">
                     <Expander.IsEnabled>
                         <MultiBinding Converter="{StaticResource ToolCallExpandableConverter}">
                             <Binding Path="HasDetail"/>
@@ -859,6 +861,7 @@
                                                            Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                                             </StackPanel>
                                             <Button Grid.Column="1" Content="✕" Command="{Binding RemoveCommand}"
+                                                    AutomationProperties.Name="Remove comment"
                                                     Background="Transparent" BorderThickness="0" Padding="4,0"
                                                     VerticalAlignment="Top" Opacity="0.6"
                                                     Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
@@ -948,7 +951,8 @@
         <DataTemplate x:Key="RetryTemplate" DataType="{x:Type vm:RetryNoticeViewModel}">
             <StackPanel Margin="0,4,0,4" HorizontalAlignment="Stretch">
                 <TextBlock Text="{Binding Text}" FontSize="{StaticResource FontSizeBody}" Opacity="0.75" TextWrapping="Wrap" Margin="0,0,0,6"/>
-                <Button Content="Try again" Command="{Binding RetryCommand}"
+                <Button Content="Resend" ToolTip="Resends your original message verbatim as a new turn"
+                        Command="{Binding RetryCommand}"
                         Style="{StaticResource PrimaryButtonStyle}"
                         HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"
                         Padding="14,8"/>
@@ -1171,14 +1175,16 @@
                 <Button Grid.Column="2" Style="{StaticResource IconButtonStyle}"
                         Click="OnNewSessionClicked" Margin="2,0" VerticalAlignment="Center"
                         ToolTip="Start a new Claude Code session"
-                        AutomationProperties.AutomationId="NewSessionButton">
+                        AutomationProperties.AutomationId="NewSessionButton"
+                        AutomationProperties.Name="New session">
                     <TextBlock Text="✚"/>
                 </Button>
 
                 <Button Grid.Column="3" x:Name="HistoryButton" Style="{StaticResource IconButtonStyle}"
                         Click="OnHistoryClicked" Margin="2,0" VerticalAlignment="Center"
                         ToolTip="Session history"
-                        AutomationProperties.AutomationId="HistoryButton">
+                        AutomationProperties.AutomationId="HistoryButton"
+                        AutomationProperties.Name="Session history">
                     <TextBlock Text="☰"/>
                 </Button>
 
@@ -1210,7 +1216,8 @@
                 <Button Grid.Column="6" Style="{StaticResource IconButtonStyle}"
                         Click="OnSettingsClicked" Margin="2,0,0,0" VerticalAlignment="Center"
                         ToolTip="Claude Code settings"
-                        AutomationProperties.AutomationId="SettingsButton">
+                        AutomationProperties.AutomationId="SettingsButton"
+                        AutomationProperties.Name="Claude Code settings">
                     <TextBlock Text="⚙"/>
                 </Button>
             </Grid>
@@ -1351,7 +1358,8 @@
                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                         <Button Grid.Column="1" Content="✕" Style="{StaticResource IconButtonStyle}"
                                 Click="OnCloseHistoryClicked" Width="22" Height="22" FontSize="{StaticResource GlyphSize}"
-                                AutomationProperties.AutomationId="CloseHistoryButton"/>
+                                AutomationProperties.AutomationId="CloseHistoryButton"
+                                AutomationProperties.Name="Close session history"/>
                     </Grid>
 
 
@@ -1515,9 +1523,11 @@
                                             </Style>
                                         </StackPanel.Style>
                                         <Button Content="✎" Style="{StaticResource IconButtonStyle}"
+                                                AutomationProperties.Name="Rename session"
                                                 Width="22" Height="22" FontSize="{StaticResource GlyphSize}" Margin="2,0"
                                                 Tag="{Binding}" Click="OnEditSessionTitleClicked"/>
                                         <Button Content="✕" Style="{StaticResource IconButtonStyle}"
+                                                AutomationProperties.Name="Delete session"
                                                 Width="22" Height="22" FontSize="{StaticResource GlyphSize}" Margin="2,0"
                                                 Foreground="{StaticResource ErrorBrush}"
                                                 Tag="{Binding}" Click="OnDeleteSessionClicked"/>
@@ -1762,7 +1772,8 @@
                     <Button x:Name="AddMenuButton" Click="OnAddMenuClicked"
                             Style="{StaticResource ChipButtonStyle}" Margin="0,0,6,0" Padding="10,3"
                             ToolTip="Add"
-                            AutomationProperties.AutomationId="AddMenuButton">
+                            AutomationProperties.AutomationId="AddMenuButton"
+                            AutomationProperties.Name="Add">
                         <TextBlock Text="+" FontWeight="SemiBold"/>
                     </Button>
                     <Popup x:Name="AddMenuPopup" PlacementTarget="{Binding ElementName=AddMenuButton}"
@@ -1876,6 +1887,7 @@
                                                        Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                                         </StackPanel>
                                         <Button Content="✕" Click="OnRemovePendingImageClicked" Tag="{Binding}"
+                                                AutomationProperties.Name="Remove image"
                                                 Style="{StaticResource IconButtonStyle}" Width="16" Height="16" FontSize="{StaticResource GlyphSizeSmall}"
                                                 VerticalAlignment="Top"/>
                                     </StackPanel>
@@ -1903,6 +1915,7 @@
                                         <TextBlock Text="{Binding Title}" FontSize="{StaticResource FontSizeChrome}"
                                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                                         <Button Content="✕" Click="OnRemovePendingFileClicked" Tag="{Binding}"
+                                                AutomationProperties.Name="Remove file"
                                                 Style="{StaticResource IconButtonStyle}" Width="16" Height="16" FontSize="{StaticResource GlyphSizeSmall}"
                                                 Margin="5,0,0,0"/>
                                     </StackPanel>
@@ -2026,7 +2039,8 @@
                     <Button x:Name="PaletteButton" Style="{StaticResource ChipButtonStyle}"
                             Click="OnPaletteMenuClicked" Margin="0,0,4,0"
                             ToolTip="Usage, account &amp; commands"
-                            AutomationProperties.AutomationId="PaletteButton">
+                            AutomationProperties.AutomationId="PaletteButton"
+                            AutomationProperties.Name="Usage, account and commands">
                         <TextBlock Text="/"/>
                     </Button>
 
@@ -2242,7 +2256,8 @@
                                                    Foreground="{DynamicResource {x:Static vs:VsBrushes.ToolWindowTextKey}}"/>
                                         <Button Grid.Column="1" Content="✕" Style="{StaticResource IconButtonStyle}"
                                                 Click="OnCloseAccountUsageClicked" Width="20" Height="20" FontSize="{StaticResource GlyphSize}"
-                                                AutomationProperties.AutomationId="CloseAccountUsageButton"/>
+                                                AutomationProperties.AutomationId="CloseAccountUsageButton"
+                                                AutomationProperties.Name="Close account &amp; usage"/>
                                     </Grid>
 
                                     <!-- Loading -->
@@ -2405,6 +2420,7 @@
                                     </StackPanel>
                                     <Button Grid.Column="1" Content="✕" Style="{StaticResource IconButtonStyle}"
                                             Click="OnCloseMcpClicked" Width="20" Height="20" FontSize="{StaticResource GlyphSize}"
+                                            AutomationProperties.Name="Close MCP servers"
                                             VerticalAlignment="Top"
                                             AutomationProperties.AutomationId="CloseMcpButton"/>
                                 </Grid>
@@ -2504,7 +2520,8 @@
                                                AutomationProperties.AutomationId="PluginsPanelTitle"/>
                                     <Button Grid.Column="1" Content="✕" Style="{StaticResource IconButtonStyle}"
                                             Click="OnClosePluginsClicked" Width="20" Height="20" FontSize="{StaticResource GlyphSize}"
-                                            AutomationProperties.AutomationId="ClosePluginsButton"/>
+                                            AutomationProperties.AutomationId="ClosePluginsButton"
+                                            AutomationProperties.Name="Close plugins"/>
                                 </Grid>
 
                                 <!-- Tab strip. The underline, not a fill, marks the active tab. -->
@@ -2639,6 +2656,7 @@
                                                AutomationProperties.AutomationId="RewindPanelTitle"/>
                                     <Button Grid.Column="1" Content="✕" Style="{StaticResource IconButtonStyle}"
                                             Click="OnCloseRewindClicked" Width="20" Height="20"
+                                            AutomationProperties.Name="Close rewind panel"
                                             FontSize="{StaticResource GlyphSize}" VerticalAlignment="Top"
                                             AutomationProperties.AutomationId="CloseRewindButton"/>
                                 </Grid>
@@ -2871,12 +2889,14 @@
                         <Grid>
                             <Button x:Name="SendButton" Style="{StaticResource AccentButtonStyle}"
                                     Click="OnSendClicked" Margin="6,0,0,0" ToolTip="Send (Enter)"
-                                    AutomationProperties.AutomationId="SendButton">
+                                    AutomationProperties.AutomationId="SendButton"
+                                    AutomationProperties.Name="Send">
                                 <TextBlock Text="➤" FontSize="{StaticResource GlyphSize}"/>
                             </Button>
                             <Button x:Name="StopButton" Style="{StaticResource StopButtonStyle}"
                                     Click="OnStopClicked" Margin="6,0,0,0" Visibility="Collapsed" ToolTip="Stop"
-                                    AutomationProperties.AutomationId="StopButton">
+                                    AutomationProperties.AutomationId="StopButton"
+                                    AutomationProperties.Name="Stop">
                                 <TextBlock Text="■" FontSize="{StaticResource GlyphSize}"/>
                             </Button>
                         </Grid>

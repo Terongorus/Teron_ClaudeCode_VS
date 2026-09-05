@@ -139,6 +139,16 @@ namespace TeronClaudeCodeVS.ViewModels
         private readonly Dictionary<int, ContentBlockViewModel> _blocksByIndex = [];
         private readonly Dictionary<string, ToolCallViewModel> _toolCallsByUseId = [];
 
+        /// <summary>
+        /// User messages sent while a turn was already in flight, in send order, each still
+        /// awaiting the CLI's response. The CLI runs these strictly sequentially (see the
+        /// SendMessageAsync comment), so the front of this queue always names whichever visible
+        /// user bubble the NEXT assistant message answers - used by EnsureAssistantMessage to
+        /// insert that response right after its own message instead of always at the transcript's
+        /// end, which is what let a later-queued message visually outrun an earlier one's answer.
+        /// </summary>
+        private readonly Queue<ChatMessageViewModel> _pendingUserMessages = new();
+
         // Tools the user has chosen to allow for the remainder of the current session.
         private readonly HashSet<string> _sessionPermissions = new(StringComparer.OrdinalIgnoreCase);
 
@@ -433,6 +443,15 @@ namespace TeronClaudeCodeVS.ViewModels
                     {
                         _elapsedTimer.Stop();
                         ElapsedText = "";
+
+                        // A model/permission-mode/thinking-level change made while a turn was in
+                        // flight was deferred by RestartIfIdle rather than dropped - apply it now
+                        // that the session is actually idle again.
+                        if (_restartPending && _session != null && _session.IsRunning)
+                        {
+                            _restartPending = false;
+                            StartSession();
+                        }
                     }
                 }
             }
@@ -528,9 +547,9 @@ namespace TeronClaudeCodeVS.ViewModels
             _selectedThinkingLevel = ThinkingLevels[0];
             _currentTranscriptMode = TranscriptModes[1]; // Normal
 
+            // _allSessions is the full machine-wide store (every workspace); SessionHistory is the
+            // UI-bound, current-workspace-only view populated once Initialize() knows the cwd.
             _allSessions = SessionHistoryStore.Load();
-            foreach (var e in _allSessions)
-                SessionHistory.Add(e);
             BeginRefreshSessionTitles();
 
             PendingImages.CollectionChanged += (s, e) => OnPropertyChanged(nameof(HasPendingImages));
@@ -584,6 +603,13 @@ namespace TeronClaudeCodeVS.ViewModels
         public bool Initialize(string? claudeExecutableOverride, string workingDirectory)
         {
             _workingDirectory = workingDirectory;
+
+            // Unlike the official VS Code extension's per-cwd storage layout, this store is one
+            // flat, machine-wide file - so the History panel is filtered to this workspace here
+            // rather than at load time, keeping _allSessions (and its 100-entry cap) global.
+            foreach (SessionHistoryEntry e in _allSessions)
+                if (IsSameWorkingDirectory(e.WorkingDirectory, _workingDirectory))
+                    SessionHistory.Add(e);
 
             string? path = ClaudeCliLocator.Find(claudeExecutableOverride);
             if (path == null)
@@ -713,6 +739,7 @@ namespace TeronClaudeCodeVS.ViewModels
             if (text.Length > 0)
                 userMessage.Blocks.Add(new TextBlockViewModel { Text = text });
             Messages.Add(userMessage);
+            _pendingUserMessages.Enqueue(userMessage);
 
             // Record the first message as the session title.
             _pendingSessionTitle ??= text.Length <= 60 ? text : text.Substring(0, 57) + "…";
@@ -740,6 +767,11 @@ namespace TeronClaudeCodeVS.ViewModels
 
         private void StopSessionCore()
         {
+            // Any turns still queued behind an in-flight one will never be answered by the
+            // process being torn down here - drop the correlation queue so a future, unrelated
+            // response can't be mis-inserted after a stale leftover entry.
+            _pendingUserMessages.Clear();
+
             if (_session == null) return;
             _session.Dispose();
             _session = null;
@@ -752,9 +784,18 @@ namespace TeronClaudeCodeVS.ViewModels
             _toolCallsByUseId.Clear();
         }
 
+        /// <summary>True once a model/permission-mode/thinking-level change has been made mid-turn
+        /// and is waiting for the session to go idle again - see the <see cref="IsBusy"/> setter.</summary>
+        private bool _restartPending;
+
         private void RestartIfIdle()
         {
-            if (_session != null && _session.IsRunning && !IsBusy && Messages.Count > 0)
+            if (_session == null || !_session.IsRunning || Messages.Count == 0)
+                return; // no live session to restart - the next StartSession() picks up current settings anyway
+
+            if (IsBusy)
+                _restartPending = true; // apply as soon as the in-flight turn ends, instead of silently dropping it
+            else
                 StartSession();
         }
 
@@ -1144,7 +1185,20 @@ namespace TeronClaudeCodeVS.ViewModels
             if (_currentAssistantMessage == null)
             {
                 _currentAssistantMessage = new ChatMessageViewModel(ChatRole.Assistant);
-                Messages.Add(_currentAssistantMessage);
+
+                // Insert right after the user message this turn actually answers, not always at
+                // the transcript's end - otherwise a message queued while an earlier turn was
+                // still streaming renders below that later message's own response, garbling the
+                // visible order (see docs/Phase 21, item 4).
+                int insertAt = Messages.Count;
+                if (_pendingUserMessages.Count > 0)
+                {
+                    ChatMessageViewModel answeredMessage = _pendingUserMessages.Dequeue();
+                    int userIndex = Messages.IndexOf(answeredMessage);
+                    if (userIndex >= 0)
+                        insertAt = userIndex + 1;
+                }
+                Messages.Insert(insertAt, _currentAssistantMessage);
             }
         }
 
@@ -2145,8 +2199,19 @@ namespace TeronClaudeCodeVS.ViewModels
 
         // ─── Session history ──────────────────────────────────────────────────────
 
+        /// <summary>Path comparison for scoping History to the current workspace - case-insensitive
+        /// (Windows paths) and tolerant of a trailing separator either side.</summary>
+        private static bool IsSameWorkingDirectory(string a, string b) =>
+            string.Equals(
+                a.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                b.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                StringComparison.OrdinalIgnoreCase);
+
         private void SaveOrUpdateSession(string sessionId)
         {
+            // _allSessions (persisted, global) and SessionHistory (UI-bound, this workspace only)
+            // are no longer index-aligned - SessionHistory is a filtered subset, so every mutation
+            // below is applied to each list by reference/lookup rather than by mirrored index.
             var existing = _allSessions.FirstOrDefault(e => e.SessionId == sessionId);
             if (existing != null)
             {
@@ -2156,8 +2221,10 @@ namespace TeronClaudeCodeVS.ViewModels
                 {
                     _allSessions.RemoveAt(idx);
                     _allSessions.Insert(0, existing);
-                    SessionHistory.Move(SessionHistory.IndexOf(existing), 0);
                 }
+                int historyIdx = SessionHistory.IndexOf(existing);
+                if (historyIdx > 0)
+                    SessionHistory.Move(historyIdx, 0);
             }
             else
             {
@@ -2169,11 +2236,12 @@ namespace TeronClaudeCodeVS.ViewModels
                     WorkingDirectory = _workingDirectory
                 };
                 _allSessions.Insert(0, entry);
-                SessionHistory.Insert(0, entry);
+                SessionHistory.Insert(0, entry); // entry.WorkingDirectory == _workingDirectory, so it belongs in this filtered view
                 while (_allSessions.Count > 100)
                 {
+                    SessionHistoryEntry oldest = _allSessions[_allSessions.Count - 1];
                     _allSessions.RemoveAt(_allSessions.Count - 1);
-                    SessionHistory.RemoveAt(SessionHistory.Count - 1);
+                    SessionHistory.Remove(oldest); // no-op if the trimmed entry belonged to a different workspace
                 }
             }
             SessionHistoryStore.Save(_allSessions);

@@ -43,6 +43,7 @@ namespace TeronClaudeCodeVS.Tests.Phases
 
                 string expectedTitle = sandbox.ExpectedTitle;
                 var vm = new ChatSessionViewModel();
+                vm.Initialize(null, Cwd); // populates SessionHistory, now filtered to this cwd - the fixture rows are seeded under it
 
                 try
                 {
@@ -84,6 +85,7 @@ namespace TeronClaudeCodeVS.Tests.Phases
                 using var sandbox = new HistorySandbox();
 
                 var vm = new ChatSessionViewModel();
+                vm.Initialize(null, Cwd); // populates SessionHistory, now filtered to this cwd - the fixture rows are seeded under it
 
                 try
                 {
@@ -124,6 +126,7 @@ namespace TeronClaudeCodeVS.Tests.Phases
                 using var sandbox = new HistorySandbox();
 
                 var vm = new ChatSessionViewModel();
+                vm.Initialize(null, Cwd); // populates SessionHistory, now filtered to this cwd - the fixture rows are seeded under it
 
                 try
                 {
