@@ -24,7 +24,12 @@ namespace TeronClaudeCodeVS.Controls
                 .Build();
 
         // Semi-transparent neutral background for code blocks — reads correctly on both VS light and dark themes.
-        private static readonly SolidColorBrush s_codeBg = Frozen(Color.FromArgb(0x18, 0x80, 0x80, 0x80));
+        // Bumped from 0x18 (~9% opacity) on 2026-09-05: at that alpha it blended into the tool
+        // window background almost entirely, especially in a dark theme - reported live as
+        // "barely visible". Kept the same neutral grey (matches ChatTheme.xaml's overlay
+        // philosophy - one tone, alpha-only, so it never needs a separate light/dark value) but
+        // strong enough to actually read as a distinct chip against either theme.
+        private static readonly SolidColorBrush s_codeBg = Frozen(Color.FromArgb(0x40, 0x80, 0x80, 0x80));
         private static readonly FontFamily s_inlineCodeFont = new("Consolas");
 
         // Diff line colors (same hues as GitHub's diff view).
@@ -111,16 +116,58 @@ namespace TeronClaudeCodeVS.Controls
 
                 case List list:
                     foreach (ListItem li in list.ListItems)
+                    {
                         WalkBlocks(li.Blocks);
+                        OverrideStyledForeground(li);
+                    }
                     break;
 
                 case Table table:
                     foreach (var rg in table.RowGroups)
                         foreach (TableRow row in rg.Rows)
                             foreach (TableCell cell in row.Cells)
+                            {
                                 WalkBlocks(cell.Blocks);
+                                OverrideStyledForeground(cell);
+                            }
                     break;
             }
+
+            // Applied LAST, after the black-foreground clearing above (FixupParagraph, the Section
+            // case): that existing check reads the CURRENT resolved Foreground and clears it if it
+            // looks black, which would immediately undo this override too, since an unresolved
+            // resource reference reads back as TextElement.Foreground's own default (black) before
+            // ever reaching a real resource tree - and even once resolved for real inside VS, VS's
+            // light theme's real text color legitimately IS near-black, which the same check can't
+            // tell apart from Markdig's hardcoded one. Running last means this is always the
+            // final, winning local value regardless of what either check decided.
+            OverrideStyledForeground(block);
+        }
+
+        /// <summary>
+        /// Markdig.Wpf assigns several block/row/cell types (headings, blockquotes, tables, ...)
+        /// one of its own baked-in styles (<c>Styles.HeadingNStyleKey</c> and friends, resolved via
+        /// a <c>ComponentResourceKey</c> against the package's own embedded theme resources - which
+        /// is why loading XAML with no matching resource dictionary merged in doesn't throw). Those
+        /// styles were authored for a plain white page and set their own Foreground.
+        /// <para>
+        /// Crucially, a Style's setters are not resolved until the element is actually attached to
+        /// a live visual tree - so checking the *current* Foreground value right after
+        /// <c>XamlReader.Load</c> (as <see cref="IsBlackForeground"/> does for plain, unstyled
+        /// elements) can never see it here: at this point it is not yet a "black" value to clear,
+        /// it is a Style Setter that only takes effect later, once rendered. A resource-reference
+        /// value set here is still a *local* value in WPF's property-precedence terms, so it wins
+        /// over that later-applied Style Setter regardless of timing - unlike clearing, which would
+        /// do nothing useful before the style has ever applied.
+        /// </para>
+        /// </summary>
+        private static void OverrideStyledForeground(FrameworkContentElement element)
+        {
+            if (element.ReadLocalValue(FrameworkContentElement.StyleProperty) == DependencyProperty.UnsetValue)
+                return;
+
+            element.SetResourceReference(TextElement.ForegroundProperty,
+                Microsoft.VisualStudio.Shell.VsBrushes.ToolWindowTextKey);
         }
 
         private static void FixupParagraph(Paragraph para)
