@@ -3,6 +3,21 @@
 All notable changes to the **Claude Code for Visual Studio** extension will be documented in
 this file.
 
+## [0.6.3] - 2026-09-05
+
+More live-feedback fixes from continued day-to-day use of 0.6.2.
+
+* **Fixed: the code-block copy button now shows an icon** instead of the literal word "Copy"
+  (with checkmark/warning icons for the copied/failed states).
+* **Fixed: code highlighting used a plain grey tint that didn't actually stand out.** Inline
+  `code` spans and fenced code blocks (including tool-call "Run command" output) now use the
+  extension's own accent color at low opacity instead.
+* **Added: the chat header now shows the active session's title**, matching the official VS
+  Code extension's own header.
+* **Fixed: the Ctrl+Alt+Y shortcut didn't focus the input box** when the chat panel was already
+  the visible tab — it activated the tool window but left keyboard focus nowhere useful, so
+  typing right after using the shortcut did nothing.
+
 ## [0.6.2] - 2026-09-05
 
 More fixes and one new feature from continued day-to-day use of 0.6.1.
