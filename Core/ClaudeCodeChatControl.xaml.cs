@@ -150,6 +150,17 @@ namespace TeronClaudeCodeVS.Core
         /// from <see cref="ClaudeCodeToolWindow"/>'s Dispose override, never from OnUnloaded.</summary>
         public void DisposeSession() => _vm.Dispose();
 
+        /// <summary>Called from <see cref="Commands.ClaudeCodeCommand"/> after the Ctrl+Alt+Y
+        /// shortcut activates the tool window. <see cref="OnLoaded"/> only refocuses the input on
+        /// a real tab-switch re-entry (WPF Loaded firing again) - it never fires at all when the
+        /// pane was already the visible, foreground tab and the user was simply elsewhere in the
+        /// IDE, which is exactly the case that shortcut exists for. Deferred to ContextIdle so it
+        /// runs after VS's own focus-on-activate has settled, rather than racing it.</summary>
+#pragma warning disable VSTHRD001, VSTHRD110
+        public void FocusInput() =>
+            Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(() => Keyboard.Focus(InputBox)));
+#pragma warning restore VSTHRD001, VSTHRD110
+
         #region FEAT-9: history tabs, running sessions, cloud
 
         private void OnHistoryLocalTabClicked(object sender, RoutedEventArgs e)

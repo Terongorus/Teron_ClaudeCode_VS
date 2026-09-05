@@ -48,6 +48,15 @@ namespace TeronClaudeCodeVS.Commands
                     0,
                     true,
                     package.DisposalToken);
+
+                // ShowToolWindowAsync activates the pane frame, but that is not the same as WPF
+                // keyboard focus landing on the input box - if the pane was already the visible,
+                // foreground tab (the common case for this shortcut: pressed while working
+                // elsewhere in the IDE), the control's own Loaded event never fires again, so its
+                // OnLoaded-based refocus never runs either. Reach in explicitly instead.
+                await package.JoinableTaskFactory.SwitchToMainThreadAsync(package.DisposalToken);
+                if (package.FindToolWindow(typeof(ClaudeCodeToolWindow), 0, false) is ClaudeCodeToolWindow { Content: ClaudeCodeChatControl control })
+                    control.FocusInput();
             });
         }
     }
