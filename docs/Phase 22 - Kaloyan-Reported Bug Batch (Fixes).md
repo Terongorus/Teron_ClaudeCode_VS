@@ -190,6 +190,51 @@ but which nobody requested here.
 Both committed (`08821be`, `c720eab`). Build clean, xUnit suite still 181/182 (same pre-existing,
 unrelated failure).
 
+## Third addendum (same day): markdown theming - low-contrast code highlight and wrong heading color
+
+Two more visual bugs, both in `Controls/MarkdownRenderer.cs`, spotted from a screenshot of a real
+response (headings reading as dull/mismatched, inline code nearly invisible against the dark
+theme).
+
+**Code background too faint.** `s_codeBg` was `Color.FromArgb(0x18, 0x80, 0x80, 0x80)` - about 9%
+opacity, effectively invisible against a dark tool window. Bumped to `0x40` (~25%) - same neutral
+grey tone (matches `ChatTheme.xaml`'s "grey at low alpha" overlay philosophy), just strong enough
+to actually read as a chip.
+
+**Headings/blockquotes/tables don't follow the VS theme.** Root-caused by disassembling
+`Markdig.Wpf.dll`'s IL directly rather than guessing: `Xaml.HeadingRenderer.Write` (and the
+Quote/Table/etc. renderers) literally emit `Style="{StaticResource {x:Static
+markdig:Styles.HeadingNStyleKey}}"` into the generated XAML - a style baked into the package for a
+plain white page, including its own Foreground. The existing "clear a black Foreground" fixup only
+ever checked the *current* value right after `XamlReader.Load`, while the FlowDocument is still
+detached from any visual tree - and a Style's setters aren't resolved until the element actually
+attaches to one, so that check could never see the problem: at fixup time it isn't a black value
+to clear yet, it's a Style Setter that only takes effect later, once rendered. That is exactly why
+body text (which Markdig never gives a Style to) was already correct while headings weren't.
+
+Added `OverrideStyledForeground`, applied to any block/row/cell carrying a local `Style` value,
+setting a real `SetResourceReference` to `VsBrushes.ToolWindowTextKey` - a *local* value in WPF's
+precedence terms, so it wins over the Style's own setter regardless of when that style actually
+applies.
+
+**A real second bug surfaced during verification, not just reasoning about it.** A standalone
+PowerShell probe drove the actual compiled `Render()` end-to-end (assembly-loading friction of its
+own - `Markdig.Signed.dll`'s dependency closure needs a live `AssemblyResolve` handler outside a
+real VS/MSBuild host; scripts are in the scratchpad if this needs redoing). The first version of
+this fix applied the override *before* the pre-existing black-foreground-clear check, which then
+read back the not-yet-resolved resource reference - it evaluates to `TextElement.Foreground`'s own
+hardcoded default (black) before ever reaching a real resource tree - and immediately undid it.
+That exact failure mode would also misfire for real inside VS's **light theme**, where genuinely
+resolved body text legitimately IS near-black, which the pre-existing check has no way to tell
+apart from Markdig's own hardcoded value. Fixed by moving the override to run strictly *after* all
+existing black-foreground-clearing logic in `WalkBlock`, confirmed via the same probe to correctly
+land on heading and blockquote blocks while leaving plain body-text paragraphs untouched.
+
+Committed (`cf65c4e`). Build clean, xUnit suite still 181/182 (same pre-existing, unrelated
+failure). The probe verified the mechanism structurally (local value present, correct ordering);
+**actual color contrast on both VS themes still needs a live look**, since `VsBrushes.ToolWindowTextKey`
+can only resolve to a real color inside a running VS process.
+
 ## What still needs Kaloyan's own hands
 
 A real F5 pass against a live Exp instance, covering at minimum: switching away from and back to
