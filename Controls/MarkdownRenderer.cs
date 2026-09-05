@@ -106,7 +106,17 @@ namespace TeronClaudeCodeVS.Controls
 
         private static void WalkBlocks(BlockCollection blocks)
         {
-            foreach (var block in blocks)
+            // Snapshotted, not a live foreach: every Block/Inline in a FlowDocument shares one
+            // underlying TextContainer, so AddCopyAffordance's Floater insertion into an EARLIER
+            // sibling paragraph's Inlines bumps a version counter that invalidates THIS loop's own
+            // enumerator over the outer BlockCollection too - a `foreach` over `blocks` throws
+            // "Collection was modified" on its next MoveNext() once any code block anywhere before
+            // the end has gotten a copy button. PostProcess's own try/catch was silently swallowing
+            // this, so every document with 2+ top-level blocks (a command followed by its output,
+            // for instance) quietly stopped processing after the first one - found live 2026-09-05
+            // as "the output block still has the old ugly highlight" one block down from a command
+            // block that looked fine.
+            foreach (var block in blocks.Cast<Block>().ToList())
                 WalkBlock(block);
         }
 
@@ -127,7 +137,11 @@ namespace TeronClaudeCodeVS.Controls
                     break;
 
                 case List list:
-                    foreach (ListItem li in list.ListItems)
+                    // Same shared-TextContainer hazard as WalkBlocks: WalkBlocks(li.Blocks) can
+                    // insert a copy-button Floater into an earlier list item, which would
+                    // invalidate this loop's own live enumerator over ListItems on its next
+                    // MoveNext() - snapshot first.
+                    foreach (ListItem li in list.ListItems.Cast<ListItem>().ToList())
                     {
                         WalkBlocks(li.Blocks);
                         OverrideStyledForeground(li);
@@ -135,9 +149,10 @@ namespace TeronClaudeCodeVS.Controls
                     break;
 
                 case Table table:
-                    foreach (var rg in table.RowGroups)
-                        foreach (TableRow row in rg.Rows)
-                            foreach (TableCell cell in row.Cells)
+                    // Same hazard, three levels deep - every level snapshotted for the same reason.
+                    foreach (var rg in table.RowGroups.Cast<TableRowGroup>().ToList())
+                        foreach (TableRow row in rg.Rows.Cast<TableRow>().ToList())
+                            foreach (TableCell cell in row.Cells.Cast<TableCell>().ToList())
                             {
                                 WalkBlocks(cell.Blocks);
                                 OverrideStyledForeground(cell);
@@ -248,7 +263,7 @@ namespace TeronClaudeCodeVS.Controls
                 {
                     Content = s_copyGlyph,
                     FontFamily = s_symbolFont,
-                    FontSize = 12,
+                    FontSize = 20, //manually changed to boost size
                     Padding = new Thickness(5, 0, 5, 0),
                     Margin = new Thickness(0),
                     Background = Brushes.Transparent,
