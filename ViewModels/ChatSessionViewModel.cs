@@ -163,6 +163,11 @@ namespace TeronClaudeCodeVS.ViewModels
         private readonly HashSet<string> _hiddenSessionIds;
         private string? _pendingSessionTitle;
 
+        /// <summary>The active session's title, for the header subtitle (matches baseline's own
+        /// header, which shows the current session's title alongside the "Claude Code" branding).
+        /// Null for a brand-new session that has no first message yet.</summary>
+        public string? CurrentSessionTitle => _pendingSessionTitle;
+
         // Advanced CLI-flag settings, read once from Options at startup (no live chat-UI toggle
         // for these, unlike model/permission-mode/effort) - see SetAdvancedOptions.
         private ClaudeSessionStartOptions _advancedOptions = new();
@@ -753,6 +758,7 @@ namespace TeronClaudeCodeVS.ViewModels
         {
             _lastSessionId = null;
             _pendingSessionTitle = null;
+            OnPropertyChanged(nameof(CurrentSessionTitle));
             Messages.Clear();
             RawOutput.Clear();
             _sessionPermissions.Clear();
@@ -821,7 +827,11 @@ namespace TeronClaudeCodeVS.ViewModels
             _pendingUserMessages.Enqueue(userMessage);
 
             // Record the first message as the session title.
-            _pendingSessionTitle ??= text.Length <= 60 ? text : text.Substring(0, 57) + "…";
+            if (_pendingSessionTitle == null)
+            {
+                _pendingSessionTitle = text.Length <= 60 ? text : text.Substring(0, 57) + "…";
+                OnPropertyChanged(nameof(CurrentSessionTitle));
+            }
 
             _lastSentText = text;
 
@@ -2254,6 +2264,7 @@ namespace TeronClaudeCodeVS.ViewModels
                 _forkOnNextStart = true;
                 _forkResumeAt = point.ResumeAtUuid;
                 _pendingSessionTitle = null;
+                OnPropertyChanged(nameof(CurrentSessionTitle));
                 RawOutput.Clear();
                 _sessionPermissions.Clear();
                 _sessionTurns = 0;
@@ -2369,6 +2380,7 @@ namespace TeronClaudeCodeVS.ViewModels
             IsSessionHistoryVisible = false;
             _lastSessionId = entry.SessionId;
             _pendingSessionTitle = entry.Title;
+            OnPropertyChanged(nameof(CurrentSessionTitle));
             Messages.Clear();
             RawOutput.Clear();
             _sessionPermissions.Clear();
@@ -2568,6 +2580,12 @@ namespace TeronClaudeCodeVS.ViewModels
             entry.IsEditing = false;
             // FEAT-3: from here on the generated title never overwrites this row again.
             entry.HasUserTitle = true;
+
+            if (entry.SessionId == CurrentSessionId)
+            {
+                _pendingSessionTitle = entry.Title;
+                OnPropertyChanged(nameof(CurrentSessionTitle));
+            }
 
             // A discovered-but-never-resumed entry (BeginDiscoverUntrackedSessions) isn't in the
             // persisted cache yet - without promoting it here, the rename would be lost the next
