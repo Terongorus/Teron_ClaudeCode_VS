@@ -3,6 +3,23 @@
 All notable changes to the **Claude Code for Visual Studio** extension will be documented in
 this file.
 
+## [0.6.2] - 2026-09-05
+
+More fixes and one new feature from continued day-to-day use of 0.6.1.
+
+* **Fixed: sluggish resizing and lag switching to/from the docked chat tab.** The message
+  transcript now uses real UI virtualization instead of rendering every message at once.
+* **Fixed: "Delete Session" behavior now matches the official VS Code extension** — it hides the
+  session from history rather than deleting its underlying transcript, so it can't be confused
+  with actually destroying data.
+* **Fixed: low-contrast markdown rendering.** Inline code highlighting was barely visible against
+  the background, and headings didn't follow the current VS theme's text color the way body text
+  already did.
+* **Added: a context-window usage indicator**, matching the official VS Code extension — a badge
+  showing how much of the context window is in use, click to compact. Unlike that reference, the
+  button is disabled (not silently broken) while Claude is still responding. The badge's visibility
+  threshold (default 50%) is now also configurable in the extension's settings.
+
 ## [0.6.1] - 2026-09-05
 
 Follow-up fixes to 0.6.0's session-history scoping, found while testing that build live.
