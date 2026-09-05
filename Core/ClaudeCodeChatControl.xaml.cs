@@ -1848,10 +1848,12 @@ namespace TeronClaudeCodeVS.Core
         /// resulting ScrollChanged(s) for exactly this local UI toggle rather than treating it as
         /// "new content arrived, snap to bottom."
         /// </summary>
+#pragma warning disable VSTHRD001, VSTHRD110
         private void OnCardExpanderToggled(object sender, RoutedEventArgs e)
         {
             _suppressAutoScroll = true;
             Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(() => _suppressAutoScroll = false));
         }
+#pragma warning restore VSTHRD001, VSTHRD110
     }
 }
