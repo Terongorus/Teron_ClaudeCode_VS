@@ -222,4 +222,27 @@ namespace TeronClaudeCodeVS.Controls
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
             => throw new NotSupportedException();
     }
+
+    /// <summary>Colors the context-window indicator by severity: amber once it's shown at all
+    /// (it's already hidden below the configured threshold, so amber is the "pay attention" state
+    /// by definition here), red once genuinely close to the effective window. Same two colors
+    /// <see cref="ToolStatusToBrushConverter"/>/<see cref="McpStatusToBrushConverter"/> already use
+    /// for "needs you" vs. "broken", so the meaning reads the same everywhere in the panel.</summary>
+    public sealed class ContextPercentToBrushConverter : IValueConverter
+    {
+        private static readonly SolidColorBrush Warning = new(Color.FromRgb(0xE5, 0xA5, 0x4B));
+        private static readonly SolidColorBrush Critical = new(Color.FromRgb(0xE5, 0x48, 0x4D));
+
+        static ContextPercentToBrushConverter()
+        {
+            Warning.Freeze();
+            Critical.Freeze();
+        }
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value is double percent && percent >= 90.0 ? Critical : Warning;
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotSupportedException();
+    }
 }

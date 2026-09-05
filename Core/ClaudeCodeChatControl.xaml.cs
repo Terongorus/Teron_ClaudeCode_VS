@@ -94,6 +94,7 @@ namespace TeronClaudeCodeVS.Core
                 }
 
                 _sendOnCtrlEnter = options.SendOnCtrlEnter;
+                _vm.ContextIndicatorThresholdPercent = options.ContextIndicatorThresholdPercent;
 
                 _vm.SetAdvancedOptions(
                     options.AdditionalDirectories, options.AllowedTools, options.DisallowedTools,
@@ -670,6 +671,13 @@ namespace TeronClaudeCodeVS.Core
             bool willOpen = !EffortPopup.IsOpen;
             CloseAllMenuPopups();
             EffortPopup.IsOpen = willOpen;
+        }
+
+#pragma warning disable VSTHRD100
+        private async void OnContextIndicatorClicked(object sender, RoutedEventArgs e)
+#pragma warning restore VSTHRD100
+        {
+            await _vm.CompactAsync();
         }
 
         private void OnTranscriptModeClicked(object sender, RoutedEventArgs e)

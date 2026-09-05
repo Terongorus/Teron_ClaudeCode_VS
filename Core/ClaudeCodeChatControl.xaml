@@ -79,6 +79,7 @@
         <controls:FilePathToNameConverter x:Key="FilePathToNameConverter"/>
         <controls:FilePathToDirConverter x:Key="FilePathToDirConverter"/>
         <controls:McpStatusToBrushConverter x:Key="McpStatusToBrushConverter"/>
+        <controls:ContextPercentToBrushConverter x:Key="ContextPercentToBrushConverter"/>
 
         <!-- ListBoxItem style for popups: replaces all WPF system-color defaults with VS theme brushes -->
         <Style x:Key="PopupListItemStyle" TargetType="ListBoxItem">
@@ -2087,6 +2088,26 @@
                             Click="OnEffortMenuClicked" ToolTip="Thinking effort"
                             AutomationProperties.AutomationId="EffortButton">
                         <TextBlock Text="{Binding SelectedThinkingLevel.DisplayName}"/>
+                    </Button>
+
+                    <!--
+                        Context-window usage. Hidden below ContextIndicatorThresholdPercent
+                        (Options > Claude Code > Context Indicator, default 50 - matches baseline).
+                        Deliberately disabled while busy rather than reproducing baseline's own bug
+                        (confirmed live, 2026-09-05: it sends "/compact" identically whether idle or
+                        busy, which the CLI then delivers to the model as plain queued text once
+                        dequeued mid-turn, producing a confused reply instead of actually compacting)
+                        - see docs/Phase 23.
+                    -->
+                    <Button x:Name="ContextIndicatorButton" Style="{StaticResource ChipButtonStyle}"
+                            Click="OnContextIndicatorClicked" Margin="4,0,0,0"
+                            IsEnabled="{Binding CanCompact}"
+                            ToolTip="{Binding ContextButtonTooltip}"
+                            Visibility="{Binding IsContextIndicatorVisible, Converter={StaticResource BoolToVisibilityConverter}}"
+                            AutomationProperties.AutomationId="ContextIndicatorButton"
+                            AutomationProperties.Name="Context window usage, click to compact">
+                        <TextBlock Text="{Binding ContextIndicatorText}"
+                                   Foreground="{Binding ContextPercentUsed, Converter={StaticResource ContextPercentToBrushConverter}}"/>
                     </Button>
 
                     </StackPanel>

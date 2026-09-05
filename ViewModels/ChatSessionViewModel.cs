@@ -430,6 +430,8 @@ namespace TeronClaudeCodeVS.ViewModels
                 if (SetField(ref _isBusy, value))
                 {
                     OnPropertyChanged(nameof(CanSend));
+                    OnPropertyChanged(nameof(CanCompact));
+                    OnPropertyChanged(nameof(ContextButtonTooltip));
 
                     // No stopwatch exists on the CLI's own wire protocol for an in-flight turn -
                     // DurationMs only arrives after the turn completes, on ResultMessage - so this
@@ -529,6 +531,75 @@ namespace TeronClaudeCodeVS.ViewModels
 
         /// <summary>Compact "6.2k tokens"-style total, for the status line (SessionUsageText is too long there).</summary>
         public string SessionTokensShortText => FormatTokenCount(_sessionInputTokens + _sessionOutputTokens) + " tokens";
+
+        // ─── Context-window usage indicator ──────────────────────────────────────
+        //
+        // Matches the official VS Code extension's own behavior exactly (confirmed by reading its
+        // installed source, 2026-09-05) rather than guessing at the math:
+        //   - usedTokens is the MOST RECENT top-level (non-sub-agent) API round's total usage,
+        //     overwritten each round, not summed across the session - see OnAssistantSnapshot.
+        //   - The "100%" denominator is contextWindow minus maxOutputTokens minus a hardcoded
+        //     13,000-token safety buffer, both sourced from the `result` message's own
+        //     per-model modelUsage - see OnTurnCompleted.
+        //   - The indicator stays hidden until at least half the window is used, exactly like
+        //     baseline (a display threshold, not a distinct auto-compact trigger - the CLI itself
+        //     decides when to actually auto-compact).
+        private int _currentContextTokens;
+        private int _contextWindowSize;
+        private int _maxOutputTokensSize;
+
+        private int EffectiveContextWindow => Math.Max(0, _contextWindowSize - _maxOutputTokensSize - 13_000);
+
+        public double ContextPercentUsed => EffectiveContextWindow > 0
+            ? Math.Min(_currentContextTokens / (double)EffectiveContextWindow * 100.0, 100.0)
+            : 0.0;
+
+        private int _contextIndicatorThresholdPercent = 50;
+
+        /// <summary>Read from Options once at startup (see ClaudeCodeChatControl.OnLoaded) - a
+        /// user-adjustable override of baseline's own hardcoded 50% "don't show until half-used"
+        /// threshold.</summary>
+        public int ContextIndicatorThresholdPercent
+        {
+            get => _contextIndicatorThresholdPercent;
+            set
+            {
+                if (SetField(ref _contextIndicatorThresholdPercent, value))
+                    OnPropertyChanged(nameof(IsContextIndicatorVisible));
+            }
+        }
+
+        public bool IsContextIndicatorVisible =>
+            EffectiveContextWindow > 0 && ContextPercentUsed >= _contextIndicatorThresholdPercent;
+
+        public string ContextIndicatorText => $"{Math.Round(ContextPercentUsed)}%";
+
+        /// <summary>
+        /// Baseline sends "/compact" identically whether idle or busy - confirmed live (2026-09-05)
+        /// that it has no dedicated request type and no busy-state gating for this at all, which is
+        /// exactly why clicking it mid-turn queues plain text the model then sees as an ordinary
+        /// (confusing) request rather than a real command. Disabling the click here instead of
+        /// reproducing that is a deliberate improvement, not parity - see docs/Phase 23.
+        /// </summary>
+        public string ContextButtonTooltip => IsBusy
+            ? "Wait for the current response to finish before compacting"
+            : $"{ContextIndicatorText} context used — click to compact";
+
+        public bool CanCompact => !IsBusy;
+
+        public async Task CompactAsync()
+        {
+            if (IsBusy) return;
+            await SendMessageAsync("/compact").ConfigureAwait(false);
+        }
+
+        private void RaiseContextUsageChanged()
+        {
+            OnPropertyChanged(nameof(ContextPercentUsed));
+            OnPropertyChanged(nameof(IsContextIndicatorVisible));
+            OnPropertyChanged(nameof(ContextIndicatorText));
+            OnPropertyChanged(nameof(ContextButtonTooltip));
+        }
 
         public ChatSessionViewModel()
         {
@@ -1280,6 +1351,19 @@ namespace TeronClaudeCodeVS.ViewModels
                 if (_toolCallsByUseId.TryGetValue(id, out var call))
                     call.Input = block["input"] as JObject;
             }
+
+            // Context-window usage tracking (matches the official VS Code extension's own
+            // approach, confirmed against its source, 2026-09-05): the main loop's (never a
+            // sub-agent's) most recent API round's total usage overwrites the running figure -
+            // this is "how much context the NEXT request will carry", not a cumulative sum.
+            if (e.IsTopLevel && e.InputTokens.HasValue)
+            {
+                _currentContextTokens = e.InputTokens.Value
+                    + (e.CacheCreationInputTokens ?? 0)
+                    + (e.CacheReadInputTokens ?? 0)
+                    + (e.OutputTokens ?? 0);
+                RaiseContextUsageChanged();
+            }
         }
 
         private void OnToolResult(ToolResultEvent e)
@@ -1618,6 +1702,17 @@ namespace TeronClaudeCodeVS.ViewModels
         private void OnTurnCompleted(ResultMessage result)
         {
             EnsureAssistantMessage();
+
+            // Context-window indicator: keyed by the currently selected model, falling back to
+            // whatever was last known if this result doesn't carry an entry for it (matches the
+            // official VS Code extension's own fallback behavior) - a model-fallback mid-session
+            // could otherwise leave these at zero for one turn.
+            if (SelectedModel.Value != null && result.ModelUsage.TryGetValue(SelectedModel.Value, out ModelUsageInfo? modelUsage))
+            {
+                _contextWindowSize = modelUsage.ContextWindow;
+                _maxOutputTokensSize = modelUsage.MaxOutputTokens;
+                RaiseContextUsageChanged();
+            }
 
             // Update session ID for future resumes only after a successful turn.
             // On startup failure (numTurns == 0 + error, e.g. bad resume ID) clear it so the

@@ -190,7 +190,21 @@ namespace TeronClaudeCodeVS.Protocol
         private static ClaudeMessage ParseAssistantSnapshot(JObject root)
         {
             var content = root["message"]?["content"] as JArray ?? [];
-            return new AssistantSnapshotEvent { Content = content };
+            JToken? usage = root["message"]?["usage"];
+
+            return new AssistantSnapshotEvent
+            {
+                Content = content,
+                // Confirmed against the official VS Code extension's own usage-tracking (2026-09-05):
+                // a sub-agent's (Task tool) own assistant turns carry a parent_tool_use_id and must
+                // be excluded from context-window tracking - only the main loop's own usage counts
+                // toward what will be sent back to it next turn.
+                IsTopLevel = root["parent_tool_use_id"] == null || root["parent_tool_use_id"]!.Type == JTokenType.Null,
+                InputTokens = usage?.Value<int?>("input_tokens"),
+                CacheCreationInputTokens = usage?.Value<int?>("cache_creation_input_tokens"),
+                CacheReadInputTokens = usage?.Value<int?>("cache_read_input_tokens"),
+                OutputTokens = usage?.Value<int?>("output_tokens"),
+            };
         }
 
         private static ClaudeMessage? ParseUserMessage(JObject root)
@@ -242,7 +256,16 @@ namespace TeronClaudeCodeVS.Protocol
                 Errors = root["errors"] is JArray errs
                     ? errs.Select(t => t.Value<string>() ?? "").Where(s => s.Length > 0).ToArray()
                     : [],
-                QueuedTurnCount = root.Value<int?>("queued_turn_count") ?? 0
+                QueuedTurnCount = root.Value<int?>("queued_turn_count") ?? 0,
+                ModelUsage = root["modelUsage"] is JObject modelUsage
+                    ? modelUsage.Properties().ToDictionary(
+                        p => p.Name,
+                        p => new ModelUsageInfo
+                        {
+                            ContextWindow = p.Value.Value<int?>("contextWindow") ?? 0,
+                            MaxOutputTokens = p.Value.Value<int?>("maxOutputTokens") ?? 0,
+                        })
+                    : new Dictionary<string, ModelUsageInfo>()
             };
         }
 
@@ -467,6 +490,16 @@ namespace TeronClaudeCodeVS.Protocol
     public sealed class AssistantSnapshotEvent : ClaudeMessage
     {
         public JArray Content { get; set; } = [];
+
+        /// <summary>False for a Task-tool sub-agent's own assistant turn (carries a parent_tool_use_id).</summary>
+        public bool IsTopLevel { get; set; }
+
+        // Present only once this API round's usage is known (arrives with the full snapshot, not
+        // incrementally). Null on every earlier snapshot of the same round.
+        public int? InputTokens { get; set; }
+        public int? CacheCreationInputTokens { get; set; }
+        public int? CacheReadInputTokens { get; set; }
+        public int? OutputTokens { get; set; }
     }
 
     public sealed class ToolResultEvent : ClaudeMessage
@@ -490,6 +523,20 @@ namespace TeronClaudeCodeVS.Protocol
 
         /// <summary>How many more turns are already queued behind this one - confirmed live (2026-08-26). 0 means this was the last turn in the queue, so the session can go idle.</summary>
         public int QueuedTurnCount { get; set; }
+
+        /// <summary>Per-model context window/max-output-tokens, keyed by model id - used for the
+        /// context-usage indicator. Confirmed against the official VS Code extension's own source
+        /// (2026-09-05): it reads `modelUsage[currentModel].contextWindow`/`.maxOutputTokens` here,
+        /// falling back to the previous known value if the current model's entry is absent from a
+        /// given result (mirrored in ChatSessionViewModel rather than here, since only it knows the
+        /// currently selected model).</summary>
+        public IReadOnlyDictionary<string, ModelUsageInfo> ModelUsage { get; set; } = new Dictionary<string, ModelUsageInfo>();
+    }
+
+    public sealed class ModelUsageInfo
+    {
+        public int ContextWindow { get; set; }
+        public int MaxOutputTokens { get; set; }
     }
 
     /// <summary>

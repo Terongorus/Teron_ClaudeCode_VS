@@ -81,6 +81,13 @@ namespace TeronClaudeCodeVS.Core
         [Description("When Claude asks permission to edit or write a file, also open a native side-by-side diff tab in the editor (FEAT-2). The inline diff in the chat is shown either way, and Allow/Deny always stay on the chat card - the tab is read-only.")]
         public bool OpenDiffTabForEdits { get; set; } = true;
 
+        // ─── Context Indicator ──────────────────────────────────────────────────
+
+        [Category("Context Indicator")]
+        [DisplayName("Show Threshold (%)")]
+        [Description("The context-window usage button (click to compact) only appears once usage reaches this percentage of the effective context window. Matches the official VS Code extension's own default of 50.")]
+        public int ContextIndicatorThresholdPercent { get; set; } = 50;
+
         // ─── Advanced ───────────────────────────────────────────────────────────
 
         [Category("Advanced")]
