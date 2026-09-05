@@ -110,6 +110,42 @@ have no automation peer of their own per the Phase 6 finding), and `AutomationPr
 on the transcript so a screen reader announces streamed output as it arrives. These remain open for
 a future pass.
 
+## Addendum (same day): item 1's real root cause was deeper than the original fix
+
+Kaloyan installed the `v0.6.0-beta.1` build and immediately found the per-workspace filter above
+was necessary but not sufficient. Side-by-side screenshots of the same `Teron_Game_Engine`
+workspace: the official VS Code extension's History showed a dozen-plus sessions spanning weeks;
+this extension's History showed exactly **one**, from the day before, and that one wasn't even
+among the sessions VS Code listed.
+
+**The real bug**: this extension has always kept its own small, flat cache
+(`%AppData%\TeronClaudeCodeVS\sessions.json`), written to only when a turn completes *while running
+through this extension itself* (`SaveOrUpdateSession`, from `OnTurnCompleted`). It never read the
+CLI's own per-cwd transcript store (`~/.claude/projects/<encoded-cwd>/*.jsonl`) - the same real,
+complete history the official VS Code extension reads directly, which accumulates a session
+regardless of which client started it (this extension, a terminal, VS Code). The original fix in
+this doc correctly scoped that small local cache to the current workspace, but scoping the wrong
+data source doesn't produce the right list - it just filters an already-incomplete one. A user who
+mostly runs Claude Code via terminal or VS Code, and only occasionally through this extension,
+would see almost nothing.
+
+**The fix**: `ChatSessionViewModel` gained `BeginDiscoverUntrackedSessions()`, run once from
+`Initialize()` and again every time `OpenSessionHistory()` opens the panel (mirroring
+`BeginRefreshSessionTitles()`'s existing off-thread pattern exactly). It lists `*.jsonl` files in
+the CLI's real per-cwd folder (`TranscriptReplay.FindProjectDirectory`, a small refactor exposing
+logic `FindTranscriptPath` already had internally), skips any session id already known to
+`SessionHistory`, and reads a title for each new one via the existing `SessionTitleReader`. These
+"discovered" rows are added to the UI-bound `SessionHistory` only - never persisted into
+`_allSessions`/`sessions.json` - so the method stays a pure, repeatable read with nothing to
+reconcile if a discovered session is never touched again. `SaveOrUpdateSession` gained a matching
+fallback lookup (`_allSessions` first, then `SessionHistory`) so resuming a discovered session and
+completing a turn promotes the *same* entry object into the persisted cache instead of creating a
+visible duplicate row.
+
+Verified: build clean, xUnit suite still 181/182 (same pre-existing, unrelated failure). Not yet
+re-verified live against the actual `Teron_Game_Engine` discrepancy from the screenshots - that
+needs Kaloyan's own machine, since it depends on his real `~/.claude/projects/` contents.
+
 ## What still needs Kaloyan's own hands
 
 A real F5 pass against a live Exp instance, covering at minimum: switching away from and back to

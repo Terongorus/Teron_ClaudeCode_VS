@@ -611,6 +611,12 @@ namespace TeronClaudeCodeVS.ViewModels
                 if (IsSameWorkingDirectory(e.WorkingDirectory, _workingDirectory))
                     SessionHistory.Add(e);
 
+            // The filter above only ever surfaces sessions this extension itself has run - it says
+            // nothing about sessions the CLI ran for this exact cwd via a terminal or the official
+            // VS Code extension, which is most of what a real project's history actually is. Merge
+            // those in too, off the UI thread since it means reading this cwd's real transcripts.
+            BeginDiscoverUntrackedSessions();
+
             string? path = ClaudeCliLocator.Find(claudeExecutableOverride);
             if (path == null)
             {
@@ -2212,12 +2218,24 @@ namespace TeronClaudeCodeVS.ViewModels
             // _allSessions (persisted, global) and SessionHistory (UI-bound, this workspace only)
             // are no longer index-aligned - SessionHistory is a filtered subset, so every mutation
             // below is applied to each list by reference/lookup rather than by mirrored index.
-            var existing = _allSessions.FirstOrDefault(e => e.SessionId == sessionId);
+            // A match may exist only in SessionHistory: BeginDiscoverUntrackedSessions() surfaces
+            // real on-disk sessions this extension never ran itself, without persisting them, so
+            // the first turn actually completed through this extension is what promotes one into
+            // the managed, persisted cache - reusing the same object rather than creating a second
+            // row for the same session id.
+            var existing = _allSessions.FirstOrDefault(e => e.SessionId == sessionId)
+                ?? SessionHistory.FirstOrDefault(e => e.SessionId == sessionId);
             if (existing != null)
             {
                 existing.LastUsed = DateTime.UtcNow;
                 int idx = _allSessions.IndexOf(existing);
-                if (idx > 0)
+                if (idx < 0)
+                {
+                    _allSessions.Insert(0, existing);
+                    while (_allSessions.Count > 100)
+                        _allSessions.RemoveAt(_allSessions.Count - 1); // never removes `existing` - it was just inserted at 0
+                }
+                else if (idx > 0)
                 {
                     _allSessions.RemoveAt(idx);
                     _allSessions.Insert(0, existing);
@@ -2225,6 +2243,8 @@ namespace TeronClaudeCodeVS.ViewModels
                 int historyIdx = SessionHistory.IndexOf(existing);
                 if (historyIdx > 0)
                     SessionHistory.Move(historyIdx, 0);
+                else if (historyIdx < 0)
+                    SessionHistory.Insert(0, existing);
             }
             else
             {
@@ -2288,6 +2308,94 @@ namespace TeronClaudeCodeVS.ViewModels
         {
             IsSessionHistoryVisible = true;
             BeginRefreshSessionTitles();
+            BeginDiscoverUntrackedSessions();
+        }
+
+        private bool _sessionDiscoveryRunning;
+
+        /// <summary>
+        /// This extension's own `sessions.json` only ever gains a row once a turn completes while
+        /// running THROUGH this extension (see SaveOrUpdateSession) - it has no idea about sessions
+        /// the CLI ran for this exact cwd via a bare terminal or the official VS Code extension,
+        /// even though they're the same on-disk history a user expects "this workspace's sessions"
+        /// to mean. Confirmed live: the official extension reads the CLI's own per-cwd transcript
+        /// folder directly rather than keeping a separate local index the way this one does.
+        /// <para>
+        /// Discovered rows are added to the UI-bound <see cref="SessionHistory"/> only, never to
+        /// the persisted <see cref="_allSessions"/> cache - resuming one and completing a turn is
+        /// what promotes it into that cache for real, via <see cref="SaveOrUpdateSession"/>'s own
+        /// lookup fallback. That keeps this method a pure, repeatable read of on-disk state with
+        /// nothing to reconcile if it's never resumed, or if it's run again before that happens.
+        /// </para>
+        /// </summary>
+        private void BeginDiscoverUntrackedSessions()
+        {
+            if (_sessionDiscoveryRunning || _workingDirectory.Length == 0) return;
+            _sessionDiscoveryRunning = true;
+
+            string workingDirectory = _workingDirectory;
+            HashSet<string> knownAtStart = new(SessionHistory.Select(e => e.SessionId), StringComparer.OrdinalIgnoreCase);
+
+            _ = Task.Run(() =>
+            {
+                List<SessionHistoryEntry> discovered = [];
+                try
+                {
+                    string? dir = TranscriptReplay.FindProjectDirectory(workingDirectory);
+                    if (dir != null)
+                    {
+                        foreach (string transcriptPath in Directory.EnumerateFiles(dir, "*.jsonl"))
+                        {
+                            string sessionId = Path.GetFileNameWithoutExtension(transcriptPath);
+                            if (knownAtStart.Contains(sessionId)) continue;
+
+                            DateTime lastUsed;
+                            try { lastUsed = File.GetLastWriteTimeUtc(transcriptPath); }
+                            catch (IOException) { continue; }
+                            catch (UnauthorizedAccessException) { continue; }
+
+                            string title = SessionTitleReader.ReadFile(transcriptPath)?.Title ?? "Untitled";
+                            discovered.Add(new SessionHistoryEntry
+                            {
+                                SessionId = sessionId,
+                                Title = title,
+                                LastUsed = lastUsed,
+                                WorkingDirectory = workingDirectory
+                            });
+                        }
+                    }
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+
+                Post(() => ApplyDiscoveredSessions(discovered));
+            });
+        }
+
+        private void ApplyDiscoveredSessions(List<SessionHistoryEntry> discovered)
+        {
+            _sessionDiscoveryRunning = false;
+            if (discovered.Count == 0) return;
+
+            // Re-checked against current state rather than the pre-scan snapshot, in case a session
+            // was created (and so already added to SessionHistory the normal way) while this ran.
+            HashSet<string> currentIds = new(SessionHistory.Select(e => e.SessionId), StringComparer.OrdinalIgnoreCase);
+            bool added = false;
+            foreach (SessionHistoryEntry entry in discovered)
+            {
+                if (currentIds.Contains(entry.SessionId)) continue;
+                SessionHistory.Add(entry);
+                added = true;
+            }
+            if (!added) return;
+
+            List<SessionHistoryEntry> ordered = [.. SessionHistory.OrderByDescending(e => e.LastUsed)];
+            for (int i = 0; i < ordered.Count; i++)
+            {
+                int current = SessionHistory.IndexOf(ordered[i]);
+                if (current != i)
+                    SessionHistory.Move(current, i);
+            }
         }
 
         private bool _titleRefreshRunning;

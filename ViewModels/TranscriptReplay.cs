@@ -40,10 +40,29 @@ namespace TeronClaudeCodeVS.ViewModels
             if (string.IsNullOrWhiteSpace(workingDirectory) || string.IsNullOrWhiteSpace(sessionId))
                 return null;
 
+            string? dir = FindProjectDirectory(workingDirectory);
+            if (dir == null) return null;
+
+            string path = Path.Combine(dir, sessionId + ".jsonl");
+            return File.Exists(path) ? path : null;
+        }
+
+        /// <summary>
+        /// The CLI's own per-cwd project directory (<c>~/.claude/projects/&lt;encoded-cwd&gt;</c>),
+        /// or null if it doesn't exist. Every session for this exact working directory lives here,
+        /// regardless of which client wrote it - this extension, the official VS Code extension, or
+        /// a bare terminal invocation - which is what lets <c>ChatSessionViewModel</c> discover
+        /// sessions never run through this extension itself (see BeginDiscoverUntrackedSessions).
+        /// </summary>
+        public static string? FindProjectDirectory(string workingDirectory)
+        {
+            if (string.IsNullOrWhiteSpace(workingDirectory))
+                return null;
+
             string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             string folder = ComputeProjectFolderName(workingDirectory);
-            string path = Path.Combine(home, ".claude", "projects", folder, sessionId + ".jsonl");
-            return File.Exists(path) ? path : null;
+            string dir = Path.Combine(home, ".claude", "projects", folder);
+            return Directory.Exists(dir) ? dir : null;
         }
 
         /// <summary>
