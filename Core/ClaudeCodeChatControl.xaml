@@ -1286,10 +1286,34 @@
         <Grid Grid.Row="3">
             <ScrollViewer x:Name="ChatScrollViewer"
                           VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                          CanContentScroll="True"
                           Padding="10,4" ScrollChanged="OnChatScrollChanged"
                           Visibility="{Binding ClaudeNotFoundMessage, Converter={StaticResource NullToVisibilityConverter}, ConverterParameter=Invert}">
+                <!--
+                    UI virtualization (2026-09-05): this ItemsControl was a plain StackPanel-backed
+                    list with every message realized at once, each holding one or more
+                    FlowDocumentScrollViewers (see Controls/MarkdownViewer.xaml) - one of WPF's most
+                    expensive controls to lay out, since a FlowDocument repaginates on every measure
+                    pass. In a long conversation this made ANY full-tree layout pass slow - resizing
+                    the docked pane, or switching away from and back to its tab (which fires
+                    Unloaded/Loaded on the whole tree, invalidating layout for every message even
+                    though none of their content changed). VirtualizingStackPanel + ScrollUnit=Pixel
+                    keeps the exact same continuous pixel-based scrolling this control's code
+                    already depends on (ScrollToEnd, VerticalOffset math in OnChatScrollChanged) but
+                    means off-screen messages are never realized, so a resize or tab switch only
+                    re-lays-out what's actually visible instead of the entire history.
+                -->
                 <ItemsControl x:Name="MessageList" ItemsSource="{Binding Messages}" ItemTemplateSelector="{StaticResource MessageTemplateSelector}"
-                              AutomationProperties.AutomationId="MessageList"/>
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              VirtualizingPanel.ScrollUnit="Pixel"
+                              AutomationProperties.AutomationId="MessageList">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <VirtualizingStackPanel/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
             </ScrollViewer>
 
             <!--
