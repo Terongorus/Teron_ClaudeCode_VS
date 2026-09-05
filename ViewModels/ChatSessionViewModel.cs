@@ -2459,6 +2459,18 @@ namespace TeronClaudeCodeVS.ViewModels
             entry.IsEditing = false;
             // FEAT-3: from here on the generated title never overwrites this row again.
             entry.HasUserTitle = true;
+
+            // A discovered-but-never-resumed entry (BeginDiscoverUntrackedSessions) isn't in the
+            // persisted cache yet - without promoting it here, the rename would be lost the next
+            // time History re-scans or the tool window reopens, since discovery re-derives the
+            // title from disk fresh for anything it doesn't already know.
+            if (!_allSessions.Contains(entry))
+            {
+                _allSessions.Insert(0, entry);
+                while (_allSessions.Count > 100)
+                    _allSessions.RemoveAt(_allSessions.Count - 1); // never removes `entry` - it was just inserted at 0
+            }
+
             SessionHistoryStore.Save(_allSessions);
         }
 
