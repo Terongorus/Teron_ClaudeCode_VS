@@ -26,13 +26,19 @@
         #D97757 is the Claude terracotta. It is deliberately fixed rather than theme-derived: it is
         brand identity, and it carries acceptable contrast on both the light and dark VS themes.
 
-        It is permitted on exactly five surfaces, and nowhere else:
+        It is permitted on exactly six surfaces, and nowhere else:
           1. the Send button fill (and its pressed/hover darkening),
           2. the focus ring on the input and on inline edit boxes,
           3. the selection tint in popup lists and permission/model/mode cards,
           4. current-selection affordances (the checkmark in a picker, the usage progress bar,
              the "manage usage" hyperlink),
-          5. the user message bubble fill - see ST-5 note in ClaudeCodeChatControl.xaml.
+          5. the user message bubble fill - see ST-5 note in ClaudeCodeChatControl.xaml,
+          6. code highlighting - inline `code` spans and fenced code blocks, added 2026-09-05 after
+             a neutral-grey overlay (this dictionary's original approach for both) was tried and
+             rejected live as not actually standing out. Lives in Controls/MarkdownRenderer.cs as
+             its own frozen brush rather than a reference to ClaudeAccentTintBrush below, since that
+             renderer builds a FlowDocument with no live visual tree to resolve a DynamicResource
+             against - kept in sync with this hex manually.
     -->
     <SolidColorBrush x:Key="ClaudeAccentBrush" Color="#D97757"/>
     <SolidColorBrush x:Key="ClaudeAccentDarkBrush" Color="#C6613F"/>

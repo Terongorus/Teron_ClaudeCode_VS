@@ -23,19 +23,31 @@ namespace TeronClaudeCodeVS.Controls
                 .UseEmojiAndSmiley()
                 .Build();
 
-        // Semi-transparent neutral background for code blocks — reads correctly on both VS light and dark themes.
-        // Bumped from 0x18 (~9% opacity) on 2026-09-05: at that alpha it blended into the tool
-        // window background almost entirely, especially in a dark theme - reported live as
-        // "barely visible". Kept the same neutral grey (matches ChatTheme.xaml's overlay
-        // philosophy - one tone, alpha-only, so it never needs a separate light/dark value) but
-        // strong enough to actually read as a distinct chip against either theme.
-        private static readonly SolidColorBrush s_codeBg = Frozen(Color.FromArgb(0x40, 0x80, 0x80, 0x80));
+        // Code background - inline `code` spans and fenced code blocks alike. Went through two
+        // revisions on 2026-09-05: first just bumping a neutral grey's alpha (0x18 -> 0x40), which
+        // fixed "barely visible" but was called out live as still the wrong idea - a shade/alpha
+        // tweak on a neutral tone reads as a washed-out chip either way, not something that
+        // actually stands out. Switched to the app's own accent hue (ChatTheme.xaml's
+        // ClaudeAccentBrush #D97757, kept in sync manually here since that dictionary isn't
+        // reachable from this static, no-visual-tree renderer) at low alpha - alpha-blending over
+        // whatever the real background is keeps the "never needs a separate light/dark value"
+        // property, but a warm, branded tint reads as an intentional highlight on both VS light and
+        // dark instead of a generic grey box.
+        private static readonly SolidColorBrush s_codeBg = Frozen(Color.FromArgb(0x33, 0xD9, 0x77, 0x57));
         private static readonly FontFamily s_inlineCodeFont = new("Consolas");
 
         // Diff line colors (same hues as GitHub's diff view).
         private static readonly SolidColorBrush s_diffAdd = Frozen(Color.FromArgb(0xFF, 0x3F, 0xB9, 0x50));
         private static readonly SolidColorBrush s_diffRem = Frozen(Color.FromArgb(0xFF, 0xE5, 0x48, 0x4D));
         private static readonly SolidColorBrush s_diffHunk = Frozen(Color.FromArgb(0xFF, 0x79, 0xB8, 0xFF));
+
+        // Code-block copy button: an icon reads faster than a text label at this size, and Segoe
+        // UI Symbol carries these glyphs as plain monochrome shapes (no color-emoji presentation)
+        // on every Windows version this extension targets.
+        private static readonly FontFamily s_symbolFont = new("Segoe UI Symbol");
+        private const string s_copyGlyph = "⧉";       // ⧉ two overlapping squares
+        private const string s_copiedGlyph = "✓";     // ✓ check mark
+        private const string s_copyFailedGlyph = "⚠"; // ⚠ warning sign
 
         private static SolidColorBrush Frozen(Color c) { SolidColorBrush b = new(c); b.Freeze(); return b; }
 
@@ -234,8 +246,9 @@ namespace TeronClaudeCodeVS.Controls
 
                 Button button = new()
                 {
-                    Content = "Copy",
-                    FontSize = 10,
+                    Content = s_copyGlyph,
+                    FontFamily = s_symbolFont,
+                    FontSize = 12,
                     Padding = new Thickness(5, 0, 5, 0),
                     Margin = new Thickness(0),
                     Background = Brushes.Transparent,
@@ -259,7 +272,7 @@ namespace TeronClaudeCodeVS.Controls
                 })
                 {
                     HorizontalAlignment = HorizontalAlignment.Right,
-                    Width = 46,
+                    Width = 26,
                     Margin = new Thickness(0),
                     Padding = new Thickness(0),
                     BorderThickness = new Thickness(0),
@@ -278,18 +291,25 @@ namespace TeronClaudeCodeVS.Controls
             try
             {
                 Clipboard.SetText(code);
-                button.Content = "Copied";
+                button.Content = s_copiedGlyph;
+                button.ToolTip = "Copied";
 
-                // Revert the label so the button does not read "Copied" forever on a block the
+                // Revert the icon so the button does not read "Copied" forever on a block the
                 // user copied ten minutes ago.
                 DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(1.5) };
-                timer.Tick += (_, __) => { timer.Stop(); button.Content = "Copy"; };
+                timer.Tick += (_, __) =>
+                {
+                    timer.Stop();
+                    button.Content = s_copyGlyph;
+                    button.ToolTip = "Copy this code block";
+                };
                 timer.Start();
             }
             catch
             {
                 // Another process can hold the clipboard open; say so rather than failing silently.
-                button.Content = "Failed";
+                button.Content = s_copyFailedGlyph;
+                button.ToolTip = "Copy failed";
             }
         }
 
