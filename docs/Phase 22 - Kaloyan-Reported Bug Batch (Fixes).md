@@ -146,6 +146,50 @@ Verified: build clean, xUnit suite still 181/182 (same pre-existing, unrelated f
 re-verified live against the actual `Teron_Game_Engine` discrepancy from the screenshots - that
 needs Kaloyan's own machine, since it depends on his real `~/.claude/projects/` contents.
 
+## Second addendum (same day): resize/tab-switch lag, and Delete Session's real semantics
+
+Two more items from Kaloyan, both while testing `v0.6.1-beta.1` live.
+
+**Lag/stutter resizing the docked pane, and switching to/from its tab.** Root cause: the message
+transcript (`MessageList`) was a plain `ItemsControl` with a default `StackPanel`, so every message
+ever sent was fully realized in the visual tree at once - and most messages hold at least one
+`FlowDocumentScrollViewer` (`Controls/MarkdownViewer.xaml`), one of WPF's most expensive controls
+to lay out, since a `FlowDocument` repaginates on every measure pass. Any full-tree layout pass -
+resizing the pane, or a tab switch firing `Unloaded`/`Loaded` on the whole tree (per the earlier
+tab-switch fix, the tree itself isn't destroyed, but layout still has to be redone on reattachment)
+- forced every message's `FlowDocument` to repaginate simultaneously, regardless of how many were
+actually visible. Fixed by switching `MessageList`'s panel to `VirtualizingStackPanel` with
+`VirtualizationMode="Recycling"` and `VirtualizingPanel.ScrollUnit="Pixel"`, plus
+`CanContentScroll="True"` on `ChatScrollViewer` (required for the panel's `IScrollInfo` to actually
+be used). `ScrollUnit="Pixel"` was specifically chosen to preserve the exact continuous pixel-based
+scrolling the existing code already depends on (`ScrollToEnd()`, the `VerticalOffset`/`ExtentHeight`
+math in `OnChatScrollChanged`) - no changes needed there. Off-screen messages are no longer
+realized at all, so a resize or tab switch only lays out what's actually visible.
+
+**Not yet live-verified**: whether virtualization's extent-height estimation (which can shift
+slightly as items realize/derealize during scrolling) interacts poorly with `OnChatScrollChanged`'s
+`wasAtBottom` sticky-scroll heuristic from the earlier expand-scroll fix - reasoned through as
+safe (both read the same `ScrollViewer` properties regardless of virtualization), but genuinely
+needs a live pass with a long conversation, not just a build check.
+
+**"Delete Session" didn't actually stick for a session outside this extension's own tracked
+list.** Investigated by reading the official VS Code extension's actual installed source
+(`%USERPROFILE%\.vscode\extensions\anthropic.claude-code-2.1.261-win32-x64\`) rather than
+guessing: its own "Delete" button is literally labeled **"Archive session"**, and traces to
+`context.globalState.update("hiddenSessionIds", [...])` - it never touches the real transcript
+file. This extension's `DeleteSessionEntry` only ever removed the row from its own local list, so
+a session discovered on disk (via `BeginDiscoverUntrackedSessions`, added earlier this same day)
+but never resumed through this extension would simply reappear the next time History refreshed,
+since nothing remembered it had been dismissed. Fixed by adding a small persisted hidden-ids file
+(`SessionHistoryStore.LoadHiddenIds`/`SaveHiddenIds`, kept separate from `sessions.json` since a
+session can be hidden before ever being tracked there), consulted by both the workspace filter in
+`Initialize()` and the discovery scan. Deliberately scoped to match only what was asked (Delete
+hides permanently) - did not add an "Archived" tab/unhide UI, which the real extension also has
+but which nobody requested here.
+
+Both committed (`08821be`, `c720eab`). Build clean, xUnit suite still 181/182 (same pre-existing,
+unrelated failure).
+
 ## What still needs Kaloyan's own hands
 
 A real F5 pass against a live Exp instance, covering at minimum: switching away from and back to
