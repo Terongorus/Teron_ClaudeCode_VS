@@ -3,6 +3,17 @@
 All notable changes to the **Claude Code for Visual Studio** extension will be documented in
 this file.
 
+## [0.6.4] - 2026-09-05
+
+* **Fixed: a tool-call card showing a command followed by its output** (e.g. "Run command")
+  could leave the output's code block on the old, unfixed light-grey background even after
+  0.6.3's highlight-color fix. Root cause: a real crash in the markdown post-processor that was
+  being silently swallowed - inserting the first code block's copy button invalidated the walk
+  over the rest of the message, so every block after the first one in a multi-block message
+  quietly skipped all of its fixups (background, foreground, copy button). This had been
+  happening since the copy-button feature shipped; it's now fixed for good, with regression
+  tests.
+
 ## [0.6.3] - 2026-09-05
 
 More live-feedback fixes from continued day-to-day use of 0.6.2.
