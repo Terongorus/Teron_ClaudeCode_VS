@@ -3,6 +3,27 @@
 All notable changes to the **Claude Code for Visual Studio** extension will be documented in
 this file.
 
+## [0.6.0] - 2026-09-05
+
+A batch of fixes from real day-to-day use of the extension, plus a first accessibility pass.
+
+* **Fixed: session history showed every session on the machine, not just this workspace's.**
+  History now only lists sessions started from the currently open solution/folder.
+* **Fixed: changing the model, permission mode, or thinking level while Claude was still
+  responding silently dropped the change.** It's now applied as soon as the current response
+  finishes, instead of only taking effect after a manual restart.
+* **Fixed: switching to a different docked tab and back could interrupt an in-progress
+  response.** The chat panel no longer treats a tab switch the same as actually closing it.
+* **Fixed: messages sent while Claude was still responding to an earlier one could render out of
+  order**, making the conversation confusing to read back. They now appear next to the response
+  that actually answers them.
+* **Fixed: expanding a "Thinking" or tool-call section always scrolled the chat to the bottom.**
+* **Improved:** the "Try again" button is now labeled "Resend," to match what it actually does
+  (resends your original message as a new turn).
+* **Improved: accessibility.** Icon-only buttons throughout the chat panel (Send, Stop, New
+  session, History, Settings, and every panel-close button) now have real labels for screen
+  readers, instead of announcing nothing meaningful.
+
 ## [0.5.0] - 2026-09-02
 
 Fixes found during a live manual QA pass against the 0.4.0 build, plus one small feature
