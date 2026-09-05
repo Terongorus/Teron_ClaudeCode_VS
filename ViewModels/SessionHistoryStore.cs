@@ -12,6 +12,44 @@ namespace TeronClaudeCodeVS.ViewModels
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "TeronClaudeCodeVS", "sessions.json");
 
+        /// <summary>
+        /// Session ids the user has deleted from History. Deliberately never touches the CLI's own
+        /// transcript on disk - confirmed by reading the official VS Code extension's installed
+        /// source (2026-09-05): its own "Delete" is actually labeled "Archive session" and works
+        /// the same way, appending to a `hiddenSessionIds` list in its own extension storage and
+        /// filtering the displayed list against it, never calling into the filesystem. Kept as a
+        /// separate file (mirroring that extension's separate storage key) rather than a new field
+        /// on <see cref="SessionHistoryEntry"/>, since a session can be hidden before it's ever been
+        /// tracked in `sessions.json` at all (see ChatSessionViewModel.BeginDiscoverUntrackedSessions).
+        /// </summary>
+        private static readonly string s_hiddenPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "TeronClaudeCodeVS", "hidden-sessions.json");
+
+        public static HashSet<string> LoadHiddenIds()
+        {
+            try
+            {
+                if (!File.Exists(s_hiddenPath)) return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                string json = File.ReadAllText(s_hiddenPath);
+                var list = JsonConvert.DeserializeObject<List<string>>(json);
+                return new HashSet<string>(list ?? [], StringComparer.OrdinalIgnoreCase);
+            }
+            catch { return new HashSet<string>(StringComparer.OrdinalIgnoreCase); }
+        }
+
+        public static void SaveHiddenIds(IEnumerable<string> ids)
+        {
+            try
+            {
+                string dir = Path.GetDirectoryName(s_hiddenPath)!;
+                if (!string.IsNullOrEmpty(dir))
+                    Directory.CreateDirectory(dir);
+                File.WriteAllText(s_hiddenPath, JsonConvert.SerializeObject(ids.ToList(), Formatting.Indented));
+            }
+            catch { }
+        }
+
         public static List<SessionHistoryEntry> Load()
         {
             try

@@ -160,6 +160,7 @@ namespace TeronClaudeCodeVS.ViewModels
 
         // Session history
         private readonly List<SessionHistoryEntry> _allSessions;
+        private readonly HashSet<string> _hiddenSessionIds;
         private string? _pendingSessionTitle;
 
         // Advanced CLI-flag settings, read once from Options at startup (no live chat-UI toggle
@@ -550,6 +551,7 @@ namespace TeronClaudeCodeVS.ViewModels
             // _allSessions is the full machine-wide store (every workspace); SessionHistory is the
             // UI-bound, current-workspace-only view populated once Initialize() knows the cwd.
             _allSessions = SessionHistoryStore.Load();
+            _hiddenSessionIds = SessionHistoryStore.LoadHiddenIds();
             BeginRefreshSessionTitles();
 
             PendingImages.CollectionChanged += (s, e) => OnPropertyChanged(nameof(HasPendingImages));
@@ -608,7 +610,7 @@ namespace TeronClaudeCodeVS.ViewModels
             // flat, machine-wide file - so the History panel is filtered to this workspace here
             // rather than at load time, keeping _allSessions (and its 100-entry cap) global.
             foreach (SessionHistoryEntry e in _allSessions)
-                if (IsSameWorkingDirectory(e.WorkingDirectory, _workingDirectory))
+                if (IsSameWorkingDirectory(e.WorkingDirectory, _workingDirectory) && !_hiddenSessionIds.Contains(e.SessionId))
                     SessionHistory.Add(e);
 
             // The filter above only ever surfaces sessions this extension itself has run - it says
@@ -2335,6 +2337,10 @@ namespace TeronClaudeCodeVS.ViewModels
 
             string workingDirectory = _workingDirectory;
             HashSet<string> knownAtStart = new(SessionHistory.Select(e => e.SessionId), StringComparer.OrdinalIgnoreCase);
+            // Snapshotted rather than captured by reference: _hiddenSessionIds is only ever
+            // mutated from the UI thread (DeleteSessionEntry), but this lambda runs on a
+            // background thread and HashSet<T> isn't safe for concurrent read+write.
+            HashSet<string> hiddenSnapshot = new(_hiddenSessionIds, StringComparer.OrdinalIgnoreCase);
 
             _ = Task.Run(() =>
             {
@@ -2347,7 +2353,7 @@ namespace TeronClaudeCodeVS.ViewModels
                         foreach (string transcriptPath in Directory.EnumerateFiles(dir, "*.jsonl"))
                         {
                             string sessionId = Path.GetFileNameWithoutExtension(transcriptPath);
-                            if (knownAtStart.Contains(sessionId)) continue;
+                            if (knownAtStart.Contains(sessionId) || hiddenSnapshot.Contains(sessionId)) continue;
 
                             DateTime lastUsed;
                             try { lastUsed = File.GetLastWriteTimeUtc(transcriptPath); }
@@ -2451,6 +2457,14 @@ namespace TeronClaudeCodeVS.ViewModels
             _allSessions.Remove(entry);
             SessionHistory.Remove(entry);
             SessionHistoryStore.Save(_allSessions);
+
+            // Matches the official VS Code extension's own "Delete" (confirmed by reading its
+            // installed source, 2026-09-05 - the button is literally labeled "Archive session"):
+            // it never touches the CLI's real transcript on disk, only remembers the id as hidden
+            // so it's filtered out everywhere, including a future BeginDiscoverUntrackedSessions
+            // scan that would otherwise resurface it the next time History opens.
+            _hiddenSessionIds.Add(entry.SessionId);
+            SessionHistoryStore.SaveHiddenIds(_hiddenSessionIds);
         }
 
         public void CommitSessionEntryTitle(SessionHistoryEntry entry, string newTitle)
