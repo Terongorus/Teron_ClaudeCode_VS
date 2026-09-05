@@ -3,6 +3,18 @@
 All notable changes to the **Claude Code for Visual Studio** extension will be documented in
 this file.
 
+## [0.6.1] - 2026-09-05
+
+Follow-up fixes to 0.6.0's session-history scoping, found while testing that build live.
+
+* **Fixed: session history was still missing most of a project's real sessions.** The previous
+  fix only scoped this extension's own small local record of sessions it had personally run — it
+  didn't yet look at Claude Code's actual session history for that folder. History now also picks
+  up every session ever run for the current workspace, regardless of whether it was started from
+  this extension, a terminal, or another editor.
+* **Fixed: renaming a session that had never been opened through this extension before could lose
+  the new name** the next time history refreshed.
+
 ## [0.6.0] - 2026-09-05
 
 A batch of fixes from real day-to-day use of the extension, plus a first accessibility pass.
